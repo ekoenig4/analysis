@@ -37,6 +37,7 @@ parser = ArgumentParser(description='Command line parser of model options and ta
 parser.add_argument('--type', dest = 'type', help = 'parton, smeared, or reco' , default = 'reco' )
 parser.add_argument('--task', dest = 'task', help = 'classifier or regressor'  , default = 'classifier' )
 parser.add_argument('--run' , dest = 'run' , help = 'index of training session', default = 1 )
+parser.add_argument('--tag' , dest = 'tag' , help = 'special tag', default = None )
 
 args = parser.parse_args()
 
@@ -44,6 +45,8 @@ args = parser.parse_args()
 ## Prepare output directories
 
 out_dir = f"models/{args.task}/{args.type}/"
+if args.tag:
+    out_dir += f'{args.tag}/'
 model_dir = out_dir + "model/"
 
 if not os.path.exists(out_dir):
@@ -59,7 +62,7 @@ info(f"Training sessions will be saved in {model_dir}")
 assert (args.type == 'parton') or (args.type == 'smeared') or (args.type == 'reco'), "--type must be 'parton', 'smeared', or 'reco'!"
 
 cfg_location = 'config/'
-cfg_name = f'nn_hyperparam_{args.type}_{args.task}.cfg'
+cfg_name = f'{args.task}/{args.type}.cfg'
 
 cfg = cfg_location + cfg_name
 
@@ -86,6 +89,8 @@ nepochs            = int(config['TRAINING']['NumEpochs'])
 batch_size         = int(config['TRAINING']['BatchSize'])
     
 inputs_filename    = config['INPUTS']['InputFile']
+if args.tag:
+    inputs_filename = f'inputs/reco/nn_input_MX700_MY400_classifier_{args.tag}.npz'
 
 nn_type            = config['TYPE']['Type']
 

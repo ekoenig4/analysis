@@ -32,10 +32,13 @@ parser = ArgumentParser(description='Command line parser of model options and ta
 parser.add_argument('--type'   , dest = 'type'   , help = 'reco, parton, smeared'   ,  default = 'reco')
 parser.add_argument('--task'   , dest = 'task'   , help = 'classifier or regressor' ,  default = 'classifier')
 parser.add_argument('--nmodels', dest = 'nmodels', help = 'number of models trained',  default = 1    , type = int)
+parser.add_argument('--tag'   , dest = 'tag'   , help = 'special tag'   ,  default = None)
 
 args = parser.parse_args()
 
 in_dir = f'models/{args.task}/{args.type}/'
+if args.tag:
+    in_dir += f'{args.tag}/'
 model_dir = in_dir + 'model/'
 eval_dir = f'plots/{args.task}/{args.type}/'
 
@@ -97,12 +100,18 @@ info("Beginning model analysis.")
 # if not os.exists('Model_Eval'):
 
 pdf_file = f'plots/{args.task}/{args.type}.pdf'
+if args.tag:
+    pdf_file = f'plots/{args.task}/{args.type}_{args.tag}.pdf'
 
 with PdfPages(pdf_file) as pdf:
 
     for nmodel in np.arange(1,args.nmodels+1):
 
         ex_file = f"inputs/{args.type}/nn_input_MX700_MY400_{args.task}.npz"
+        if args.tag:
+            ex_file = f"inputs/{args.type}/nn_input_MX700_MY400_{args.task}_{args.tag}.npz"
+        if args.tag == 'minv':
+            ex_file = f"inputs/{args.type}/nn_input_MX700_MY400_{args.task}_minv.npz"
         info(f"Importing test set from file: \n\t{PURPLE}{ex_file}{W}")
         examples = np.load(ex_file)
 
@@ -123,7 +132,7 @@ with PdfPages(pdf_file) as pdf:
 
         print(df.head())
 
-        if args.task == 'class':
+        if args.task == 'classifier':
             y_nH = y[:,0]
             y_H = y[:,0]
         else:
@@ -134,6 +143,8 @@ with PdfPages(pdf_file) as pdf:
         nH_mask = (y_nH == 0)
 
         m = examples['m_test']
+        if args.tag:
+            m = examples['M_test']
 
         eta1 = examples['X_test'][:,1]
         phi1 = examples['X_test'][:,2]
@@ -141,11 +152,13 @@ with PdfPages(pdf_file) as pdf:
         phi2 = examples['X_test'][:,5]
 
         dR = calcDeltaR(eta1, eta2, phi1, phi2)
+        print(dR.shape)
+        print(scores.shape)
 
         dR_nH = dR[nH_mask]
         dR_H = dR[H_mask]
 
-        if args.task == 'class':
+        if args.task == 'classifier':
             p_nH = scores[:,0][nH_mask]
             p_H = scores[:,0][H_mask]
 
@@ -165,11 +178,11 @@ with PdfPages(pdf_file) as pdf:
         ## Prep plots
 
         dR_bins = np.linspace(0, 5.5, 100)
-        m_bins = np.linspace(0, 600, 100)
+        m_bins = np.linspace(0, 500, 100)
         p_bins = np.linspace(0,1,100)
 
         fig = plt.figure(figsize=(18,10))
-        fig.suptitle(f"{args.type}, {english_capitalize(task)}, Training Session #{nmodel}")
+        # fig.suptitle(f"{args.type}, {english_capitalize(args.task)}, Training Session #{nmodel}")
 
         gs = gridspec.GridSpec(nrows=3, ncols=4, height_ratios=[4,4,5])
 
@@ -184,7 +197,7 @@ with PdfPages(pdf_file) as pdf:
         dRscatH_ax   = fig.add_subplot(gs[2, 3])
 
         scorenH_ax1  = fig.add_subplot(gs[0, 0], label="Regular")
-        scorenH_ax2  = fig.add_subplot(gs[0, 0], label="LogPlot", frameon=False)
+        # scorenH_ax2  = fig.add_subplot(gs[0, 0], label="LogPlot", frameon=False)
         scoreH_ax    = fig.add_subplot(gs[0, 1], label="Higgs")
 
         roc_ax   = fig.add_subplot(gs[0, 2])
@@ -284,13 +297,9 @@ with PdfPages(pdf_file) as pdf:
         ## Plot distribution of NN Test Scores
 
 
-        c0 = 'C0'
-        c1 = 'C0'
-        c2 = 'C1'
-
         hist(scoreH_ax, p_H, bins=p_bins, label='True Higgs Pair')
-        hist(scorenH_ax1, p_nH, bins=p_bins, label='True Non-Higgs Pair', color=c1)
-        hist(scorenH_ax2, p_nH, bins=p_bins, label='True Non-Higgs Pair', color=c2)
+        hist(scorenH_ax1, p_nH, bins=p_bins, label='True Non-Higgs Pair')
+        # hist(scorenH_ax2, p_nH, bins=p_bins, label='True Non-Higgs Pair', color=c2)
 
         scoreH_ax.text(0.1, 1.02, 'Higgs Pair', fontsize='small', transform=scoreH_ax.transAxes)
         scorenH_ax1.text(0.1, 1.02, 'Non-Higgs Pair', fontsize='small', transform=scorenH_ax1.transAxes)
@@ -300,15 +309,15 @@ with PdfPages(pdf_file) as pdf:
 
         scorenH_ax1.set_xlabel('NN Score')
         scorenH_ax1.set_ylabel('Count')
-        scorenH_ax1.tick_params(axis='y', colors=c1)
+        # scorenH_ax1.tick_params(axis='y', colors=c1)
 
-        scorenH_ax2.tick_params(axis='x', labelbottom=False)
-        scorenH_ax2.set_yscale('log')
-        # scorenH_ax2.set_ylabel('Log(Count)', rotation=270, labelpad=25)
-        scorenH_ax2.yaxis.tick_right()
-        scorenH_ax2.yaxis.set_label_position('right')
-        scorenH_ax2.tick_params(axis='y',  colors=c2)
-        scorenH_ax2.axis()
+        # scorenH_ax2.tick_params(axis='x', labelbottom=False)
+        # scorenH_ax2.set_yscale('log')
+        # # scorenH_ax2.set_ylabel('Log(Count)', rotation=270, labelpad=25)
+        # scorenH_ax2.yaxis.tick_right()
+        # scorenH_ax2.yaxis.set_label_position('right')
+        # scorenH_ax2.tick_params(axis='y',  colors=c2)
+        # scorenH_ax2.axis()
 
         scoreH_ax.yaxis.get_offset_text().set_visible(False)
         scorenH_ax1.yaxis.get_offset_text().set_visible(False)
@@ -331,15 +340,15 @@ with PdfPages(pdf_file) as pdf:
 
         history = get_history(nmodel)
 
-        train_acc = history['accuracy']
-        valid_acc = history['val_accuracy']
+        train_acc = history['loss']
+        valid_acc = history['val_loss']
         nepochs = np.arange(len(train_acc))
 
         history_ax.set_ylim(0,1.05)
         history_ax.plot(nepochs, train_acc, label='Training')
         history_ax.plot(nepochs, valid_acc, label='Validation')
         history_ax.set_xlabel('Epoch')
-        history_ax.set_ylabel('Accuracy')
+        history_ax.set_ylabel('Loss')
         history_ax.legend()
 
         plt.tight_layout()
