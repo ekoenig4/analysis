@@ -21,8 +21,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # suppress Keras/TF warnings
 compat.v1.logging.set_verbosity(compat.v1.logging.ERROR) # suppress Keras/TF warnings
 
 # Custom libraries and modules
-from logger import info, error
-from colors import CYAN, W
+from modules.logger import info, error
+from modules.colors import CYAN, W
 
 print()
 
@@ -38,6 +38,7 @@ parser.add_argument('--type', dest = 'type', help = 'parton, smeared, or reco' ,
 parser.add_argument('--task', dest = 'task', help = 'classifier or regressor'  , default = 'classifier' )
 parser.add_argument('--run' , dest = 'run' , help = 'index of training session', default = 1 )
 parser.add_argument('--tag' , dest = 'tag' , help = 'special tag', default = None )
+parser.add_argument('--mask', dest = 'mask', help = 'mask features', type = int, nargs = "+", default = [])
 
 args = parser.parse_args()
 
@@ -47,6 +48,9 @@ args = parser.parse_args()
 out_dir = f"models/{args.task}/{args.type}/"
 if args.tag:
     out_dir += f'{args.tag}/'
+if any(args.mask):
+    args.mask.sort()
+    out_dir += 'mask_'+''.join(str(i) for i in args.mask)+'/'
 model_dir = out_dir + "model/"
 
 if not os.path.exists(out_dir):
@@ -105,12 +109,16 @@ x_train = examples['x_train']
 x_test = examples['x_test']
 x_val = examples['x_val']
 
+if any(args.mask): # Mask input if specified
+    x_train = np.delete(x_train,args.mask,1)
+    x_test = np.delete(x_test,args.mask,1)
+    x_val = np.delete(x_val,args.mask,1)
+
 y_train = examples['y_train']
 y_test = examples['y_test']
 y_val = examples['y_val']
 
 param_dim = x_train.shape[1]
-
 ### ------------------------------------------------------------------------------------
 ## 
 
@@ -163,7 +171,6 @@ for line in nn_info_list:
 
 ### ------------------------------------------------------------------------------------
 ## Fit the model
-
 print()
 info("Preparing to fit the model!\n")
 info(f"Training with {len(x_train)} examples")

@@ -1,9 +1,9 @@
 # This script is used to construct the inputs used to train the neural network (NN).
 
-from colors import CYAN, W
-from kinematics import calcDeltaR
-from logger import info
-from myuproot import open_up
+from modules.colors import CYAN, W
+from modules.kinematics import calcDeltaR
+from modules.logger import info
+from modules.myuproot import open_up
  
 import numpy as np
 import os
@@ -42,7 +42,7 @@ MY = args.MY
 cwd = os.getcwd()
 dir_prefix = 'inputs/'
 
-reco_filename = f'signal/NanoAOD/NMSSM_XYH_YToHH_6b_MX_700_MY_400_reco_preselections.root'
+reco_filename = f'signal/NanoAOD/NMSSM_XYH_YToHH_6b_MX_700_MY_400_reco_preselections_500k.root'
 info(f"Opening ROOT file {CYAN}{reco_filename}{W} with columns")
 table =  open_up(reco_filename, 'sixBtree')
 nevents = table._length()
@@ -170,9 +170,9 @@ if args.task == 'classifier':
             boosted_b1 = b1.boost(-H_candidate)
             boosted_b2 = b2.boost(-H_candidate)
             
-            dR = boosted_b1.deltaR(boosted_b2)
+            dR = b1.deltaR(b2)
             
-            inputs = np.column_stack((boosted_b1.pt, boosted_b1.eta, boosted_b1.phi, boosted_b2.pt, boosted_b2.eta, boosted_b2.phi, dR))
+            inputs = np.column_stack((b1.pt, boosted_b1.pt, b1.eta, b1.phi, b2.pt, boosted_b2.pt, b2.eta, b2.phi, H_candidate.pt, dR))
             
             # inputs = np.column_stack((invm, dR))
 
@@ -221,15 +221,14 @@ if args.task == 'classifier':
     nH2 = X_temp[random_indices[i,1]][i,:]
     nH3 = X_temp[random_indices[i,2]][i,:]
     
-    # X_train = np.row_stack((HX, HY1, HY2, nH1, nH2, nH3))
-    X_train = []
+    X_train = np.row_stack((HX, HY1, HY2, nH1, nH2, nH3))
     m_train = np.append(m_train, np.array((m[0][i], m[1][i], m[2][i], m_temp[random_indices[i,0]][i], m_temp[random_indices[i,1]][i], m_temp[random_indices[i,2]][i])))
     y_train = np.append(y_train, np.array((1,1,1,0,0,0)))
     train_pair_label = np.append(train_pair_label, np.concatenate((np.array(('HX', 'HY1', 'HY2')), nonHiggs_labels[random_indices[i,:]])))
     train_label = np.append(train_label, np.array((['Higgs']*3, ['Non-Higgs']*3)))
     
-    # for i in tqdm(evt_train[1:]):
-    for i in tqdm(evt_train):
+    for i in tqdm(evt_train[1:]):
+    # for i in tqdm(evt_train):
 
         HX  = X[0][i,:]
         HY1 = X[1][i,:]
@@ -238,8 +237,8 @@ if args.task == 'classifier':
         nH2 = X_temp[random_indices[i,1]][i,:]
         nH3 = X_temp[random_indices[i,2]][i,:]
 
-        # X_train = np.vstack((X_train, np.row_stack((HX, HY1, HY2, nH1, nH2, nH3))))
-        X_train.append([HX, HY1, HY2, nH1, nH2, nH3])
+        X_train = np.vstack((X_train, np.row_stack((HX, HY1, HY2, nH1, nH2, nH3))))
+        # X_train = np.append(X_train,np.array([HX, HY1, HY2, nH1, nH2, nH3]))
 
         m_train = np.append(m_train, np.array((m[0][i], m[1][i], m[2][i], m_temp[random_indices[i,0]][i], m_temp[random_indices[i,1]][i], m_temp[random_indices[i,2]][i])))
         y_train = np.append(y_train, np.array((1,1,1,0,0,0)))
@@ -247,7 +246,7 @@ if args.task == 'classifier':
         train_label = np.append(train_label, np.array((['Higgs']*3, ['Non-Higgs']*3)))
 
     y_train = np.vstack((y_train, np.where(y_train == 0, 1, 0))).T
-    print(y_train.shape)
+    print(f"--> X Train Shape: {X_train.shape}\n    Y Train Shape: {y_train.shape}")
 
     info("Generating validation features.")
     
@@ -283,6 +282,8 @@ if args.task == 'classifier':
         val_label = np.append(val_label, np.array((['Higgs']*3, ['Non-Higgs']*3)))
 
     y_val = np.vstack((y_val, np.where(y_val == 0, 1, 0))).T
+    
+    print(f"--> X Val Shape: {X_val.shape}\n    Y Val Shape: {y_val.shape}")
 
     info("Generating testing features.")
     
@@ -336,6 +337,8 @@ if args.task == 'classifier':
         test_label = np.append(test_label, np.array((labels)))
 
     y_test = np.vstack((y_test, np.where(y_test == 0, 1, 0))).T
+    
+    print(f"--> X Test Shape: {X_test.shape}\n    Y Test Shape: {y_test.shape}")
 
     assert X_train.shape[0] == y_train.shape[0], print(X_train.shape[0], y_train.shape[0])
     assert X_val.shape[0] == y_val.shape[0], print(X_val.shape[0], y_val.shape[0])
@@ -349,10 +352,10 @@ if args.task == 'classifier':
     x_test = scaler.transform(X_test)
     x_val = scaler.transform(X_val)
 
-    filename = dir_prefix + f"{args.type}/nn_input_MX{args.MX}_MY{args.MY}_classifier_boosted"
+    filename = dir_prefix + f"{args.type}/nn_input_MX{args.MX}_MY{args.MY}_classifier"
     info(f"Saving training examples to {filename}.npz")
 
-    scaler_file = dir_prefix + f'{args.type}/nn_input_MX{args.MX}_MY{args.MY}_classifier_scaler_boosted.pkl'
+    scaler_file = dir_prefix + f'{args.type}/nn_input_MX{args.MX}_MY{args.MY}_classifier_scaler.pkl'
     info(f"Saving training example scaler to {scaler_file}")
     dump(scaler, open(scaler_file, 'wb'))
 
