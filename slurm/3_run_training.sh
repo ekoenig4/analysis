@@ -6,15 +6,14 @@
 #SBATCH --ntasks=1                  # Run a single task
 #SBATCH --mem-per-cpu=1gb           # Memory per processor
 #SBATCH --time=00:05:00             # Time limit hrs:min:sec
-#SBATCH --output=sixb_training_%A-%a.out    # Standard output and error log
+#SBATCH --output=slurm/logs/sixb_training_%A-%a.out    # Standard output and error log
 #SBATCH --array=1-5                 # Array range
-
-
 
 pwd; hostname; date
 
-source /home/ekoenig/.bashrc
+ml conda
+conda activate /home/ekoenig/anaconda3/envs/sixb
 
-python scripts/3_train_neural_network.py --run ${SLURM_ARRAY_TASK_ID} --mask 1 5 8
+python scripts/3_train_neural_network.py --run ${SLURM_ARRAY_TASK_ID} --mask 0 1 2 3 4 5 6 7 8
 
 date
