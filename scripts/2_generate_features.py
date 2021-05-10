@@ -171,8 +171,9 @@ if args.task == 'classifier':
             boosted_b2 = b2.boost(-H_candidate)
             
             dR = b1.deltaR(b2)
-            
-            inputs = np.column_stack((b1.pt, boosted_b1.pt, b1.eta, b1.phi, b2.pt, boosted_b2.pt, b2.eta, b2.phi, H_candidate.pt, dR))
+
+            input_keys =          ["b1_pt","boosted_b1_pt","b1_eta","b1_phi","b2_pt","boosted_b2_pt","b2_eta","b2_phi","higgs_pt","higgs_mass","deltaR"]
+            inputs = np.column_stack((b1.pt, boosted_b1.pt, b1.eta, b1.phi, b2.pt, boosted_b2.pt, b2.eta, b2.phi, H_candidate.pt, invm, dR))
             
             # inputs = np.column_stack((invm, dR))
 
@@ -366,7 +367,7 @@ if args.task == 'classifier':
         m_train=m_train, m_test=m_test, m_val=m_val,
         train=evt_train, val=evt_val, test=evt_test,
         train_pair_label=train_pair_label, val_pair_label=val_pair_label, test_pair_label=test_pair_label,
-        train_label=train_label, val_label=val_label, test_label=test_label)
+             train_label=train_label, val_label=val_label, test_label=test_label,input_keys=input_keys)
 
 ### ------------------------------------------------------------------------------------
 ## Regressor

@@ -109,6 +109,12 @@ x_train = examples['x_train']
 x_test = examples['x_test']
 x_val = examples['x_val']
 
+# If input key list is available print out input variables
+if 'input_keys' in examples:
+    input_keys = examples['input_keys']
+    input_prompt = [f"----Input {i}: {key}" + (" *MASKED*" if i in args.mask else "") for i,key in enumerate(input_keys)]
+    info('\n-- Loading Examples With:\n' + '\n'.join(input_prompt))
+
 if any(args.mask): # Mask input if specified
     x_train = np.delete(x_train,args.mask,1)
     x_test = np.delete(x_test,args.mask,1)
@@ -120,7 +126,7 @@ y_val = examples['y_val']
 
 param_dim = x_train.shape[1]
 ### ------------------------------------------------------------------------------------
-## 
+##
 
 info("Defining the model.")
 # Define the keras model
@@ -213,6 +219,12 @@ with open(json_save, "w") as json_file:
 
 # serialize weights to HDF5
 model.save_weights(h5_save)
+
+# if input key list is avaiable save input variables to text file
+if 'input_keys' in examples:
+    key_save = model_dir+"input_variables.txt"
+    with open(key_save,"w") as key_file:
+        key_file.write('\n'.join(input_prompt))
 
 info(f"Saved model and history to disk in location:"
       f"\n   {json_save}\n   {h5_save}\n   {hist_json_file}")
