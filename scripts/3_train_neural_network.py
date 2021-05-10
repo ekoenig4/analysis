@@ -39,6 +39,7 @@ parser.add_argument('--task', dest = 'task', help = 'classifier or regressor'  ,
 parser.add_argument('--run' , dest = 'run' , help = 'index of training session', default = 1 )
 parser.add_argument('--tag' , dest = 'tag' , help = 'special tag', default = None )
 parser.add_argument('--mask', dest = 'mask', help = 'mask features', type = int, nargs = "+", default = [])
+parser.add_argument('--no-train', dest = 'no_train', help='exits before training begins', action='store_true', default=False)
 
 args = parser.parse_args()
 
@@ -51,6 +52,8 @@ if args.tag:
 if any(args.mask):
     args.mask.sort()
     out_dir += 'mask_'+''.join(str(i) for i in args.mask)+'/'
+else:
+    out_dir += 'full/'
 model_dir = out_dir + "model/"
 
 if not os.path.exists(out_dir):
@@ -160,21 +163,19 @@ model.compile(loss=loss_function,
 
 # Make a list of the hyperparameters and print them to the screen.
 nn_info_list = [
-    f"Input parameters:            {param_dim},\n",
-    f"Optimizer:                   {optimizer}\n",
-    f"Loss:                        {loss_function}\n",
-    f"Num epochs:                  {nepochs}\n",
-    f"Batch size:                  {batch_size}\n",
-    f"Num hidden layers:           {nlayers}\n",
-    f"Input activation function:   {hidden_activations}\n",
-    f"Hidden layer nodes:          {nodes}\n",
-    f"Hidden activation functions: {hidden_activations}\n",
-    f"Num output nodes:            {output_nodes}\n",
+    f"Input parameters:            {param_dim}",
+    f"Optimizer:                   {optimizer}",
+    f"Loss:                        {loss_function}",
+    f"Num epochs:                  {nepochs}",
+    f"Batch size:                  {batch_size}",
+    f"Num hidden layers:           {nlayers}",
+    f"Input activation function:   {hidden_activations}",
+    f"Hidden layer nodes:          {nodes}",
+    f"Hidden activation functions: {hidden_activations}",
+    f"Num output nodes:            {output_nodes}",
     f"Output activation function:  {output_activation}"]
-
-for line in nn_info_list:
-    print(line)
-
+print('\n'.join(nn_info_list))
+if args.no_train: exit()
 ### ------------------------------------------------------------------------------------
 ## Fit the model
 print()

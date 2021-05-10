@@ -14,6 +14,6 @@ pwd; hostname; date
 ml conda
 conda activate /home/ekoenig/anaconda3/envs/sixb
 
-python scripts/3_train_neural_network.py --run ${SLURM_ARRAY_TASK_ID} --mask 0 1 2 3 4 5 6 7 8
+python scripts/3_train_neural_network.py --run ${SLURM_ARRAY_TASK_ID} $@
 
 date
