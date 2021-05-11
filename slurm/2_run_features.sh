@@ -14,6 +14,6 @@ pwd; hostname; date
 ml conda
 conda activate /home/ekoenig/anaconda3/envs/sixb
 
-python scripts/2_generate_features.py
+python scripts/2_generate_features.py $@
 
 date
