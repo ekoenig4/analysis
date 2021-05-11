@@ -37,7 +37,7 @@ parser = ArgumentParser(description='Command line parser of model options and ta
 parser.add_argument('--type', dest = 'type', help = 'parton, smeared, or reco' , default = 'reco' )
 parser.add_argument('--task', dest = 'task', help = 'classifier or regressor'  , default = 'classifier' )
 parser.add_argument('--run' , dest = 'run' , help = 'index of training session', default = 1 )
-parser.add_argument('--tag' , dest = 'tag' , help = 'special tag', default = None )
+parser.add_argument('--tag' , dest = 'tag' , help = 'special tag', default = "ALL" )
 parser.add_argument('--mask', dest = 'mask', help = 'mask features', type = int, nargs = "+", default = [])
 parser.add_argument('--no-train', dest = 'no_train', help='exits before training begins', action='store_true', default=False)
 

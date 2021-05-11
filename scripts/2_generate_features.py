@@ -16,6 +16,7 @@ from random import shuffle
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
+import time
 
 ### ------------------------------------------------------------------------------------
 ## Implement command line parser
@@ -29,6 +30,8 @@ parser.add_argument('--task'      , dest = 'task'   , help = 'class or reg?'    
 parser.add_argument('--MX'        , dest = 'MX'     , help = 'mass of X resonance'  , default = 700   )
 parser.add_argument('--MY'        , dest = 'MY'     , help = 'mass of Y resonance'  , default = 400   )
 parser.add_argument('--no_presel' , dest = 'presel' , help = 'apply preselections?' , default = True  , action = 'store_false')
+parser.add_argument('--pair'      , dest = 'pair'   , help = 'specify which pair to find (HX,HY1,HY2), default all', choices=['HX','HY1','HY2',"ALL"], default = "ALL")
+parser.add_argument('--no-save'   , dest = 'save'   , help = 'disable saving'       , default = True , action = 'store_false')
 
 args = parser.parse_args()
 
@@ -49,6 +52,15 @@ nevents = table._length()
 
 ### ------------------------------------------------------------------------------------
 ## Prepare bs for pairing
+
+pairmap = {
+    "HX": [1,0,0],
+    "HY1":[0,1,0],
+    "HY2":[0,0,1],
+    "ALL":[1,1,1]
+}
+pair_tag = args.pair
+output_signal_mask = pairmap[pair_tag]
 
 if args.type == 'parton':
     tag1 = ''
@@ -119,6 +131,7 @@ if args.task == 'classifier':
     ntest  = len(evt_test)
     nval   = len(evt_val)
 
+    info(f"Building Classifier for {pair_tag} pairs")
     info(f"Number of examples in training set:   {ntrain}")
     info(f"Number of examples in testing set:    {ntest}")
     info(f"Number of examples in validation set: {nval}")
@@ -142,67 +155,50 @@ if args.task == 'classifier':
 
     info("Generating feature block.")
 
-    X_temp = []
-    m_temp = []
+    # Define input variables for pair of bjets 
+    def getInputs(b1_dict,b2_dict):
+        b1 = vector.obj(pt=b1_dict['pt'], 
+                        eta=b1_dict['eta'], 
+                        phi=b1_dict['phi'], 
+                        mass=np.repeat(4e-9, nevents))
+        b2 = vector.obj(pt=b2_dict['pt'], 
+                        eta=b2_dict['eta'], 
+                        phi=b2_dict['phi'],  
+                        mass=np.repeat(4e-9, nevents))
 
-    counter = 0
-    flag = True
+        H_candidate = b1 + b2
+        invm = H_candidate.mass
+        
+        boosted_b1 = b1.boost(-H_candidate)
+        boosted_b2 = b2.boost(-H_candidate)
+        
+        dR = b1.deltaR(b2)
+        return np.column_stack((b1.pt, boosted_b1.pt, b1.eta, b1.phi, b2.pt, boosted_b2.pt, b2.eta, b2.phi, H_candidate.pt, invm, dR))
+    # Input variable key list to help identify input variables later
+    input_keys =          ["b1_pt","boosted_b1_pt","b1_eta","b1_phi","b2_pt","boosted_b2_pt","b2_eta","b2_phi","higgs_pt","higgs_mass","deltaR"]
+    
+    X_truH = [] # List for true higgs pairs
+    X_nonH = [] # List for non higgs pairs
     for i in range(5):
+        b1_dict = part_dict[i]
         for j in range(i+1,6):
+            b2_dict = part_dict[j]
             pair_name = part_name[i] + " & " + part_name[j]
             # print(f"Generating features for pair: {pair_name}")
-            
-            # b1 = uproot3_methods.TLorentzVectorArray.from_ptetaphim(part_dict[i]['pt'], part_dict[i]['eta'], part_dict[i]['phi'], np.repeat(4e-9, nevents))
-            # b2 = uproot3_methods.TLorentzVectorArray.from_ptetaphim(part_dict[j]['pt'], part_dict[j]['eta'], part_dict[j]['phi'],  np.repeat(4e-9, nevents))
-            
-            b1 = vector.obj(pt=part_dict[i]['pt'], 
-                eta=part_dict[i]['eta'], 
-                phi=part_dict[i]['phi'], 
-                mass=np.repeat(4e-9, nevents))
-            b2 = vector.obj(pt=part_dict[j]['pt'], 
-                eta=part_dict[j]['eta'], 
-                phi=part_dict[j]['phi'],  
-                mass=np.repeat(4e-9, nevents))
+            inputs = getInputs(b1_dict,b2_dict)
 
-            H_candidate = b1 + b2
-            invm = H_candidate.mass
-            
-            boosted_b1 = b1.boost(-H_candidate)
-            boosted_b2 = b2.boost(-H_candidate)
-            
-            dR = b1.deltaR(b2)
+            # tru higgs pairs: 0-1, 2-3, 4-5 
+            if j-i == 1 and i % 2 == 0:
+                  X_truH.append(inputs)
+            else: X_nonH.append(inputs)
 
-            input_keys =          ["b1_pt","boosted_b1_pt","b1_eta","b1_phi","b2_pt","boosted_b2_pt","b2_eta","b2_phi","higgs_pt","higgs_mass","deltaR"]
-            inputs = np.column_stack((b1.pt, boosted_b1.pt, b1.eta, b1.phi, b2.pt, boosted_b2.pt, b2.eta, b2.phi, H_candidate.pt, invm, dR))
-            
-            # inputs = np.column_stack((invm, dR))
-
-            X_temp.append(inputs)
-            m_temp.append(invm)
-
-    X  = []
-    X.append(X_temp[0]) # add HX features to X
-    X.append(X_temp[9]) # add HY1 features to X
-    X.append(X_temp[14]) # add HY2 features to X
-    X_temp.pop(14) # remove HY2 features from X_temp
-    X_temp.pop(9) # remove HY1 features from X_temp
-    X_temp.pop(0) # remove HX features from X_temp
+    X_train = []
+    X_val = []
+    X_test = []
     
     y_train = np.array(())
     y_val = np.array(())
     y_test = np.array(())
-
-    m = []
-    m.append(m_temp[0]) # add HX mass to m
-    m.append(m_temp[9]) # add HY1 mass to m
-    m.append(m_temp[14]) # add HY2 mass to m
-    m_temp.pop(14) # remove HY2 mass from m_temp
-    m_temp.pop(9) # remove HY1 mass from m_temp
-    m_temp.pop(0) # remove HX mass from m_temp
-    
-    m_train = np.array(())
-    m_val = np.array(())
-    m_test = np.array(())
 
     train_pair_label = np.array(())
     val_pair_label = np.array(())
@@ -213,133 +209,56 @@ if args.task == 'classifier':
     test_label = np.array(())
 
     info("Generating training examples.")
-    
-    i = evt_train[0]
-    HX  = X[0][i,:]
-    HY1 = X[1][i,:]
-    HY2 = X[2][i,:]
-    nH1 = X_temp[random_indices[i,0]][i,:]
-    nH2 = X_temp[random_indices[i,1]][i,:]
-    nH3 = X_temp[random_indices[i,2]][i,:]
-    
-    X_train = np.row_stack((HX, HY1, HY2, nH1, nH2, nH3))
-    m_train = np.append(m_train, np.array((m[0][i], m[1][i], m[2][i], m_temp[random_indices[i,0]][i], m_temp[random_indices[i,1]][i], m_temp[random_indices[i,2]][i])))
-    y_train = np.append(y_train, np.array((1,1,1,0,0,0)))
-    train_pair_label = np.append(train_pair_label, np.concatenate((np.array(('HX', 'HY1', 'HY2')), nonHiggs_labels[random_indices[i,:]])))
-    train_label = np.append(train_label, np.array((['Higgs']*3, ['Non-Higgs']*3)))
-    
-    for i in tqdm(evt_train[1:]):
-    # for i in tqdm(evt_train):
+    start = time.perf_counter()
 
-        HX  = X[0][i,:]
-        HY1 = X[1][i,:]
-        HY2 = X[2][i,:]
-        nH1 = X_temp[random_indices[i,0]][i,:]
-        nH2 = X_temp[random_indices[i,1]][i,:]
-        nH3 = X_temp[random_indices[i,2]][i,:]
-
-        X_train = np.vstack((X_train, np.row_stack((HX, HY1, HY2, nH1, nH2, nH3))))
-        # X_train = np.append(X_train,np.array([HX, HY1, HY2, nH1, nH2, nH3]))
-
-        m_train = np.append(m_train, np.array((m[0][i], m[1][i], m[2][i], m_temp[random_indices[i,0]][i], m_temp[random_indices[i,1]][i], m_temp[random_indices[i,2]][i])))
-        y_train = np.append(y_train, np.array((1,1,1,0,0,0)))
+    output_list = output_signal_mask + [0]*3
+    for i in tqdm(evt_train):
+        input_list = [ truH[i,:] for truH in X_truH ] + [ X_nonH[rj][i,:] for rj in random_indices[i] ]
+        
+        X_train += input_list
+        y_train = np.append(y_train, np.array(output_list))
         train_pair_label = np.append(train_pair_label, np.concatenate((np.array(('HX', 'HY1', 'HY2')), nonHiggs_labels[random_indices[i,:]])))
         train_label = np.append(train_label, np.array((['Higgs']*3, ['Non-Higgs']*3)))
-
+    X_train = np.vstack(X_train)    
     y_train = np.vstack((y_train, np.where(y_train == 0, 1, 0))).T
-    print(f"--> X Train Shape: {X_train.shape}\n    Y Train Shape: {y_train.shape}")
 
+    info(f"Total Elapsed Time: {time.perf_counter()-start:0.4f}s")
+    info(f"--> X Train Shape: {X_train.shape}\n    Y Train Shape: {y_train.shape}")
+    
     info("Generating validation features.")
+    start = time.perf_counter()
     
-    i = evt_val[0]
-    HX  = X[0][i,:]
-    HY1 = X[1][i,:]
-    HY2 = X[2][i,:]
-    nH1 = X_temp[random_indices[i,0]][i,:]
-    nH2 = X_temp[random_indices[i,1]][i,:]
-    nH3 = X_temp[random_indices[i,2]][i,:]
-
-    X_val = np.row_stack((HX, HY1, HY2, nH1, nH2, nH3))
-    m_val = np.append(m_val, np.array((m[0][i], m[1][i], m[2][i], m_temp[random_indices[i,0]][i], m_temp[random_indices[i,1]][i], m_temp[random_indices[i,2]][i])))
-    y_val = np.append(y_val, np.array((1,1,1,0,0,0)))
-    nH_label = nonHiggs_labels[random_indices[i,:]]
-    val_pair_label = np.append(val_pair_label, np.concatenate((np.array(('HX', 'HY1', 'HY2')), nH_label)))
-    val_label = np.append(val_label, np.array((['Higgs']*3, ['Non-Higgs']*3)))
-    
-    for i in tqdm(evt_val[1:]):
-        HX  = X[0][i,:]
-        HY1 = X[1][i,:]
-        HY2 = X[2][i,:]
-        nH1 = X_temp[random_indices[i,0]][i,:]
-        nH2 = X_temp[random_indices[i,1]][i,:]
-        nH3 = X_temp[random_indices[i,2]][i,:]
-
-        X_val = np.vstack((X_val, np.row_stack((HX, HY1, HY2, nH1, nH2, nH3))))
-
-        m_val = np.append(m_val, np.array((m[0][i], m[1][i], m[2][i], m_temp[random_indices[i,0]][i], m_temp[random_indices[i,1]][i], m_temp[random_indices[i,2]][i])))
-        y_val = np.append(y_val, np.array((1,1,1,0,0,0)))
+    for i in tqdm(evt_val):
+        input_list = [ truH[i,:] for truH in X_truH ] + [ X_nonH[rj][i,:] for rj in random_indices[i] ]
+        
+        X_val += input_list
+        y_val = np.append(y_val, np.array(output_list))
         nH_label = nonHiggs_labels[random_indices[i,:]]
         val_pair_label = np.append(val_pair_label, np.concatenate((np.array(('HX', 'HY1', 'HY2')), nH_label)))
         val_label = np.append(val_label, np.array((['Higgs']*3, ['Non-Higgs']*3)))
-
+    X_val = np.vstack(X_val)
     y_val = np.vstack((y_val, np.where(y_val == 0, 1, 0))).T
     
-    print(f"--> X Val Shape: {X_val.shape}\n    Y Val Shape: {y_val.shape}")
+    info(f"Total Elapsed Time: {time.perf_counter()-start:0.4f}s")
+    info(f"--> X Val Shape: {X_val.shape}\n    Y Val Shape: {y_val.shape}")
 
     info("Generating testing features.")
-    
-    i = evt_test[0]
-    HX  = X[0][i,:]
-    HY1 = X[1][i,:]
-    HY2 = X[2][i,:]
-    nH1 = X_temp[0][i,:]
-    nH2 = X_temp[1][i,:]
-    nH3 = X_temp[2][i,:]
-    nH4 = X_temp[3][i,:]
-    nH5 = X_temp[4][i,:]
-    nH6 = X_temp[5][i,:]
-    nH7 = X_temp[6][i,:]
-    nH8 = X_temp[7][i,:]
-    nH9 = X_temp[8][i,:]
-    nH10 = X_temp[9][i,:]
-    nH11 = X_temp[10][i,:]
-    nH12 = X_temp[11][i,:]
-    
-    X_test = np.row_stack((HX, HY1, HY2, nH1, nH2, nH3, nH4, nH5, nH6, nH7, nH8, nH9, nH10, nH11, nH12))
-    m_test = np.append(m_test, np.array((m[0][i], m[1][i], m[2][i], m_temp[0][i], m_temp[1][i], m_temp[2][i], m_temp[3][i], m_temp[4][i], m_temp[5][i], m_temp[6][i], m_temp[7][i], m_temp[8][i], m_temp[9][i], m_temp[10][i], m_temp[11][i])))
-    y_test = np.append(y_test, np.array((1,1,1,0,0,0,0,0,0,0,0,0,0,0,0)))
-    test_pair_label = np.append(test_pair_label, np.concatenate((np.array(('HX', 'HY1', 'HY2')), nonHiggs_labels)))
-    labels = ['Higgs']*3 + ['Non-Higgs']*12
-    test_label = np.append(test_label, np.array((labels)))
-    
-    for i in tqdm(evt_test[1:]):
-        HX  = X[0][i,:]
-        HY1 = X[1][i,:]
-        HY2 = X[2][i,:]
-        nH1 = X_temp[0][i,:]
-        nH2 = X_temp[1][i,:]
-        nH3 = X_temp[2][i,:]
-        nH4 = X_temp[3][i,:]
-        nH5 = X_temp[4][i,:]
-        nH6 = X_temp[5][i,:]
-        nH7 = X_temp[6][i,:]
-        nH8 = X_temp[7][i,:]
-        nH9 = X_temp[8][i,:]
-        nH10 = X_temp[9][i,:]
-        nH11 = X_temp[10][i,:]
-        nH12 = X_temp[11][i,:]
-        
-        X_test = np.vstack((X_test, np.row_stack((HX, HY1, HY2, nH1, nH2, nH3, nH4, nH5, nH6, nH7, nH8, nH9, nH10, nH11, nH12))))
+    start = time.perf_counter()
 
-        m_test = np.append(m_test, np.array((m[0][i], m[1][i], m[2][i], m_temp[0][i], m_temp[1][i], m_temp[2][i], m_temp[3][i], m_temp[4][i], m_temp[5][i], m_temp[6][i], m_temp[7][i], m_temp[8][i], m_temp[9][i], m_temp[10][i], m_temp[11][i])))
-        y_test = np.append(y_test, np.array((1,1,1,0,0,0,0,0,0,0,0,0,0,0,0)))
+    output_list = output_signal_mask + [0]*12
+    for i in tqdm(evt_test):
+        input_list = [ truH[i,:] for truH in X_truH ]+[ nonH[i,:] for nonH in X_nonH ]
+
+        X_test += input_list
+        y_test = np.append(y_test, np.array(output_list))
         test_pair_label = np.append(test_pair_label, np.concatenate((np.array(('HX', 'HY1', 'HY2')), nonHiggs_labels)))
         labels = ['Higgs']*3 + ['Non-Higgs']*12
         test_label = np.append(test_label, np.array((labels)))
-
+    X_test = np.vstack(X_test)
     y_test = np.vstack((y_test, np.where(y_test == 0, 1, 0))).T
     
-    print(f"--> X Test Shape: {X_test.shape}\n    Y Test Shape: {y_test.shape}")
+    info(f"Total Elapsed Time: {time.perf_counter()-start:0.4f}s")
+    info(f"--> X Test Shape: {X_test.shape}\n    Y Test Shape: {y_test.shape}")
 
     assert X_train.shape[0] == y_train.shape[0], print(X_train.shape[0], y_train.shape[0])
     assert X_val.shape[0] == y_val.shape[0], print(X_val.shape[0], y_val.shape[0])
@@ -353,21 +272,21 @@ if args.task == 'classifier':
     x_test = scaler.transform(X_test)
     x_val = scaler.transform(X_val)
 
-    filename = dir_prefix + f"{args.type}/nn_input_MX{args.MX}_MY{args.MY}_classifier"
-    info(f"Saving training examples to {filename}.npz")
-
-    scaler_file = dir_prefix + f'{args.type}/nn_input_MX{args.MX}_MY{args.MY}_classifier_scaler.pkl'
-    info(f"Saving training example scaler to {scaler_file}")
-    dump(scaler, open(scaler_file, 'wb'))
-
-    np.savez(filename, nonHiggs_indices=random_indices,
-        X_train=X_train,  X_test=X_test, X_val=X_val, 
-        x_train=x_train,  x_test=x_test, x_val=x_val,  
-        y_train=y_train, y_test=y_test, y_val=y_val,  
-        m_train=m_train, m_test=m_test, m_val=m_val,
-        train=evt_train, val=evt_val, test=evt_test,
-        train_pair_label=train_pair_label, val_pair_label=val_pair_label, test_pair_label=test_pair_label,
-             train_label=train_label, val_label=val_label, test_label=test_label,input_keys=input_keys)
+    if args.save:
+        filename = dir_prefix + f"{args.type}/nn_input_MX{args.MX}_MY{args.MY}_classifier_{pair_tag}"
+        info(f"Saving training examples to {filename}.npz")
+        
+        scaler_file = dir_prefix + f'{args.type}/nn_input_MX{args.MX}_MY{args.MY}_classifier_{pair_tag}_scaler.pkl'
+        info(f"Saving training example scaler to {scaler_file}")
+        dump(scaler, open(scaler_file, 'wb'))
+        
+        np.savez(filename, nonHiggs_indices=random_indices,
+                 X_train=X_train,  X_test=X_test, X_val=X_val, 
+                 x_train=x_train,  x_test=x_test, x_val=x_val,  
+                 y_train=y_train, y_test=y_test, y_val=y_val,
+                 train=evt_train, val=evt_val, test=evt_test,
+                 train_pair_label=train_pair_label, val_pair_label=val_pair_label, test_pair_label=test_pair_label,
+                 train_label=train_label, val_label=val_label, test_label=test_label,input_keys=input_keys)
 
 ### ------------------------------------------------------------------------------------
 ## Regressor
@@ -466,16 +385,17 @@ elif args.task == 'regressor':
     assert(X_val.shape[0] == y_val.shape[0])
     assert(X_test.shape[0] == y_test.shape[0])
 
-    filename = dir_prefix + f"{args.type}/nn_input_MX{args.MX}_MY{args.MY}_regressor"
-    info(f"Saving training examples to {filename}.npz")
-
-    scaler_file = dir_prefix + f'{args.type}/nn_input_MX{args.MX}_MY{args.MY}_regressor_scaler.pkl'
-    info(f"Saving training example scaler to {scaler_file}")
-    dump(scaler, open(scaler_file, 'wb'))
-
-    np.savez(filename, m_test = m_test,
-        X_train=X_train, x_train=x_train,
-        X_val=X_val, x_val=x_val,
-        X_test=X_test, x_test=x_test,
-        y_train=y_train, y_test=y_test, y_val=y_val,
-        train=evt_train, val=evt_val, test=evt_test)
+    if args.save:
+        filename = dir_prefix + f"{args.type}/nn_input_MX{args.MX}_MY{args.MY}_regressor"
+        info(f"Saving training examples to {filename}.npz")
+        
+        scaler_file = dir_prefix + f'{args.type}/nn_input_MX{args.MX}_MY{args.MY}_regressor_scaler.pkl'
+        info(f"Saving training example scaler to {scaler_file}")
+        dump(scaler, open(scaler_file, 'wb'))
+        
+        np.savez(filename, m_test = m_test,
+                 X_train=X_train, x_train=x_train,
+                 X_val=X_val, x_val=x_val,
+                 X_test=X_test, x_test=x_test,
+                 y_train=y_train, y_test=y_test, y_val=y_val,
+                 train=evt_train, val=evt_val, test=evt_test)
