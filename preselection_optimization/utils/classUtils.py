@@ -34,7 +34,7 @@ class Branches:
                               "Y_pt":Y.pt,"Y_m":Y.mass,"Y_eta":Y.eta,"Y_phi":Y.phi})
     
 class Selection:
-    def __init__(self,branches,cuts={},include=None,previous=None,variable="jet_pt",njets=-1,mask=None,tag=""):
+    def __init__(self,branches,cuts={},include=None,previous=None,variable=None,njets=-1,mask=None,tag=""):
         self.tag = tag
         self.branches = branches
         
@@ -59,7 +59,7 @@ class Selection:
         
         self.capture_jets(cuts,variable,njets,mask)
                 
-    def capture_jets(self,cuts={},variable="jet_pt",njets=-1,mask=None,tag=None):
+    def capture_jets(self,cuts={},variable=None,njets=-1,mask=None,tag=None):
         if any(cuts): 
             self.cuts = dict(**self.cuts)
             self.cuts["passthrough"] = False
@@ -78,12 +78,9 @@ class Selection:
         self.nevents = ak.sum(self.mask)
         self.nsignal = ak.sum(self.mask & self.branches.sixb_found_mask)
         
-        if variable is not None:
-            self.sort_jets(variable)
-            if njets is not None:
-                self.select_njets(njets)
+        self.sort_jets(variable,njets)
                 
-    def captured_jets(self,cuts={},variable="jet_pt",njets=-1,mask=None,tag=None):
+    def captured_jets(self,cuts={},variable=None,njets=-1,mask=None,tag=None):
         new_selection = self.copy()
         new_selection.capture_jets(cuts,variable,njets,mask,tag)
         return new_selection
@@ -129,6 +126,43 @@ class Selection:
         new_selection.select_njets(njets)
         return new_selection
     
+    def mass_select_signal(self,x_mass=700):
+        jets = self.jets_selected_index
+        jet_pt = self.branches["jet_ptRegressed"][jets]
+        jet_m = self.branches["jet_m"][jets]
+        jet_eta = self.branches["jet_eta"][jets]
+        jet_phi = self.branches["jet_phi"][jets]
+        
+        comb_jets = ak.argcombinations(jets,6)
+        build_p4 = lambda index : vector.obj(pt=jet_pt[index],mass=jet_m[index],eta=jet_eta[index],phi=jet_phi[index])
+        jet0, jet1, jet2, jet3, jet4, jet5 = [build_p4(jet) for jet in ak.unzip(comb_jets)]
+        x_inv_m = (jet0+jet1+jet2+jet3+jet4+jet5).mass
+        signal_comb = ak.argmin(np.abs(x_inv_m - 700),axis=-1)
+        comb_mask = get_jet_index_mask(comb_jets,signal_comb[:,np.newaxis])
+        signal_index = ak.concatenate(ak.unzip(comb_jets[comb_mask]),axis=-1)
+        
+        self.jets_selected = get_jet_index_mask(self.jets_selected,signal_index)
+        self.njets_selected = ak.sum(self.jets_selected,axis=-1)
+        
+        self.sixb_selected_position = get_sixb_position(self.jets_selected_index,self.sixb_jet_mask)
+        self.sixb_selected_index = self.jets_selected_index[self.sixb_selected_position]
+        self.sixb_selected = get_jet_index_mask(self.branches,self.sixb_selected_index)
+        self.nsixb_selected = ak.sum(self.sixb_selected,axis=-1)
+        
+        self.sixb_remaining_position = get_sixb_position(self.jets_remaining_index,self.sixb_jet_mask)
+        self.sixb_remaining_index = self.jets_remaining_index[self.sixb_remaining_position]
+        self.sixb_remaining = get_jet_index_mask(self.branches,self.sixb_remaining_index)
+        self.nsixb_remaining = ak.sum(self.sixb_remaining,axis=-1)
+        
+        self.njets = 6
+        self.total_jets_selected = self.previous_selected | self.jets_selected
+        self.total_njets = self.previous_njets + (self.njets if self.njets != -1 else 6)
+    
+    def mass_selected_signal(self,x_mass=700):
+        new_selection = self.copy()
+        new_selection.mass_select_signal(x_mass)
+        return new_selection
+    
     def sort_selected_jets(self,variable):
         self.variable = variable
         self.jets_selected_index = sort_jet_index(self.branches,self.variable,self.jets_selected)
@@ -164,24 +198,26 @@ class Selection:
         return CopySelection(self)
     
     def title(self,i=0):
+        ignore = lambda tag : any( _ in tag for _ in ["baseline","preselection"] )
         if self.tag is None: return
         title = f"{self.njets} {self.tag}" if self.njets != -1 else f"all {self.tag}"
-        if self.include and self.include.tag: 
+        if self.variable is not None: title = f"{title} / {self.variable.replace('jet_','')}"
+        if self.include and self.include.tag and not ignore(self.include.tag): 
             title = f"{self.include.title(1)} & {title}"
             if i != 1: title = f"({title})" 
-        if self.previous and self.previous.tag: 
+        if self.previous and self.previous.tag and not ignore(self.previous.tag): 
             title = f"{self.previous.title(2)} | {title}"
-        
+            
         if i != 0: return title
         
         tag_map = {}
         for tag in re.split('\s[&|]\s',title): 
             tag = re.sub('[\(\)]','',tag)
             if tag not in tag_map: tag_map[tag] = f"a{len(tag_map)}"
-        tag_eq = title.replace(" & ","*").replace(" | ","+")
+        tag_eq = title.replace(" & ","*").replace(" | ","+")#.replace(" / ","/")
         for tag,var in tag_map.items(): tag_eq = tag_eq.replace(tag,var)
         tag_eq_sim = str(sp.simplify(tag_eq)).replace(" ","")
-        tag_sim = tag_eq_sim.replace("*"," & ").replace("+"," | ")
+        tag_sim = tag_eq_sim.replace("*"," & ").replace("+"," | ")#.replace("/"," / ")
         for tag,var in tag_map.items(): tag_sim = tag_sim.replace(var,tag)
         
         return tag_sim
@@ -189,6 +225,8 @@ class Selection:
     def __str__(self):
         return f"--- {self.title()} ---\n{self.score()}"
         
+def simplify(eq):
+    print
            
 class SelectionScore:
     def __init__(self,selection):
@@ -259,7 +297,8 @@ class MergedSelection(CopySelection):
         self.sixb_ordered = self.jets_ordered[self.sixb_position]
         self.previous = selection
         self.njets = self.total_njets
-        
+        self.tag = "merged"
+        self.variable = None
         
     def add(self,selection):
         for key in ("jets_captured","sixb_captured"):

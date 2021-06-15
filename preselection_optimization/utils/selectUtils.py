@@ -26,9 +26,9 @@ def get_phi_from_iphi(iphi):
     phi = (iphi*cell_size)-3.14159+0.5*cell_size
     return phi
 
-def get_jet_index_mask(branches,index,jets=None):
+def get_jet_index_mask(jets,index):
     """ Generate jet mask for a list of indicies """
-    if jets is None: jets = branches["jet_pt"]
+    if hasattr(jets,'ttree'): jets = jets["jet_pt"]
     
     jet_index = ak.local_index( jets )
     compare , _ = ak.broadcast_arrays( index[:,None],jet_index )
@@ -56,6 +56,7 @@ def sort_jet_index_simple(branches,varbranch,jets=None):
 
 def sort_jet_index(branches,variable="jet_ptRegressed",jets=None):
     """ Mask of the top njet jets in variable """
+    if variable is None: variable = "jet_pt"
 
     varbranch = branches[variable]
     if variable == "jet_eta": varbranch = -np.abs(varbranch)
@@ -84,13 +85,12 @@ def get_sixb_position(jet_index,sixb_jet_mask):
     return sixb_position
 
 # --- Standard Preselection --- #
-def std_preselection(branches,ptcut=20,etacut=2.4,btagcut=None,jetid=1,puid=1,njetcut=0,passthrough=False,
+def std_preselection(branches,ptcut=20,etacut=2.5,btagcut=None,jetid=1,puid=1,njetcut=0,passthrough=False,
                      exclude_events_mask=None,exclude_jet_mask=None,include_jet_mask=None,**kwargs):
-    jet_mask = ak.broadcast_arrays(True,branches["jet_pt"])[0]
-    
+    jet_mask = branches.all_jets_mask
     if not passthrough:
-        jet_mask = jet_mask & (branches["jet_ptRegressed"] > ptcut)
-        jet_mask = jet_mask & (np.abs(branches["jet_eta"]) < etacut)
+        if ptcut: jet_mask = jet_mask & (branches["jet_ptRegressed"] > ptcut)
+        if etacut: jet_mask = jet_mask & (np.abs(branches["jet_eta"]) < etacut)
         if btagcut: jet_mask = jet_mask & (branches["jet_btag"] > btagcut)
         if jetid: jet_mask = jet_mask & ((1 << jetid) == branches["jet_id"] & ( 1 << jetid ))
         if puid: 

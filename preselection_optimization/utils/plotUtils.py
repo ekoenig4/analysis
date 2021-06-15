@@ -10,6 +10,15 @@ import matplotlib.gridspec as gs
 # plt.rc('text', usetex=True)
 # plt.rc('font', family='serif')
 
+def autobin(data,nstd=3):
+    ndata = ak.size(data)
+    mean = ak.mean(data)
+    stdv = ak.std(data)
+    minim,maxim = ak.min(data),ak.max(data)
+    xlo,xhi = max([minim,mean-nstd*stdv]),min([mean+nstd*stdv])
+    nbins = min(int(1+np.sqrt(ndata)),50)
+    return np.linspace(xlo,xhi,nbins)
+
 def graph_simple(xdata,ydata,xlabel=None,ylabel=None,title=None,label=None,marker='o',ylim=None,figax=None):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
@@ -21,6 +30,25 @@ def graph_simple(xdata,ydata,xlabel=None,ylabel=None,title=None,label=None,marke
     
     if ylim: ax.set_ylim(ylim)
     if label: ax.legend()
+    return (fig,ax)
+
+def graph_multi(xdata,ydatalist,xlabel=None,ylabel=None,title=None,labels=None,markers=None,colors=None,ylim=None,figax=None):
+    if figax is None: figax = plt.subplots()
+    (fig,ax) = figax
+    
+    if labels is None: labels = [ "" for _ in ydatalist ]
+    if markers is None: markers = [ "o" for _ in ydatalist ]
+    if colors is None: colors = [ None for _ in ydatalist ] 
+    
+    for i,(ydata,label,marker,color) in enumerate(zip(ydatalist,labels,markers,colors)):
+        ax.plot(xdata,ydata,label=label,marker=marker,color=color)
+        
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend()
+    
+    if ylim: ax.set_ylim(ylim)
     return (fig,ax)
 
 def plot_simple(data,bins=None,xlabel=None,title=None,label=None,figax=None):
@@ -48,7 +76,7 @@ def plot_branch(variable,branches,mask=None,selected=None,bins=None,xlabel=None,
     ax.legend()
     return (fig,ax)
 
-def plot_mask_comparison(datalist,bins=None,title=None,xlabel=None,figax=None,density=0,
+def plot_mask_comparison(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,
                          labels=None,histtypes=None,colors=None):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
@@ -57,15 +85,20 @@ def plot_mask_comparison(datalist,bins=None,title=None,xlabel=None,figax=None,de
     if histtypes is None: histtypes = [ "bar" for _ in datalist ]
     if colors is None: colors = [ None for _ in datalist ] 
         
-    for data,label,histtype,color in zip(datalist,labels,histtypes,colors):
+    if bins is None: bins = autobin(datalist[0])
+        
+    for i,(data,label,histtype,color) in enumerate(zip(datalist,labels,histtypes,colors)):
         nevnts = ak.size(data)
-        info = {"bins":bins,"label":f"{label} ({nevnts:.2e})","density":density}
+        info = {"bins":bins,"label":f"{label} ({nevnts:.2e})"}
         if histtype: info["histtype"] = histtype
         if color: info["color"] = color
         if histtype == "step": info["linewidth"] = 2
+        if density: info["density"] = density
+            
         ax.hist(data,**info)
         
-    ax.set_ylabel("Fraction of Events" if density else "Events")
+    if ylabel is None: ylabel = "Fraction of Events / Bin Width" if density else "Events"
+    ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
     ax.set_title(title)
 #     if density: ax.set_ylim([0,1])
