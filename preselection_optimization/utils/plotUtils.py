@@ -19,7 +19,7 @@ def autobin(data,nstd=3):
     nbins = min(int(1+np.sqrt(ndata)),50)
     return np.linspace(xlo,xhi,nbins)
 
-def graph_simple(xdata,ydata,xlabel=None,ylabel=None,title=None,label=None,marker='o',ylim=None,figax=None):
+def graph_simple(xdata,ydata,xlabel=None,ylabel=None,title=None,label=None,marker='o',ylim=None,xticklabels=None,figax=None):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
     
@@ -27,6 +27,10 @@ def graph_simple(xdata,ydata,xlabel=None,ylabel=None,title=None,label=None,marke
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
+    
+    if xticklabels is not None:
+        ax.set_xticks(xdata)
+        ax.set_xticklabels(xticklabels)
     
     if ylim: ax.set_ylim(ylim)
     if label: ax.legend()
@@ -58,7 +62,7 @@ def plot_simple(data,bins=None,xlabel=None,title=None,label=None,figax=None):
     ax.hist(data,bins=bins,label=label)
     ax.set_xlabel(xlabel)
     ax.set_title(title)
-    ax.legend()
+    if label: ax.legend()
     return (fig,ax)
     
 def plot_branch(variable,branches,mask=None,selected=None,bins=None,xlabel=None,title=None,label=None,figax=None):
@@ -93,11 +97,11 @@ def plot_mask_comparison(datalist,bins=None,title=None,xlabel=None,ylabel=None,f
         if histtype: info["histtype"] = histtype
         if color: info["color"] = color
         if histtype == "step": info["linewidth"] = 2
-        if density: info["density"] = density
+        if density: info["weights"] = np.full(shape=nevnts,fill_value=1/nevnts,dtype=np.float)
             
         ax.hist(data,**info)
         
-    if ylabel is None: ylabel = "Fraction of Events / Bin Width" if density else "Events"
+    if ylabel is None: ylabel = "Fraction of Events" if density else "Events"
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
     ax.set_title(title)

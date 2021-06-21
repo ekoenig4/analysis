@@ -13,8 +13,14 @@ def save_scores(score,saveas):
     if not os.path.isdir(directory): os.makedirs(directory)
     score.savetex(f"{directory}/{saveas}")
     
+def save_fig(fig,directory,saveas):
+    directory = f"plots/{date_tag}_plots/{directory}"
+    if not os.path.isdir(directory): os.makedirs(directory)
+    fig.savefig(f"{saveas}.pdf",format="pdf")
 
-def signal_order_study(selection=None,title=None,saveas=None,plot=True,print_score=True,**kwargs):
+def signal_order_study(selection=None,title=None,saveas=None,plot=True,print_score=True,subset="selected",**kwargs):
+    if subset not in ["selected","captured","remaining"]: raise ValueError(f"{subset} not available")
+        
     branches = selection.branches
     if title is None: title = selection.title()
     print(f"--- {title} ---")
@@ -32,10 +38,6 @@ def signal_order_study(selection=None,title=None,saveas=None,plot=True,print_sco
     if saveas: save_scores(score,saveas)
     
     if not plot: return
-    
-    if saveas:
-        directory = f"plots/{date_tag}_plots/order"
-        if not os.path.isdir(directory): os.makedirs(directory)
             
     mask = selection.mask
     sixb_ordered = ak.pad_none(selection.sixb_selected_index,6,axis=-1)
@@ -83,9 +85,11 @@ def signal_order_study(selection=None,title=None,saveas=None,plot=True,print_sco
         fig.suptitle(f"{title} {ordinal(ijet+1)} {selection.variable}")
         fig.tight_layout()
         plt.show()
-        if saveas: fig.savefig(f"{directory}/{ordinal(ijet+1)}_{saveas}.pdf",format="pdf")
+        if saveas: save_fig(fig,"order",f"{ordinal(ijet+1)}_{saveas}")
     
-def selection_study(selection=None,title=None,saveas=None,plot=True,print_score=True,under6=False,latex=False,required=False,**kwargs):
+def selection_study(selection=None,title=None,saveas=None,plot=True,print_score=True,subset="selected",under6=False,latex=False,required=False,**kwargs):
+    if subset not in ["selected","captured","remaining"]: raise ValueError(f"{subset} not available")
+        
     branches = selection.branches
     if title is None: title = selection.title()
     print(f"--- {title} ---")
@@ -95,10 +99,6 @@ def selection_study(selection=None,title=None,saveas=None,plot=True,print_score=
     if saveas: save_scores(score,saveas)
     
     if not plot: return
-    
-    if saveas:
-        directory = f"plots/{date_tag}_plots/selection"
-        if not os.path.isdir(directory): os.makedirs(directory)
 
     mask = selection.mask
     nevnts = ak.sum(mask)
@@ -141,14 +141,12 @@ def selection_study(selection=None,title=None,saveas=None,plot=True,print_score=
     fig.suptitle(f"{title}")
     fig.tight_layout()
     plt.show()
-    if saveas: fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
+    if saveas: save_fig(fig,"selection",saveas)
         
-def selection_comparison_study(selections=[],labels=[],saveas=None,plot=True,print_score=True,under6=False,latex=False,required=False,**kwargs):
+def selection_comparison_study(selections=[],labels=[],saveas=None,plot=True,print_score=True,subset="selected",under6=False,latex=False,required=False,**kwargs):
+    if subset not in ["selected","captured","remaining"]: raise ValueError(f"{subset} not available")
+        
     if not plot: return
-    
-    if saveas:
-        directory = f"plots/{date_tag}_plots/selection"
-        if not os.path.isdir(directory): os.makedirs(directory)
 
     selection_purities = []
     
@@ -179,19 +177,22 @@ def selection_comparison_study(selections=[],labels=[],saveas=None,plot=True,pri
     
     fig.tight_layout()
     plt.show()
-    if saveas: fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
+    if saveas: save_fig(fig,"selection",saveas)
 
-def jet_study(selection=None,title=None,saveas=None,plot=True,print_score=True,**kwargs):
+def jets_study(selection=None,title=None,saveas=None,plot=True,print_score=True,subset="selected",density=0,**kwargs):
+    if subset not in ["selected","captured","remaining"]: raise ValueError(f"{subset} not available")
+    
     branches = selection.branches
     if title is None: title = selection.title()
     print(f"--- {title} ---")
     varinfo = {
-#         f"jet_m":{"bins":np.linspace(0,60,50),"xlabel":"Top Selected Jet Mass"},
-#         f"jet_E":{"bins":np.linspace(0,500,50),"xlabel":"Top Selected Jet Energy"},
-        f"jet_ptRegressed":{"bins":None,"xlabel":"Selected Jet Pt (GeV)"},
-        f"jet_btag":{"bins":np.linspace(0,1,50),"xlabel":"Selected Jet Btag"},
-        f"jet_eta":{"bins":np.linspace(-3,3,50),"xlabel":"Selected Jet Eta"},
-        f"jet_phi":{"bins":np.linspace(-3.14,3.14,50),"xlabel":"Selected Jet Phi"},
+#         f"jet_m":{"bins":np.linspace(0,60,50),"xlabel":"Jet Mass"},
+#         f"jet_E":{"bins":np.linspace(0,500,50),"xlabel":"Jet Energy"},
+        f"jet_ptRegressed":{"bins":None,"xlabel":"Jet Pt (GeV)"},
+        f"jet_btag":{"bins":np.linspace(0,1,50),"xlabel":"Jet Btag"},
+        f"jet_qgl":{"bins":np.linspace(0,1,50),"xlabel":"Jet Quark Gluon Disciminant"},
+        f"jet_eta":{"bins":np.linspace(-3,3,50),"xlabel":"Jet Eta"},
+#         f"jet_phi":{"bins":np.linspace(-3.14,3.14,50),"xlabel":"Jet Phi"},
     }
     
     score = selection.score()
@@ -199,17 +200,13 @@ def jet_study(selection=None,title=None,saveas=None,plot=True,print_score=True,*
     if saveas: save_scores(score,saveas)
     
     if not plot: return
-    labels = ("Non Signal Jets","Signal Jets")
+    labels = (f"Non Signal Jets {subset.capitalize()}",f"Signal Jets {subset.capitalize()}")
     colors = ("tab:orange","black")
     histtypes = ("bar","step")
     
-    if saveas:
-        directory = f"plots/{date_tag}_plots/jets"
-        if not os.path.isdir(directory): os.makedirs(directory)
-    
     mask = selection.mask
-    non_sixb_jets = exclude_jets(selection.jets_captured,selection.sixb_captured)
-    sixb_ordered = selection.sixb_captured
+    non_sixb_jets = exclude_jets( getattr(selection,f"jets_{subset}"),getattr(selection,f"sixb_{subset}"))
+    sixb_ordered = getattr(selection,f"sixb_{subset}")
             
     nrows,ncols=1,4
     fig, axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,5))
@@ -217,24 +214,27 @@ def jet_study(selection=None,title=None,saveas=None,plot=True,print_score=True,*
         jets_var = ak.flatten(branches[var][non_sixb_jets][mask])
         sixb_var = ak.flatten(branches[var][sixb_ordered][mask])
         plot_mask_comparison((jets_var,sixb_var),figax=(fig,axs[i]),**info,
-                              labels=labels,colors=colors,histtypes=histtypes,density=1)
+                              labels=labels,colors=colors,histtypes=histtypes,density=density)
             
     fig.suptitle(f"{title}")
     fig.tight_layout()
     plt.show()
-    if saveas: fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
+    if saveas: save_fig(fig,f"jets_{subset}",saveas)
 
-def jet_order_study(selection=None,title=None,saveas=None,plot=True,print_score=True,**kwargs):
+def jets_ordered_study(selection=None,title=None,saveas=None,plot=True,print_score=True,subset="selected",density=0,**kwargs):
+    if subset not in ["selected","captured","remaining"]: raise ValueError(f"{subset} not available")
+        
     branches = selection.branches
     if title is None: title = selection.title()
     print(f"--- {title} ---")
     varinfo = {
-#         f"jet_m":{"bins":np.linspace(0,60,50),"xlabel":"Top Selected Jet Mass"},
-#         f"jet_E":{"bins":np.linspace(0,500,50),"xlabel":"Top Selected Jet Energy"},
-        f"jet_ptRegressed":{"bins":None,"xlabel":"Top Selected Jet Pt (GeV)"},
-        f"jet_btag":{"bins":np.linspace(0,1,50),"xlabel":"Top Selected Jet Btag"},
-        f"jet_eta":{"bins":np.linspace(-3,3,50),"xlabel":"Top Selected Jet Eta"},
-        f"jet_phi":{"bins":np.linspace(-3.14,3.14,50),"xlabel":"Top Selected Jet Phi"},
+#         f"jet_m":{"bins":np.linspace(0,60,50),"xlabel":"Jet Mass"},
+#         f"jet_E":{"bins":np.linspace(0,500,50),"xlabel":"Jet Energy"},
+        f"jet_ptRegressed":{"bins":None,"xlabel":"Jet Pt (GeV)"},
+        f"jet_btag":{"bins":np.linspace(0,1,50),"xlabel":"Jet Btag"},
+        f"jet_qgl":{"bins":np.linspace(0,1,50),"xlabel":"Jet Quark Gluon Disciminant"},
+        f"jet_eta":{"bins":np.linspace(-3,3,50),"xlabel":"Jet Eta"},
+#         f"jet_phi":{"bins":np.linspace(-3.14,3.14,50),"xlabel":"Jet Phi"},
     }
     
     score = selection.score()
@@ -242,22 +242,23 @@ def jet_order_study(selection=None,title=None,saveas=None,plot=True,print_score=
     if saveas: save_scores(score,saveas)
     
     if not plot: return
-    labels = ("Non Signal Jets","Signal Jets")
     colors = ("tab:orange","black")
     histtypes = ("bar","step")
     
-    if saveas:
-        directory = f"plots/{date_tag}_plots/jets"
-        if not os.path.isdir(directory): os.makedirs(directory)
-    
     mask = selection.mask
-    non_sixb_jets = exclude_jets(selection.jets_captured,selection.sixb_captured)
-    sixb_ordered = ak.pad_none(selection.sixb_ordered,6,axis=-1)
+    jets = getattr(selection,f"jets_{subset}")
+    sixb = getattr(selection,f"sixb_{subset}")
+    nsixb= getattr(selection,f"nsixb_{subset}")
+    sixb_ordered = getattr(selection,f"sixb_{subset}_index")
+    
+    non_sixb_jets = exclude_jets(jets,sixb)
+    sixb_ordered = ak.pad_none(sixb_ordered,6,axis=-1)
     
     njets = min(6,selection.njets) if selection.njets != -1 else 6
     
     for ijet in range(njets):
-        nsixb_mask = mask & (selection.nsixb_captured > ijet)
+        labels = (f"Non Signal Jets {subset.capitalize()}",f"{ordinal(ijet+1)} Signal Jets {subset.capitalize()}")
+        nsixb_mask = mask & (nsixb > ijet)
         isixb_mask = get_jet_index_mask(branches,sixb_ordered[:,ijet][:,np.newaxis])
         
         if ak.sum(ak.flatten(isixb_mask[nsixb_mask])) == 0: 
@@ -267,19 +268,19 @@ def jet_order_study(selection=None,title=None,saveas=None,plot=True,print_score=
         nrows,ncols=1,4
         fig, axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,5))
         for i,(var,info) in enumerate(varinfo.items()):
-            ord_info = dict(info)
-            ord_info["xlabel"] = f"{ordinal(ijet+1)} {info['xlabel']}"
-            jets_var = ak.flatten(branches[var][non_sixb_jets][nsixb_mask])
+            jets_var = ak.flatten(branches[var][non_sixb_jets])
             sixb_var = ak.flatten(branches[var][isixb_mask][nsixb_mask])
-            plot_mask_comparison((jets_var,sixb_var),figax=(fig,axs[i]),**ord_info,
-                                  labels=labels,colors=colors,histtypes=histtypes,density=1)
+            plot_mask_comparison((jets_var,sixb_var),figax=(fig,axs[i]),**info,
+                                  labels=labels,colors=colors,histtypes=histtypes,density=density)
             
-        fig.suptitle(f"{title} {ordinal(ijet+1)}")
+        fig.suptitle(f"{title} {ordinal(ijet+1)} Signal Jet")
         fig.tight_layout()
         plt.show()
-        if saveas: fig.savefig(f"{directory}/{ordinal(ijet+1)}_{saveas}.pdf",format="pdf")
+        if saveas: save_fig(fig,f"jets_{subset}",f"{ordinal(ijet+1)}_{saveas}")
     
 def x_reco_study(selection=None,title=None,saveas=None,plot=True,print_score=True,**kwargs):
+    if subset not in ["selected","captured","remaining"]: raise ValueError(f"{subset} not available")
+        
     branches = selection.branches
     if title is None: title = selection.title()
     print(f"--- {title} ---")
@@ -298,10 +299,11 @@ def x_reco_study(selection=None,title=None,saveas=None,plot=True,print_score=Tru
     
     mask = selection.mask
     sixb_real = (selection.nsixb_selected == 6)[mask]
-    five_real = (selection.nsixb_selected <= 5)[mask]
-    labels = ["All Events",f"Signal Selected",f"Background Selected"]
-    colors = ["tab:blue","tab:orange","tab:red"]
-    histtypes=["bar","step","step"]
+    five_real = (selection.nsixb_selected == 5)[mask]
+    less_real = (selection.nsixb_selected <  5)[mask]
+    labels = ["All Events",f"Signal Selected",f"1 Wrong Jet Selected",f"More Wrong Jets Selected"]
+    colors = ["tab:blue","tab:orange","tab:red","tab:green"]
+    histtypes=["bar","step","step","step"]
     
     nrows,ncols = 2,2
     fig, axs = plt.subplots(nrows=nrows,ncols=ncols, figsize=(16,10) )
@@ -311,17 +313,17 @@ def x_reco_study(selection=None,title=None,saveas=None,plot=True,print_score=Tru
         X_var = X_reco[var][mask]
         sixb_real_X_var = X_var[sixb_real]
         five_real_X_var = X_var[five_real]
-        datalist = [X_var,sixb_real_X_var,five_real_X_var]
+        less_real_X_var = X_var[less_real]
+        datalist = [X_var,sixb_real_X_var,five_real_X_var,less_real_X_var]
         plot_mask_comparison(datalist,labels=labels,histtypes=histtypes,colors=colors,figax=(fig,axs[int(i/ncols),i%ncols]),**info)
     fig.suptitle(title)
     fig.tight_layout()
     plt.show()
-    if saveas: 
-        directory = f"plots/{date_tag}_plots/x_reco"
-        if not os.path.isdir(directory): os.makedirs(directory)
-        fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
+    if saveas: save_fig(fig,"x_reco",saveas)
 
-def x_res_study(selection=None,title=None,saveas=None,plot=True,print_score=True,**kwargs):
+def x_res_study(selection=None,title=None,saveas=None,plot=True,print_score=True,subset="selected",**kwargs):
+    if subset not in ["selected","captured","remaining"]: raise ValueError(f"{subset} not available")
+        
     branches = selection.branches
     if title is None: title = selection.title()
     print(f"--- {title} ---")
@@ -360,12 +362,11 @@ def x_res_study(selection=None,title=None,saveas=None,plot=True,print_score=True
     fig.suptitle(title)
     fig.tight_layout()
     plt.show()
-    if saveas: 
-        directory = f"plots/{date_tag}_plots/x_res"
-        if not os.path.isdir(directory): os.makedirs(directory)
-        fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
+    if saveas: save_fig(fig,"x_res",saveas)
 
-def njet_study(selection=None,title=None,saveas=None,plot=True,print_score=True,**kwargs):
+def njet_study(selection=None,title=None,saveas=None,plot=True,print_score=True,subset="selected",**kwargs):
+    if subset not in ["selected","captured","remaining"]: raise ValueError(f"{subset} not available")
+        
     branches = selection.branches
     if title is None: title = selection.title()
     print(f"--- {title} ---")
@@ -378,41 +379,36 @@ def njet_study(selection=None,title=None,saveas=None,plot=True,print_score=True,
     
     nsixb = min(6,selection.njets) if selection.njets != -1 else 6
     
-    nrows,ncols = 1,3
+    nrows,ncols = 1,2
     fig, axs = plt.subplots(nrows=nrows,ncols=ncols, figsize=(16,5) )
     labels = ("All Events",)
     
     mask = selection.mask
-    njets_captured = selection.njets_captured[mask]
-    njets_selected = selection.njets_selected[mask]
+    njets = getattr(selection,f"njets_{subset}")[mask]
+    nsixb = getattr(selection,f"nsixb_{subset}")[mask]
     
-    nsixb_captured = selection.nsixb_captured[mask]
-    nsixb_selected = selection.nsixb_selected[mask]
-    
-    plot_mask_comparison([njets_captured],bins=range(13),xlabel="Number of Jets",labels=["All Events"],figax=(fig,axs[0]))
-    plot_mask_comparison([nsixb_captured],bins=range(8),xlabel="Number of Signal Jets",labels=["All Events"],figax=(fig,axs[1]))
-    plot_mask_simple_2d_comparison(nsixb_captured,njets_captured,xbins=range(8),ybins=range(13),xlabel="Number of Signal Jets",ylabel="Number of Jets",figax=(fig,axs[2]))
+    plot_mask_comparison([njets],bins=range(12),xlabel=f"Number of Jets {subset.capitalize()}",labels=["All Events"],figax=(fig,axs[0]))
+    plot_mask_comparison([nsixb],bins=range(8),xlabel=f"Number of Signal Jets {subset.capitalize()}",labels=["All Events"],figax=(fig,axs[1]))
 
     fig.suptitle(title)
     fig.tight_layout()
     plt.show()
-    if saveas: 
-        directory = f"plots/{date_tag}_plots/njet"
-        if not os.path.isdir(directory): os.makedirs(directory)
-        fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
+    if saveas: save_fig(fig,f"njets_{subset}",saveas)
     
 
-def presel_study(selection=None,title=None,saveas=None,plot=True,missing=False,print_score=True,**kwargs):
+def presel_study(selection=None,title=None,saveas=None,plot=True,missing=False,print_score=True,subset="selected",**kwargs):
+    if subset not in ["selected","captured","remaining"]: raise ValueError(f"{subset} not available")
+        
     branches = selection.branches
     if title is None: title = selection.title()
     print(f"--- {title} ---")
     varinfo = {
-        f"jet_m":{"bins":np.linspace(0,60,50),"xlabel":"Top Selected Jet Mass"},
-        f"jet_E":{"bins":np.linspace(0,500,50),"xlabel":"Top Selected Jet Energy"},
-        f"jet_ptRegressed":{"bins":np.linspace(0,200,50),"xlabel":"Top Selected Jet Pt (GeV)"},
-        f"jet_btag":{"bins":np.linspace(0,1,50),"xlabel":"Top Selected Jet Btag"},
-        f"jet_eta":{"bins":np.linspace(-3,3,50),"xlabel":"Top Selected Jet Eta"},
-        f"jet_phi":{"bins":np.linspace(-3.14,3.14,50),"xlabel":"Top Selected Jet Phi"},
+#         f"jet_m":{"bins":np.linspace(0,60,50),"xlabel":"Top Selected Jet Mass"},
+#         f"jet_E":{"bins":np.linspace(0,500,50),"xlabel":"Top Selected Jet Energy"},
+        f"jet_ptRegressed":{"bins":np.linspace(0,500,50),"xlabel":"Jet Pt (GeV)"},
+        f"jet_btag":{"bins":np.linspace(0,1,50),"xlabel":"Jet Btag"},
+        f"jet_eta":{"bins":np.linspace(-3,3,50),"xlabel":"Jet Eta"},
+        f"jet_phi":{"bins":np.linspace(-3.14,3.14,50),"xlabel":"Jet Phi"},
     }
     
     
@@ -424,28 +420,31 @@ def presel_study(selection=None,title=None,saveas=None,plot=True,missing=False,p
     
     nsixb = min(6,selection.njets) if selection.njets != -1 else 6
     mask = selection.mask
-    signal_mask = mask & (selection.nsixb_selected == nsixb)
+    
+    jets = getattr(selection,f"jets_{subset}")
+    sixb = getattr(selection,f"sixb_{subset}")
+    
+    signal_mask = mask & (getattr(selection,f"nsixb_{subset}") == nsixb)
 
-    nrows,ncols = 2,3
-    fig, axs = plt.subplots(nrows=nrows,ncols=ncols, figsize=(16,10) )
+    nrows,ncols = 1,4
+    fig, axs = plt.subplots(nrows=nrows,ncols=ncols, figsize=(16,5) )
     for i,(var,info) in enumerate(varinfo.items()):
-        jet_var = branches[var][selection.jets_selected]
-        sixb_var = branches[var][selection.sixb_selected]
+        jet_var = branches[var][jets]
+        sixb_var = branches[var][sixb]
         all_data = ak.flatten(jet_var[mask])
         sixb_data = ak.flatten(sixb_var[mask])
         signal_data = ak.flatten(jet_var[signal_mask])
-        datalist = (all_data,sixb_data)
-        labels = ("All Selected Jets",f"Selected Signal Jets")
-        plot_mask_comparison(datalist,labels=labels,figax=(fig,axs[int(i/ncols),i%ncols]),**info)
+        datalist = (all_data,signal_data)
+        labels = (f"All Jets {subset.capitalize()}",f"Signal Jets {subset.capitalize()}")
+        plot_mask_comparison(datalist,labels=labels,figax=(fig,axs[i%ncols]),**info)
     fig.suptitle(title)
     fig.tight_layout()
     plt.show()
-    if saveas: 
-        directory = f"plots/{date_tag}_plots/presel"
-        if not os.path.isdir(directory): os.makedirs(directory)
-        fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
+    if saveas: save_fig(fig,f"presel_{subset}",saveas)
     
-def jet_issue_study(selection=None,title=None,saveas=None,plot=True,missing=False,print_score=True,**kwargs):
+def jet_issue_study(selection=None,title=None,saveas=None,plot=True,missing=False,print_score=True,subset="selected",**kwargs):
+    if subset not in ["selected","captured","remaining"]: raise ValueError(f"{subset} not available")
+        
     branches = selection.branches
     if title is None: title = selection.title()
     print(f"--- {title} ---")
@@ -471,7 +470,9 @@ def jet_issue_study(selection=None,title=None,saveas=None,plot=True,missing=Fals
     plot_mask_simple_2d_comparison(jet_pt[eta24],jet_eta[eta24],xbins=ptbins,ybins=etabins,xlabel="jet pt",ylabel="jet eta",title="|jet eta|<2.4",figax=(fig,axs[1,1]))
     return fig,axs
     
-def signal_b_study(selection=None,title=None,saveas=None,plot=True,print_score=True,**kwargs):
+def signal_b_study(selection=None,title=None,saveas=None,plot=True,print_score=True,subset="selected",**kwargs):
+    if subset not in ["selected","captured","remaining"]: raise ValueError(f"{subset} not available")
+        
     branches = selection.branches
     if title is None: title = selection.title()
     print(f"--- {title} ---")
@@ -483,7 +484,7 @@ def signal_b_study(selection=None,title=None,saveas=None,plot=True,print_score=T
     if not plot: return
     
     mask = selection.mask
-    sixb_selected = selection.sixb_selected[mask]
+    sixb_selected = getattr(selection,f"sixb_{subset}")[mask]
     signal_tags = ["HX_b1","HX_b2","HY1_b1","HY1_b2","HY2_b1","HY2_b2"]
     signal_index = { tag: get_jet_index_mask(branches,branches[f"gen_{tag}_recojet_index"][:,np.newaxis])[mask] for tag in signal_tags }
     signal_b_selected = { tag:sixb_selected & b_index for tag,b_index in signal_index.items() }
@@ -491,11 +492,16 @@ def signal_b_study(selection=None,title=None,saveas=None,plot=True,print_score=T
     varinfo = {
 #         f"jet_m":{"bins":np.linspace(0,60,50),"xlabel":"Top Selected Jet Mass"},
 #         f"jet_E":{"bins":np.linspace(0,500,50),"xlabel":"Top Selected Jet Energy"},
-        f"jet_ptRegressed":{"bins":np.linspace(0,100,50),"xlabel":"Selected Jet Pt (GeV)"},
-        f"jet_btag":{"bins":np.linspace(0,1,50),"xlabel":"Selected Jet Btag"},
-        f"jet_eta":{"bins":np.linspace(-3,3,50),"xlabel":"Selected Jet Eta"},
-        f"jet_phi":{"bins":np.linspace(-3.14,3.14,50),"xlabel":"Selected Jet Phi"},
+        f"jet_ptRegressed":{"bins":np.linspace(0,500,50),"xlabel":"Jet Pt (GeV)"},
+        f"jet_btag":{"bins":np.linspace(0,1,50),"xlabel":"Jet Btag"},
+        f"jet_eta":{"bins":np.linspace(-3,3,50),"xlabel":"Jet Eta"},
+        f"jet_phi":{"bins":np.linspace(-3.14,3.14,50),"xlabel":"Jet Phi"},
     }
+    
+    nrows,ncols = 1,1
+    fig0,ax0 = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,2.5))
+    nsignal_b_selected = np.array([ak.sum(ak.sum(signal_mask,axis=-1)) for signal_mask in signal_b_selected.values() ])
+    graph_simple(signal_tags,nsignal_b_selected,ylabel="Number Jets",figax=(fig0,ax0))
     
     for i,(var,info) in enumerate(varinfo.items()):
         

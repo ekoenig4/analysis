@@ -41,7 +41,8 @@ class Selection:
         self.include = include
         self.previous = previous
             
-        self.previous_selected = previous.total_jets_selected if previous else (branches.all_events_mask == False)
+        self.previous_index = previous.total_jets_selected_index if previous else None
+        self.previous_selected = previous.total_jets_selected if previous else (branches.all_jets_mask == False)
         self.previous_njets = previous.total_njets if previous else 0
         
         self.include_jet_mask = include.total_jets_selected if include else branches.all_jets_mask
@@ -49,6 +50,7 @@ class Selection:
         
         self.exclude_jet_mask = previous.total_jets_selected if previous else None
         self.exclude_events_mask = previous.mask if previous else branches.all_events_mask
+        
         self.previous_events_mask = self.include_events_mask & self.exclude_events_mask
         self.previous_nevents = ak.sum(self.previous_events_mask)
         
@@ -85,22 +87,22 @@ class Selection:
         new_selection.capture_jets(cuts,variable,njets,mask,tag)
         return new_selection
         
-    def sort_jets(self,variable,njets=-1):
+    def sort_jets(self,variable,njets=-1,method=max):
         self.variable = variable
-        self.jets_ordered = sort_jet_index(self.branches,self.variable,self.jets_captured)
-        self.sixb_position = get_sixb_position(self.jets_ordered,self.sixb_jet_mask)
-        self.sixb_ordered = self.jets_ordered[self.sixb_position]
+        self.jets_captured_index = sort_jet_index(self.branches,self.variable,self.jets_captured,method=method)
+        self.sixb_position = get_sixb_position(self.jets_captured_index,self.sixb_jet_mask)
+        self.sixb_captured_index = self.jets_captured_index[self.sixb_position]
         
         self.select_njets(njets)
         
-    def sorted_jets(self,variable,njets=-1):
+    def sorted_jets(self,variable,njets=-1,method=max):
         new_selection = self.copy()
-        new_selection.sort_jets(variable,njets)
+        new_selection.sort_jets(variable,njets,method)
         return new_selection
         
     def select_njets(self,njets):
         self.njets = njets
-        self.jets_selected_index, self.jets_remaining_index = get_top_njet_index(self.branches,self.jets_ordered,self.njets)
+        self.jets_selected_index, self.jets_remaining_index = get_top_njet_index(self.branches,self.jets_captured_index,self.njets)
         
         self.jets_selected = get_jet_index_mask(self.branches,self.jets_selected_index)
         self.njets_selected = ak.sum(self.jets_selected,axis=-1)
@@ -118,49 +120,14 @@ class Selection:
         self.sixb_remaining = get_jet_index_mask(self.branches,self.sixb_remaining_index)
         self.nsixb_remaining = ak.sum(self.sixb_remaining,axis=-1)
         
+        self.total_jets_selected_index = self.jets_selected_index
+        if self.previous: self.total_jets_selected_index = ak.concatenate([self.previous_index,self.total_jets_selected_index],axis=-1)
         self.total_jets_selected = self.previous_selected | self.jets_selected
         self.total_njets = self.previous_njets + (self.njets if self.njets != -1 else 6)
         
     def selected_njets(self,njets):
         new_selection = self.copy()
         new_selection.select_njets(njets)
-        return new_selection
-    
-    def mass_select_signal(self,x_mass=700):
-        jets = self.jets_selected_index
-        jet_pt = self.branches["jet_ptRegressed"][jets]
-        jet_m = self.branches["jet_m"][jets]
-        jet_eta = self.branches["jet_eta"][jets]
-        jet_phi = self.branches["jet_phi"][jets]
-        
-        comb_jets = ak.argcombinations(jets,6)
-        build_p4 = lambda index : vector.obj(pt=jet_pt[index],mass=jet_m[index],eta=jet_eta[index],phi=jet_phi[index])
-        jet0, jet1, jet2, jet3, jet4, jet5 = [build_p4(jet) for jet in ak.unzip(comb_jets)]
-        x_inv_m = (jet0+jet1+jet2+jet3+jet4+jet5).mass
-        signal_comb = ak.argmin(np.abs(x_inv_m - 700),axis=-1)
-        comb_mask = get_jet_index_mask(comb_jets,signal_comb[:,np.newaxis])
-        signal_index = ak.concatenate(ak.unzip(comb_jets[comb_mask]),axis=-1)
-        
-        self.jets_selected = get_jet_index_mask(self.jets_selected,signal_index)
-        self.njets_selected = ak.sum(self.jets_selected,axis=-1)
-        
-        self.sixb_selected_position = get_sixb_position(self.jets_selected_index,self.sixb_jet_mask)
-        self.sixb_selected_index = self.jets_selected_index[self.sixb_selected_position]
-        self.sixb_selected = get_jet_index_mask(self.branches,self.sixb_selected_index)
-        self.nsixb_selected = ak.sum(self.sixb_selected,axis=-1)
-        
-        self.sixb_remaining_position = get_sixb_position(self.jets_remaining_index,self.sixb_jet_mask)
-        self.sixb_remaining_index = self.jets_remaining_index[self.sixb_remaining_position]
-        self.sixb_remaining = get_jet_index_mask(self.branches,self.sixb_remaining_index)
-        self.nsixb_remaining = ak.sum(self.sixb_remaining,axis=-1)
-        
-        self.njets = 6
-        self.total_jets_selected = self.previous_selected | self.jets_selected
-        self.total_njets = self.previous_njets + (self.njets if self.njets != -1 else 6)
-    
-    def mass_selected_signal(self,x_mass=700):
-        new_selection = self.copy()
-        new_selection.mass_select_signal(x_mass)
         return new_selection
     
     def sort_selected_jets(self,variable):
@@ -178,7 +145,7 @@ class Selection:
     def reco_X(self):
         fill_zero = lambda ary : ak.fill_none(ak.pad_none(ary,6,axis=-1,clip=1),0)
         
-        jets = self.jets_selected
+        jets = self.jets_selected_index
         jet_pt = fill_zero(self.branches["jet_ptRegressed"][jets])
         jet_eta = fill_zero(self.branches["jet_eta"][jets])
         jet_phi = fill_zero(self.branches["jet_phi"][jets])
@@ -224,9 +191,6 @@ class Selection:
     
     def __str__(self):
         return f"--- {self.title()} ---\n{self.score()}"
-        
-def simplify(eq):
-    print
            
 class SelectionScore:
     def __init__(self,selection):
@@ -291,10 +255,10 @@ class MergedSelection(CopySelection):
             self.previous_nevents = previous.previous_nevents
             previous = previous.previous
         self.nsixb_captured = ak.sum(self.sixb_captured,axis=-1)
-        self.jets_ordered = ak.concatenate((self.jets_selected_index,self.jets_remaining_index),axis=-1)
-        self.sixb_position = get_sixb_position(self.jets_ordered,self.sixb_jet_mask)
+        self.jets_captured_index = ak.concatenate((self.jets_selected_index,self.jets_remaining_index),axis=-1)
+        self.sixb_position = get_sixb_position(self.jets_captured_index,self.sixb_jet_mask)
         self.sixb_selected_position = get_sixb_position(self.jets_selected_index,self.sixb_jet_mask)
-        self.sixb_ordered = self.jets_ordered[self.sixb_position]
+        self.sixb_captured_index = self.jets_captured_index[self.sixb_position]
         self.previous = selection
         self.njets = self.total_njets
         self.tag = "merged"
@@ -311,3 +275,57 @@ class MergedSelection(CopySelection):
             setattr(self,key, getattr(self,key) | getattr(selection,key))
         
     def title(self): return f"{self.previous.title()} merged"
+    
+class SignalSelection(MergedSelection):
+    signal_methods = {
+        "xmass":xmass_selected_signal,
+        "top":get_top_njet_index
+    }
+    def __init__(self,branches,previous,njets=6,mask=None,method="xmass"):
+        MergedSelection.__init__(self,previous)
+        
+        self.variable = None
+        
+        self.previous = previous
+        
+        self.previous_index = self.jets_selected_index
+        self.previous_njets = self.total_njets
+        
+        self.jets_order = self.jets_selected_index
+        self.jets_captured = self.jets_selected
+        self.njets_captured = ak.sum(self.jets_captured,axis=-1)
+        
+        self.sixb_captured = self.jets_captured & self.sixb_jet_mask
+        self.nsixb_captured = ak.sum(self.sixb_captured,axis=-1)
+        
+        self.previous_events_mask = self.previous.mask
+        self.previous_nevents = ak.sum(self.previous_events_mask)
+        
+        if mask is not None: self.mask = self.mask & mask
+        
+        self.select_signal(njets,method)
+        
+    def select_signal(self,njets=6,method="xmass"):
+        self.tag = f"{method} selected"
+        self.njets = min(6,njets) if njets != -1 else 6
+        if method == "top": njets = self.njets
+        
+        self.jets_selected_index, self.jets_remaining_index = self.signal_methods[method](self.branches,self.previous_index,njets=njets)
+    
+        self.jets_selected = get_jet_index_mask(self.branches,self.jets_selected_index)
+        self.njets_selected = ak.sum(self.jets_selected,axis=-1)
+        
+        self.jets_remaining = get_jet_index_mask(self.branches,self.jets_remaining_index)
+        self.njets_remaining = ak.sum(self.jets_remaining,axis=-1)
+        
+        self.sixb_selected_position = get_sixb_position(self.jets_selected_index,self.sixb_jet_mask)
+        self.sixb_selected_index = self.jets_selected_index[self.sixb_selected_position]
+        self.sixb_selected = get_jet_index_mask(self.branches,self.sixb_selected_index)
+        self.nsixb_selected = ak.sum(self.sixb_selected,axis=-1)
+        
+        self.sixb_remaining_position = get_sixb_position(self.jets_remaining_index,self.sixb_jet_mask)
+        self.sixb_remaining_index = self.jets_remaining_index[self.sixb_remaining_position]
+        self.sixb_remaining = get_jet_index_mask(self.branches,self.sixb_remaining_index)
+        self.nsixb_remaining = ak.sum(self.sixb_remaining,axis=-1)
+        
+    def title(self): return Selection.title(self)

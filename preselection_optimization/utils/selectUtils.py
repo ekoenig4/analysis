@@ -6,26 +6,6 @@ from . import *
 ordinal = lambda n : "%d%s"%(n,{1:"st",2:"nd",3:"rd"}.get(n if n<20 else n%10,"th"))
 array_min = lambda array,value : ak.min(ak.concatenate(ak.broadcast_arrays(value,array[:,np.newaxis]),axis=-1),axis=-1)
 
-def get_jet_ieta(jet_eta):
-    cell_size = 2*1.4841/34
-    jet_ieta = (jet_eta+1.4841)/cell_size
-    return np.floor(jet_ieta)
-
-def get_eta_from_ieta(ieta):
-    cell_size = 2*1.4841/34
-    eta = (ieta*cell_size)-1.4841+0.5*cell_size
-    return eta
-
-def get_jet_iphi(jet_phi):
-    cell_size = 2*3.14159/72
-    jet_iphi = (jet_phi+3.14159)/cell_size
-    return np.floor(jet_iphi)
-
-def get_phi_from_iphi(iphi):
-    cell_size = 2*3.14159/72
-    phi = (iphi*cell_size)-3.14159+0.5*cell_size
-    return phi
-
 def get_jet_index_mask(jets,index):
     """ Generate jet mask for a list of indicies """
     if hasattr(jets,'ttree'): jets = jets["jet_pt"]
@@ -45,22 +25,25 @@ def get_top_njet_index(branches,jet_index,njets=6):
     bot_njet_index = jet_index[firstN_array == False]
     return top_njet_index,bot_njet_index
 
-def sort_jet_index_simple(branches,varbranch,jets=None):
+def sort_jet_index_simple(branches,varbranch,jets=None,method=max):
     """ Mask of the top njet jets in varbranch """
     
     if jets is None: jets = branches["jet_pt"] > -999
-    sorted_array = np.argsort(-varbranch)
+        
+    polarity = -1 if method is max else 1
+        
+    sorted_array = np.argsort(polarity * varbranch)
     selected_sorted_array = jets[sorted_array]
     selected_array = sorted_array[selected_sorted_array]
     return selected_array
 
-def sort_jet_index(branches,variable="jet_ptRegressed",jets=None):
+def sort_jet_index(branches,variable="jet_ptRegressed",jets=None,method=max):
     """ Mask of the top njet jets in variable """
     if variable is None: variable = "jet_pt"
 
     varbranch = branches[variable]
-    if variable == "jet_eta": varbranch = -np.abs(varbranch)
-    return sort_jet_index_simple(branches,varbranch,jets)
+    if variable == "jet_eta": varbranch = np.abs(varbranch)
+    return sort_jet_index_simple(branches,varbranch,jets,method=method)
 
 def count_sixb_index(jet_index,sixb_jet_mask):
     """ Number of signal b-jets in index list """
@@ -106,3 +89,24 @@ def std_preselection(branches,ptcut=20,etacut=2.5,btagcut=None,jetid=1,puid=1,nj
     if exclude_events_mask is not None: event_mask = event_mask & exclude_events_mask
     return event_mask,jet_mask
 
+
+def xmass_selected_signal(branches,jets_index,njets=6,invm=700):
+    top_jets_index, _ = get_top_njet_index(branches,jets_index,njets=njets)
+    
+    jet_pt = branches["jet_ptRegressed"]
+    jet_m = branches["jet_m"]
+    jet_eta = branches["jet_eta"]
+    jet_phi = branches["jet_phi"]
+
+    comb_jets_index = ak.combinations(top_jets_index,6)
+    build_p4 = lambda index : vector.obj(pt=jet_pt[index],mass=jet_m[index],eta=jet_eta[index],phi=jet_phi[index])
+    jet0, jet1, jet2, jet3, jet4, jet5 = [build_p4(jet) for jet in ak.unzip(comb_jets_index)]
+    x_invm = (jet0+jet1+jet2+jet3+jet4+jet5).mass
+    signal_comb = ak.argmin(np.abs(x_invm - invm),axis=-1)
+    comb_mask = get_jet_index_mask(comb_jets_index,signal_comb[:,np.newaxis])
+    jets_selected_index = ak.concatenate(ak.unzip(comb_jets_index[comb_mask]),axis=-1)
+    
+    selected_compare, _ = ak.broadcast_arrays(jets_selected_index[:,np.newaxis],jets_index)
+    jets_remaining_index = jets_index[ ak.sum(jets_index==selected_compare,axis=-1)==0 ]
+    
+    return jets_selected_index,jets_remaining_index
