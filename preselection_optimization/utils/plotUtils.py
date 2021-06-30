@@ -80,7 +80,7 @@ def plot_branch(variable,branches,mask=None,selected=None,bins=None,xlabel=None,
     ax.legend()
     return (fig,ax)
 
-def plot_mask_comparison(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,
+def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,
                          labels=None,histtypes=None,colors=None):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
@@ -98,6 +98,7 @@ def plot_mask_comparison(datalist,bins=None,title=None,xlabel=None,ylabel=None,f
         if color: info["color"] = color
         if histtype == "step": info["linewidth"] = 2
         if density: info["weights"] = np.full(shape=nevnts,fill_value=1/nevnts,dtype=np.float)
+        if log: info["log"] = log
             
         ax.hist(data,**info)
         
@@ -130,12 +131,12 @@ def plot_mask_stack_comparison(datalist,bins=None,title=None,xlabel=None,figax=N
     return (fig,ax)
 
 
-def plot_mask_simple_2d_comparison(xdata,ydata,xbins=None,ybins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,grid=False,label=None):
+def hist2d_simple(xdata,ydata,xbins=None,ybins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,grid=False,label=None):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
     nevnts = ak.size(xdata)
-    n,bx,by,im = ax.hist2d(np.array(xdata),np.array(ydata),(xbins,ybins),density=density,norm=clrs.LogNorm() if log else clrs.Normalize())
+    n,bx,by,im = ax.hist2d(np.array(xdata),np.array(ydata),(xbins,ybins),density=density,norm=clrs.LogNorm() if log else clrs.Normalize(),cmap="jet")
     
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)

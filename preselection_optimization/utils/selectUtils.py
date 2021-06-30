@@ -28,7 +28,7 @@ def get_top_njet_index(branches,jet_index,njets=6):
 def sort_jet_index_simple(branches,varbranch,jets=None,method=max):
     """ Mask of the top njet jets in varbranch """
     
-    if jets is None: jets = branches["jet_pt"] > -999
+    if jets is None: jets = branches.all_jets_mask
         
     polarity = -1 if method is max else 1
         
@@ -37,10 +37,10 @@ def sort_jet_index_simple(branches,varbranch,jets=None,method=max):
     selected_array = sorted_array[selected_sorted_array]
     return selected_array
 
-def sort_jet_index(branches,variable="jet_ptRegressed",jets=None,method=max):
+def sort_jet_index(branches,variable="jet_pt",jets=None,method=max):
     """ Mask of the top njet jets in variable """
     if variable is None: variable = "jet_pt"
-
+    
     varbranch = branches[variable]
     if variable == "jet_eta": varbranch = np.abs(varbranch)
     return sort_jet_index_simple(branches,varbranch,jets,method=method)
@@ -60,40 +60,42 @@ def count_sixb_mask(jet_mask,sixb_jet_mask):
     inter = jet_mask & sixb_jet_mask
     return ak.sum(inter,axis=-1)
 
-def get_sixb_position(jet_index,sixb_jet_mask):
-    """ Get index positions of signal jets in sorted jet inde list"""
-    ie = 5
+def get_jet_position(jet_index,jet_mask):
+    """ Get index positions of jets in sorted jet index list"""
     position = ak.local_index(jet_index,axis=-1)
-    sixb_position = position[ sixb_jet_mask[jet_index] ]
-    return sixb_position
+    jet_position = position[ jet_mask[jet_index] ]
+    return jet_position
 
 # --- Standard Preselection --- #
-def std_preselection(branches,ptcut=20,etacut=2.5,btagcut=None,jetid=1,puid=1,njetcut=0,passthrough=False,
-                     exclude_events_mask=None,exclude_jet_mask=None,include_jet_mask=None,**kwargs):
+def std_preselection(branches,ptcut=20,etacut=2.5,btagcut=None,jetid=1,puid=1,njetcut=0,min_drcut=None,qglcut=None,
+                     passthrough=False,exclude_events_mask=None,exclude_jet_mask=None,include_jet_mask=None,**kwargs):
+    def jet_pu_mask(puid=puid):
+        puid_mask = (1 << puid) == branches["jet_puid"] & ( 1 << puid )
+        low_pt_pu_mask = (branches["jet_pt"] < 50) & puid_mask
+        return (branches["jet_pt"] >= 50) | low_pt_pu_mask
+    
     jet_mask = branches.all_jets_mask
+    
+    if include_jet_mask is not None: jet_mask = jet_mask & include_jet_mask 
+    if exclude_jet_mask is not None: jet_mask = exclude_jets(jet_mask,exclude_jet_mask)
+        
     if not passthrough:
-        if ptcut: jet_mask = jet_mask & (branches["jet_ptRegressed"] > ptcut)
+        if ptcut: jet_mask = jet_mask & (branches["jet_pt"] > ptcut)
         if etacut: jet_mask = jet_mask & (np.abs(branches["jet_eta"]) < etacut)
         if btagcut: jet_mask = jet_mask & (branches["jet_btag"] > btagcut)
         if jetid: jet_mask = jet_mask & ((1 << jetid) == branches["jet_id"] & ( 1 << jetid ))
-        if puid: 
-            puid_mask = (1 << puid) == branches["jet_puid"] & ( 1 << puid )
-            low_pt_pu_mask = (branches["jet_ptRegressed"] < 50) & puid_mask
-            jet_pu_mask = (branches["jet_ptRegressed"] >= 50) | low_pt_pu_mask
-            jet_mask = jet_mask & jet_pu_mask
-        
-    if include_jet_mask is not None: jet_mask = jet_mask & include_jet_mask 
-    if exclude_jet_mask is not None:     jet_mask = exclude_jets(jet_mask,exclude_jet_mask)
+        if puid: jet_mask = jet_mask & jet_pu_mask()
+        if min_drcut: jet_mask = jet_mask & (branches["jet_min_dr"] > min_drcut)
+        if qglcut: jet_mask = jet_mask & (branches["jet_qgl"] > qglcut)
         
     event_mask = ak.sum(jet_mask,axis=-1) >= njetcut
     if exclude_events_mask is not None: event_mask = event_mask & exclude_events_mask
     return event_mask,jet_mask
 
-
 def xmass_selected_signal(branches,jets_index,njets=6,invm=700):
     top_jets_index, _ = get_top_njet_index(branches,jets_index,njets=njets)
     
-    jet_pt = branches["jet_ptRegressed"]
+    jet_pt = branches["jet_pt"]
     jet_m = branches["jet_m"]
     jet_eta = branches["jet_eta"]
     jet_phi = branches["jet_phi"]

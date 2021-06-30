@@ -13,4 +13,6 @@ from .selectUtils import *
 from .plotUtils import *
 from .studyUtils import *
 from .classUtils import *
+from .orderUtils import *
+from .testUtils import *
 from .cutConfig import *

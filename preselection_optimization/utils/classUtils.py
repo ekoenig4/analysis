@@ -8,17 +8,22 @@ class Branches:
         
         self.all_events_mask = ak.broadcast_arrays(True,self["Run"])[0]
         self.all_jets_mask = ak.broadcast_arrays(True,self["jet_pt"])[0]
+        
+        signal_index = "signal_bjet_index" if "signal_jet_index" not in ttree.keys() else "signal_jet_index"
+        
+        self.sixb_jet_mask = get_jet_index_mask(self,self[signal_index])
+        self.bkgs_jet_mask = self.sixb_jet_mask == False
 
         self.sixb_found_mask = self["nfound_all"] == 6
-        self.nsignal = ak.sum( self.sixb_found_mask )
-        self.sixb_jet_mask = get_jet_index_mask(self,self["signal_bjet_index"])
+        
         self.reco_XY()
     def __getitem__(self,key): 
         if key in self.extended:
             return self.extended[key]
+        if key == "jet_pt": key = "jet_ptRegressed"
         return self.ttree[key].array()
     def reco_XY(self):
-        bjet_p4 = lambda key : vector.obj(pt=self[f"gen_{key}_recojet_ptRegressed"],eta=self[f"gen_{key}_recojet_eta"],
+        bjet_p4 = lambda key : vector.obj(pt=self[f"gen_{key}_recojet_pt"],eta=self[f"gen_{key}_recojet_eta"],
                                           phi=self[f"gen_{key}_recojet_phi"],mass=self[f"gen_{key}_recojet_m"])
         hx_b1 = bjet_p4("HX_b1")
         hx_b2 = bjet_p4("HX_b2")
@@ -32,14 +37,45 @@ class Branches:
         
         self.extended.update({"X_pt":X.pt,"X_m":X.mass,"X_eta":X.eta,"X_phi":X.phi,
                               "Y_pt":Y.pt,"Y_m":Y.mass,"Y_eta":Y.eta,"Y_phi":Y.phi})
-    
+    def calc_jet_dr(self,compare=None,tag="jet"):
+        def diff(select,compare):
+            compare = ak.broadcast_arrays(compare[:,np.newaxis],select)[0]
+            select = ak.broadcast_arrays(select,ak.count(select,axis=-1)[:,np.newaxis][:,np.newaxis])[0]
+            return compare - select
+        select_eta = self["jet_eta"]
+        select_phi = self["jet_phi"]
+
+        compare_eta = self["jet_eta"][compare]
+        compare_phi = self["jet_phi"][compare]
+
+        deta = diff(select_eta,compare_eta)
+        dphi = diff(select_phi,compare_phi)
+        dr = np.sqrt( deta**2 + dphi**2 )
+        dr_index = ak.local_index(dr,axis=-1)
+
+        remove_self = dr != 0
+        dr = dr[remove_self]
+        dr_index = dr_index[remove_self]
+
+        imin_dr = ak.argmin(dr,axis=-1,keepdims=True)
+        imax_dr = ak.argmax(dr,axis=-1,keepdims=True)
+
+        min_dr = ak.flatten(dr[imin_dr],axis=-1)
+        imin_dr = ak.flatten(dr_index[imin_dr],axis=-1)
+
+        max_dr = ak.flatten(dr[imax_dr],axis=-1)
+        imax_dr = ak.flatten(dr_index[imax_dr],axis=-1)
+
+        self.extended.update({f"{tag}_min_dr":min_dr,f"{tag}_imin_dr":imin_dr,f"{tag}_max_dr":max_dr,f"{tag}_imax_dr":imax_dr})
 class Selection:
-    def __init__(self,branches,cuts={},include=None,previous=None,variable=None,njets=-1,mask=None,tag=""):
+    def __init__(self,branches,cuts={},include=None,previous=None,variable=None,njets=-1,mask=None,tag="selected",ignore_tag=False):
         self.tag = tag
         self.branches = branches
         
         self.include = include
         self.previous = previous
+        self.ignore_previous_tag = ignore_tag
+        self.ignore_include_tag = ignore_tag
             
         self.previous_index = previous.total_jets_selected_index if previous else None
         self.previous_selected = previous.total_jets_selected if previous else (branches.all_jets_mask == False)
@@ -55,43 +91,61 @@ class Selection:
         self.previous_nevents = ak.sum(self.previous_events_mask)
         
         self.sixb_jet_mask = branches.sixb_jet_mask
+        self.bkgs_jet_mask = branches.bkgs_jet_mask
+        
+        if cuts is None: cuts = {"passthrough":True}
         self.cuts = cuts
         self.mask = branches.all_events_mask
-        self.jets_captured = branches.all_jets_mask
+        self.jets_passed = branches.all_jets_mask
         
-        self.capture_jets(cuts,variable,njets,mask)
+        self.choose_jets(cuts,variable,njets,mask)
                 
-    def capture_jets(self,cuts={},variable=None,njets=-1,mask=None,tag=None):
+    def choose_jets(self,cuts={},variable=None,njets=-1,mask=None,tag=None):
+        if cuts is None: cuts = {"passthrough":True}
         if any(cuts): 
             self.cuts = dict(**self.cuts)
             self.cuts["passthrough"] = False
             self.cuts.update(cuts)
         if tag: self.tag = tag
             
-        self.mask, self.jets_captured = std_preselection(self.branches,exclude_events_mask=self.previous_events_mask & self.mask,
-                                                         exclude_jet_mask=self.exclude_jet_mask,
-                                                         include_jet_mask=self.include_jet_mask & self.jets_captured,**self.cuts)
+        self.mask, self.jets_passed = std_preselection(self.branches,exclude_events_mask=self.previous_events_mask & self.mask,
+                                                        exclude_jet_mask=self.exclude_jet_mask,
+                                                        include_jet_mask=self.include_jet_mask & self.jets_passed,**self.cuts)
         if mask is not None: self.mask = self.mask & mask
-        self.njets_captured = ak.sum(self.jets_captured,axis=-1)
+        self.njets_passed = ak.sum(self.jets_passed,axis=-1)
+        self.sixb_passed = self.jets_passed & self.sixb_jet_mask
+        self.nsixb_passed = ak.sum(self.sixb_passed,axis=-1)
+        self.bkgs_passed = self.jets_passed & self.bkgs_jet_mask
+        self.nbkgs_passed = ak.sum(self.bkgs_passed,axis=-1)
         
-        self.sixb_captured = self.jets_captured & self.sixb_jet_mask
-        self.nsixb_captured = ak.sum(self.sixb_captured,axis=-1)
+        self.jets_failed = exclude_jets(self.branches.all_jets_mask,self.jets_passed)
+        self.njets_failed = ak.sum(self.jets_failed,axis=-1)
+        self.sixb_failed = self.jets_failed & self.sixb_jet_mask
+        self.nsixb_failed = ak.sum(self.sixb_failed,axis=-1)
+        self.bkgs_failed = self.jets_failed & self.bkgs_jet_mask
+        self.nbkgs_failed = ak.sum(self.bkgs_failed,axis=-1)
         
         self.nevents = ak.sum(self.mask)
-        self.nsignal = ak.sum(self.mask & self.branches.sixb_found_mask)
-        
         self.sort_jets(variable,njets)
                 
-    def captured_jets(self,cuts={},variable=None,njets=-1,mask=None,tag=None):
+    def chosen_jets(self,cuts={},variable=None,njets=-1,mask=None,tag=None):
         new_selection = self.copy()
-        new_selection.capture_jets(cuts,variable,njets,mask,tag)
+        new_selection.choose_jets(cuts,variable,njets,mask,tag)
         return new_selection
         
     def sort_jets(self,variable,njets=-1,method=max):
         self.variable = variable
-        self.jets_captured_index = sort_jet_index(self.branches,self.variable,self.jets_captured,method=method)
-        self.sixb_position = get_sixb_position(self.jets_captured_index,self.sixb_jet_mask)
-        self.sixb_captured_index = self.jets_captured_index[self.sixb_position]
+        
+        if variable is None and self.include:
+            included_passed_index = self.jets_passed[self.include.total_jets_selected_index]
+            self.jets_passed_index = self.include.total_jets_selected_index[included_passed_index]
+        else: 
+            self.jets_passed_index = sort_jet_index(self.branches,self.variable,self.jets_passed,method=method)
+        
+        self.sixb_passed_position = get_jet_position(self.jets_passed_index,self.sixb_jet_mask)
+        self.sixb_passed_index = self.jets_passed_index[self.sixb_passed_position]
+        self.bkgs_passed_position = get_jet_position(self.jets_passed_index,self.bkgs_jet_mask)
+        self.bkgs_passed_index = self.jets_passed_index[self.bkgs_passed_position]
         
         self.select_njets(njets)
         
@@ -102,23 +156,33 @@ class Selection:
         
     def select_njets(self,njets):
         self.njets = njets
-        self.jets_selected_index, self.jets_remaining_index = get_top_njet_index(self.branches,self.jets_captured_index,self.njets)
+        self.jets_selected_index, self.jets_remaining_index = get_top_njet_index(self.branches,self.jets_passed_index,self.njets)
         
         self.jets_selected = get_jet_index_mask(self.branches,self.jets_selected_index)
         self.njets_selected = ak.sum(self.jets_selected,axis=-1)
         
-        self.jets_remaining = get_jet_index_mask(self.branches,self.jets_remaining_index)
-        self.njets_remaining = ak.sum(self.jets_remaining,axis=-1)
-        
-        self.sixb_selected_position = get_sixb_position(self.jets_selected_index,self.sixb_jet_mask)
+        self.sixb_selected_position = get_jet_position(self.jets_selected_index,self.sixb_jet_mask)
         self.sixb_selected_index = self.jets_selected_index[self.sixb_selected_position]
         self.sixb_selected = get_jet_index_mask(self.branches,self.sixb_selected_index)
         self.nsixb_selected = ak.sum(self.sixb_selected,axis=-1)
         
-        self.sixb_remaining_position = get_sixb_position(self.jets_remaining_index,self.sixb_jet_mask)
-        self.sixb_remaining_index = self.jets_remaining_index[self.sixb_remaining_position]
-        self.sixb_remaining = get_jet_index_mask(self.branches,self.sixb_remaining_index)
-        self.nsixb_remaining = ak.sum(self.sixb_remaining,axis=-1)
+        self.bkgs_selected_position = get_jet_position(self.jets_selected_index,self.bkgs_jet_mask)
+        self.bkgs_selected_index = self.jets_selected_index[self.bkgs_selected_position]
+        self.bkgs_selected = get_jet_index_mask(self.branches,self.bkgs_selected_index)
+        self.nbkgs_selected = ak.sum(self.bkgs_selected,axis=-1)
+        
+#         self.jets_remaining = get_jet_index_mask(self.branches,self.jets_remaining_index)
+#         self.njets_remaining = ak.sum(self.jets_remaining,axis=-1)
+        
+#         self.sixb_remaining_position = get_jet_position(self.jets_remaining_index,self.sixb_jet_mask)
+#         self.sixb_remaining_index = self.jets_remaining_index[self.sixb_remaining_position]
+#         self.sixb_remaining = get_jet_index_mask(self.branches,self.sixb_remaining_index)
+#         self.nsixb_remaining = ak.sum(self.sixb_remaining,axis=-1)
+        
+#         self.bkgs_remaining_position = get_jet_position(self.jets_remaining_index,self.bkgs_jet_mask)
+#         self.bkgs_remaining_index = self.jets_remaining_index[self.bkgs_remaining_position]
+#         self.bkgs_remaining = get_jet_index_mask(self.branches,self.bkgs_remaining_index)
+#         self.nbkgs_remaining = ak.sum(self.bkgs_remaining,axis=-1)
         
         self.total_jets_selected_index = self.jets_selected_index
         if self.previous: self.total_jets_selected_index = ak.concatenate([self.previous_index,self.total_jets_selected_index],axis=-1)
@@ -134,19 +198,27 @@ class Selection:
         self.variable = variable
         self.jets_selected_index = sort_jet_index(self.branches,self.variable,self.jets_selected)
         
-        self.sixb_selected_position = get_sixb_position(self.jets_selected_index,self.sixb_jet_mask)
+        self.sixb_selected_position = get_jet_position(self.jets_selected_index,self.sixb_jet_mask)
         self.sixb_selected_index = self.jets_selected_index[self.sixb_selected_position]
+        
+        self.bkgs_selected_position = get_jet_position(self.jets_selected_index,self.bkgs_jet_mask)
+        self.bkgs_selected_index = self.jets_selected_index[self.bkgs_selected_position]
         
     def sorted_selected_jets(self,variable):
         new_selection = self.copy()
         new_selection.sort_selected_jets(variable)
         return new_selection
     
+    def masked(self,mask):
+        new_selection = self.copy()
+        new_selection.mask = new_selection.mask & mask
+        return new_selection
+    
     def reco_X(self):
         fill_zero = lambda ary : ak.fill_none(ak.pad_none(ary,6,axis=-1,clip=1),0)
         
         jets = self.jets_selected_index
-        jet_pt = fill_zero(self.branches["jet_ptRegressed"][jets])
+        jet_pt = fill_zero(self.branches["jet_pt"][jets])
         jet_eta = fill_zero(self.branches["jet_eta"][jets])
         jet_phi = fill_zero(self.branches["jet_phi"][jets])
         jet_m = fill_zero(self.branches["jet_m"][jets])
@@ -158,8 +230,8 @@ class Selection:
     def score(self): 
         return SelectionScore(self)
     
-    def merge(self):
-        return MergedSelection(self)
+    def merge(self,tag=None):
+        return MergedSelection(self,tag=tag)
     
     def copy(self):
         return CopySelection(self)
@@ -168,26 +240,27 @@ class Selection:
         ignore = lambda tag : any( _ in tag for _ in ["baseline","preselection"] )
         if self.tag is None: return
         title = f"{self.njets} {self.tag}" if self.njets != -1 else f"all {self.tag}"
-        if self.variable is not None: title = f"{title} / {self.variable.replace('jet_','')}"
-        if self.include and self.include.tag and not ignore(self.include.tag): 
+        variable = self.variable if self.variable else "jet_pt"
+        if variable != "jet_pt": title = f"{title} / {variable.replace('jet_','')}"
+        if self.include and self.include.tag and not ignore(self.include.tag) and not self.ignore_include_tag: 
             title = f"{self.include.title(1)} & {title}"
             if i != 1: title = f"({title})" 
-        if self.previous and self.previous.tag and not ignore(self.previous.tag): 
+        if self.previous and self.previous.tag and not ignore(self.previous.tag) and not self.ignore_previous_tag: 
             title = f"{self.previous.title(2)} | {title}"
             
         if i != 0: return title
         
-        tag_map = {}
-        for tag in re.split('\s[&|]\s',title): 
-            tag = re.sub('[\(\)]','',tag)
-            if tag not in tag_map: tag_map[tag] = f"a{len(tag_map)}"
-        tag_eq = title.replace(" & ","*").replace(" | ","+")#.replace(" / ","/")
-        for tag,var in tag_map.items(): tag_eq = tag_eq.replace(tag,var)
-        tag_eq_sim = str(sp.simplify(tag_eq)).replace(" ","")
-        tag_sim = tag_eq_sim.replace("*"," & ").replace("+"," | ")#.replace("/"," / ")
-        for tag,var in tag_map.items(): tag_sim = tag_sim.replace(var,tag)
+#         tag_map = {}
+#         for tag in re.split('\s[&|]\s',title): 
+#             tag = re.sub('[\(\)]','',tag)
+#             if tag not in tag_map: tag_map[tag] = f"a{len(tag_map)}"
+#         tag_eq = title.replace(" & ","*").replace(" | ","+")#.replace(" / ","/")
+#         for tag,var in tag_map.items(): tag_eq = tag_eq.replace(tag,var)
+#         tag_eq_sim = str(sp.simplify(tag_eq)).replace(" ","")
+#         tag_sim = tag_eq_sim.replace("*"," & ").replace("+"," | ")#.replace("/"," / ")
+#         for tag,var in tag_map.items(): tag_sim = tag_sim.replace(var,tag)
         
-        return tag_sim
+        return title
     
     def __str__(self):
         return f"--- {self.title()} ---\n{self.score()}"
@@ -195,49 +268,42 @@ class Selection:
 class SelectionScore:
     def __init__(self,selection):
         branches = selection.branches
-        previous_nevents = selection.previous_nevents
-
+        mask = selection.mask
+        
         njets = selection.njets
         if njets < 0: njets = 6
-        nsixb = min(6,njets)
+        self.nsixb = min(6,njets)
         
-        total_nsixb = ak.sum(branches["nfound_all"][selection.mask])
+        nevents = ak.sum(selection.mask)
+        njets_selected = selection.njets_selected[mask]
+        nsixb_selected = selection.nsixb_selected[mask]
         
-        total_min_nsixb = ak.sum(array_min(branches["nfound_all"][selection.mask],nsixb))
-        total_remain = ak.sum(selection.nsixb_remaining[selection.mask])
+        njets_passed = selection.njets_passed[mask]
+        nsixb_passed = selection.nsixb_passed[mask]
+        nbkgs_passed = selection.nbkgs_passed[mask]
         
-        total_captured = ak.sum(selection.nsixb_captured[selection.mask])
-        total_sig_captured = ak.sum(selection.nsixb_captured[selection.mask] == nsixb)
+        nsixb_total = ak.sum(branches.sixb_jet_mask[mask],axis=-1)
+        nbkgs_total = ak.sum(branches.bkgs_jet_mask[mask],axis=-1)
         
-        total_selected = ak.sum(selection.nsixb_selected[selection.mask])
-        total_sig_selected = ak.sum(selection.nsixb_selected[selection.mask] == nsixb)
+        self.efficiency = nevents/selection.previous_nevents
+        self.purity = ak.sum(nsixb_selected == self.nsixb)/nevents
+        self.jet_sovert = ak.sum(nsixb_passed)/ak.sum(njets_passed)
+        self.jet_soverb = ak.sum(nsixb_passed)/ak.sum(nbkgs_passed)
+        self.jet_misstr = ak.sum(nbkgs_passed)/ak.sum(nbkgs_total)
+        self.jet_eff    = ak.sum(nsixb_passed)/ak.sum(nsixb_total)
         
-        self.event_eff = selection.nevents/float(previous_nevents)
-        
-        self.event_avg_captured = total_captured/float(selection.nevents)
-        self.event_per_captured = total_captured/float(total_nsixb)
-        self.event_pur_captured = total_sig_captured/float(selection.nevents)
-        self.event_total_captured = total_captured/float(total_nsixb)
-        
-        self.event_avg_selected = total_selected/float(selection.nevents)
-        self.event_per_selected = total_selected/float(total_min_nsixb)
-        self.event_pur_selected = total_sig_selected/float(selection.nevents)
-        self.event_total_selected = total_selected/float(total_nsixb)
-    def __str__(self):
-        prompt_list = [
-            "Event Efficiency:      {event_eff:0.2}",
-#             "Event Captured Purity: {event_pur_captured:0.2f}",
-            "Event Selected Purity: {event_pur_selected:0.2f}",
+        self.prompt_list = [
+            "Event Efficiency:   {efficiency:0.2}",
+            "Selected Purity({nsixb}): {purity:0.2f}",
+            "Passed Jet S/T:     {jet_sovert:0.2f}",
+#             "Passed Jet MR:      {jet_misstr:0.2f}",
+#             "Passed Jet Eff:     {jet_eff:0.2f}",
         ]
-        prompt = '\n'.join(prompt_list)
+    def __str__(self):
+        prompt = '\n'.join(self.prompt_list)
         return prompt.format(**vars(self))
     def savetex(self,fname):
-        prompt_list = [
-            "Event Efficiency:      {event_eff:0.2}",
-#             "Event Captured Purity: {event_pur_captured:0.2f}",
-            "Event Selected Purity: {event_pur_selected:0.2f}",
-        ]
-        output = '\\\\ \n'.join(prompt_list).format(**vars(self))
+        output = '\\\\ \n'.join(self.prompt_list).format(**vars(self))
         with open(f"{fname}.tex","w") as f: f.write(output)
             
 class CopySelection(Selection):
@@ -246,7 +312,7 @@ class CopySelection(Selection):
             setattr(self,key,value)
         
 class MergedSelection(CopySelection): 
-    def __init__(self,selection): 
+    def __init__(self,selection,tag="merged selection"): 
         CopySelection.__init__(self,selection)
 
         previous = selection.previous
@@ -254,34 +320,53 @@ class MergedSelection(CopySelection):
             self.add(previous)
             self.previous_nevents = previous.previous_nevents
             previous = previous.previous
-        self.nsixb_captured = ak.sum(self.sixb_captured,axis=-1)
-        self.jets_captured_index = ak.concatenate((self.jets_selected_index,self.jets_remaining_index),axis=-1)
-        self.sixb_position = get_sixb_position(self.jets_captured_index,self.sixb_jet_mask)
-        self.sixb_selected_position = get_sixb_position(self.jets_selected_index,self.sixb_jet_mask)
-        self.sixb_captured_index = self.jets_captured_index[self.sixb_position]
-        self.previous = selection
-        self.njets = self.total_njets
-        self.tag = "merged"
+        
+        self.jets_passed_index = ak.concatenate((self.jets_selected_index,self.jets_remaining_index),axis=-1)
+        self.njets_passed = ak.sum(self.jets_passed,axis=-1)
+        self.njets_selected = ak.sum(self.jets_selected,axis=-1)
+        self.jets_failed = exclude_jets(self.branches.all_jets_mask,self.jets_passed)
+        self.njets_failed = ak.sum(self.jets_failed,axis=-1)
+        
+        self.sixb_passed_position = get_jet_position(self.jets_passed_index,self.sixb_jet_mask)
+        self.sixb_passed_index = self.jets_passed_index[self.sixb_passed_position]
+        self.nsixb_passed = ak.sum(self.sixb_passed,axis=-1)
+        self.sixb_selected_position = get_jet_position(self.jets_selected_index,self.sixb_jet_mask)
+        self.sixb_selected_index = self.jets_selected_index[self.sixb_selected_position]
+        self.nsixb_selected = ak.sum(self.sixb_selected,axis=-1)
+        self.sixb_failed = self.jets_failed & self.sixb_jet_mask
+        self.nsixb_failed = ak.sum(self.sixb_failed,axis=-1)
+        
+        self.bkgs_passed_position = get_jet_position(self.jets_passed_index,self.bkgs_jet_mask)
+        self.bkgs_passed_index = self.jets_passed_index[self.bkgs_passed_position]
+        self.nbkgs_passed = ak.sum(self.bkgs_passed,axis=-1)
+        self.bkgs_selected_position = get_jet_position(self.jets_selected_index,self.bkgs_jet_mask)
+        self.bkgs_selected_index = self.jets_selected_index[self.bkgs_selected_position]
+        self.nbkgs_selected = ak.sum(self.bkgs_selected,axis=-1)
+        self.bkgs_failed = self.jets_failed & self.bkgs_jet_mask
+        self.nbkgs_failed = ak.sum(self.bkgs_failed,axis=-1)
+        
+        self.previous = None
+        self.last = selection
+        if self.njets != -1: self.njets = self.total_njets
+        
+        self.ignore_previous_tag = True
+        self.tag = tag
         self.variable = None
         
     def add(self,selection):
-        for key in ("jets_captured","sixb_captured"):
+        for key in ("jets_passed","sixb_passed","bkgs_passed","jets_selected","sixb_selected","bkgs_selected"):
             setattr(self,key, getattr(self,key) | getattr(selection,key))
-        for key in ("jets_selected_index","sixb_selected_index"):
+        for key in ("jets_selected_index",):
             setattr(self,key, ak.concatenate((getattr(selection,key),getattr(self,key)),axis=-1))
-        for key in ("njets_selected","nsixb_selected"):
-            setattr(self,key, getattr(self,key) + getattr(selection,key))
-        for key in ("jets_selected","sixb_selected"):
-            setattr(self,key, getattr(self,key) | getattr(selection,key))
-        
-    def title(self): return f"{self.previous.title()} merged"
+        for key in ("jets_failed","sixb_failed","bkgs_failed"):
+            setattr(self,key, getattr(self,key) & getattr(selection,key))
     
 class SignalSelection(MergedSelection):
     signal_methods = {
         "xmass":xmass_selected_signal,
         "top":get_top_njet_index
     }
-    def __init__(self,branches,previous,njets=6,mask=None,method="xmass"):
+    def __init__(self,branches,previous,njets=6,mask=None,method="top"):
         MergedSelection.__init__(self,previous)
         
         self.variable = None
@@ -292,11 +377,11 @@ class SignalSelection(MergedSelection):
         self.previous_njets = self.total_njets
         
         self.jets_order = self.jets_selected_index
-        self.jets_captured = self.jets_selected
-        self.njets_captured = ak.sum(self.jets_captured,axis=-1)
+        self.jets_passed = self.jets_selected
+        self.njets_passed = ak.sum(self.jets_passed,axis=-1)
         
-        self.sixb_captured = self.jets_captured & self.sixb_jet_mask
-        self.nsixb_captured = ak.sum(self.sixb_captured,axis=-1)
+        self.sixb_passed = self.jets_passed & self.sixb_jet_mask
+        self.nsixb_passed = ak.sum(self.sixb_passedo,axis=-1)
         
         self.previous_events_mask = self.previous.mask
         self.previous_nevents = ak.sum(self.previous_events_mask)
@@ -305,7 +390,7 @@ class SignalSelection(MergedSelection):
         
         self.select_signal(njets,method)
         
-    def select_signal(self,njets=6,method="xmass"):
+    def select_signal(self,njets=6,method="top"):
         self.tag = f"{method} selected"
         self.njets = min(6,njets) if njets != -1 else 6
         if method == "top": njets = self.njets
@@ -318,14 +403,14 @@ class SignalSelection(MergedSelection):
         self.jets_remaining = get_jet_index_mask(self.branches,self.jets_remaining_index)
         self.njets_remaining = ak.sum(self.jets_remaining,axis=-1)
         
-        self.sixb_selected_position = get_sixb_position(self.jets_selected_index,self.sixb_jet_mask)
+        self.sixb_selected_position = get_jet_position(self.jets_selected_index,self.sixb_jet_mask)
         self.sixb_selected_index = self.jets_selected_index[self.sixb_selected_position]
         self.sixb_selected = get_jet_index_mask(self.branches,self.sixb_selected_index)
         self.nsixb_selected = ak.sum(self.sixb_selected,axis=-1)
         
-        self.sixb_remaining_position = get_sixb_position(self.jets_remaining_index,self.sixb_jet_mask)
+        self.sixb_remaining_position = get_jet_position(self.jets_remaining_index,self.sixb_jet_mask)
         self.sixb_remaining_index = self.jets_remaining_index[self.sixb_remaining_position]
         self.sixb_remaining = get_jet_index_mask(self.branches,self.sixb_remaining_index)
         self.nsixb_remaining = ak.sum(self.sixb_remaining,axis=-1)
         
-    def title(self): return Selection.title(self)
+    def title(self,i=0): return Selection.title(self)
