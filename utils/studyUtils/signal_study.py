@@ -3,56 +3,13 @@
 
 from . import *
 
-from datetime import date
-import os
-
-    
-varinfo = {
-    f"jet_m":     {"bins":np.linspace(0,60,50)      ,"xlabel":"Jet Mass"},
-    f"jet_E":     {"bins":np.linspace(0,300,50)     ,"xlabel":"Jet Energy"},
-    f"jet_pt":    {"bins":np.linspace(0,300,50)     ,"xlabel":"Jet Pt (GeV)"},
-    f"jet_btag":  {"bins":np.linspace(0,1,50)       ,"xlabel":"Jet Btag"},
-    f"jet_qgl":   {"bins":np.linspace(0,1,50)       ,"xlabel":"Jet QGL"},
-    f"jet_min_dr":{"bins":np.linspace(0,3,50)       ,"xlabel":"Jet Min dR"},
-    f"jet_eta":   {"bins":np.linspace(-3,3,50)      ,"xlabel":"Jet Eta"},
-    f"jet_phi":   {"bins":np.linspace(-3.14,3.14,50),"xlabel":"Jet Phi"},
-}
-
-date_tag = date.today().strftime("%Y%m%d")
-
-def save_scores(score,saveas):
-    directory = f"plots/{date_tag}_plots/scores"
-    if not os.path.isdir(directory): os.makedirs(directory)
-    score.savetex(f"{directory}/{saveas}")
-    
-def save_fig(fig,directory,saveas):
-    directory = f"plots/{date_tag}_plots/{directory}"
-    if not os.path.isdir(directory): os.makedirs(directory)
-    fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
-    
-class Study:
-    def __init__(self,selection,title=None,saveas=None,print_score=True,subset="selected",mask=None,varlist=["jet_pt","jet_btag","jet_qgl","jet_eta"],autobin=False,**kwargs):
-        if subset not in ["selected","passed","remaining","failed"]: raise ValueError(f"{subset} not available")
-        if mask is not None: selection = selection.masked(mask)
-        self.selection = selection
-        self.scale = selection.nevents*selection.scale
-        self.subset = subset
-        self.saveas = saveas
-        self.varinfo = { var:dict(**varinfo[var]) for var in varlist }
-        
-        if autobin: 
-            for var in self.varinfo.values(): var["bins"] = None
-        
-        if title is None: title = selection.title()
-        self.title = title
-        print(f"--- {title} ---")
-        
-        score = selection.score()
-        if print_score: print(score)
-        if saveas: save_scores(score,saveas)
+class SignalStudy(Study):
+    def __init__(self,selection,**kwargs):
+        Study.__init__(self,selection,**kwargs)
+        selection.build_extra_collections()
 
 def signal_order_study(selection,plot=True,saveas=None,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -110,7 +67,7 @@ def signal_order_study(selection,plot=True,saveas=None,**kwargs):
         if saveas: save_fig(fig,"order",f"{ordinal(ijet+1)}_{saveas}")
     
 def selection_study(selection,plot=True,saveas=None,under6=False,latex=False,required=False,scaled=False,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -203,7 +160,7 @@ def selection_comparison_study(selections,plot=True,saveas=None,under6=False,lat
     if saveas: save_fig(fig,"selection",saveas)
 
 def jets_study(selection,plot=True,saveas=None,density=0,log=0,scaled=False,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -236,7 +193,7 @@ def jets_study(selection,plot=True,saveas=None,density=0,log=0,scaled=False,**kw
         
 
 def jets_2d_study(selection,plot=True,saveas=None,density=0,log=1,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -276,7 +233,7 @@ def jets_2d_study(selection,plot=True,saveas=None,density=0,log=1,**kwargs):
     if saveas: save_fig(fig,f"jets_2d_{subset}",saveas)
         
 def ijets_study(selection,plot=True,saveas=None,njets=-1,show_ijet=None,topbkg=False,density=0,log=0,scaled=0,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -325,7 +282,7 @@ def ijets_study(selection,plot=True,saveas=None,njets=-1,show_ijet=None,topbkg=F
         if saveas: save_fig(fig,f"ijets_{subset}",f"{ordinal(ijet+1)}_{saveas}")
 
 def jets_ordered_study(selection,plot=True,saveas=None,njets=6,topbkg=True,density=0,log=0,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -381,7 +338,7 @@ def jets_ordered_study(selection,plot=True,saveas=None,njets=6,topbkg=True,densi
         if saveas: save_fig(fig,f"jets_{subset}",f"{ordinal(ijet+1)}_{saveas}")
             
 def jets_2d_ordered_study(selection,plot=True,saveas=None,njets=6,topbkg=True,compare=False,density=0,log=1,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -467,7 +424,7 @@ def jets_2d_ordered_study(selection,plot=True,saveas=None,njets=6,topbkg=True,co
         if saveas: save_fig(fig,f"jets_2d_{subset}",f"{ordinal(ijet+1)}_{saveas}")
     
 def x_reco_study(selection,plot=True,saveas=None,scaled=False,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -507,7 +464,7 @@ def x_reco_study(selection,plot=True,saveas=None,scaled=False,**kwargs):
     if saveas: save_fig(fig,"x_reco",saveas)
 
 def x_res_study(selection,plot=True,saveas=None,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -548,7 +505,7 @@ def x_res_study(selection,plot=True,saveas=None,**kwargs):
     if saveas: save_fig(fig,"x_res",saveas)
 
 def njet_study(selection,plot=True,saveas=None,density=0,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -579,7 +536,7 @@ def njet_study(selection,plot=True,saveas=None,density=0,**kwargs):
     
 
 def presel_study(selection,plot=True,saveas=None,density=0,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -614,7 +571,7 @@ def presel_study(selection,plot=True,saveas=None,density=0,**kwargs):
     if saveas: save_fig(fig,f"presel_{subset}",saveas)
     
 def jet_issue_study(selection,plot=True,saveas=None,density=0,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
@@ -645,7 +602,7 @@ def jet_issue_study(selection,plot=True,saveas=None,density=0,**kwargs):
     return fig,axs
     
 def jet_comp_study(selection,plot=True,saveas=None,signal=False,density=0,**kwargs):
-    study = Study(selection,saveas=saveas,**kwargs)     
+    study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     branches = selection.branches     
     subset = study.subset
