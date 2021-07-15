@@ -1,6 +1,8 @@
 from . import *
 
 xsecMap = {
+"NMSSM":0.3,
+    
 "QCD_Pt_15to30"    :1246000000.0,
 "QCD_Pt_30to50"    :106500000.0,
 "QCD_Pt_50to80"    :15700000.0,

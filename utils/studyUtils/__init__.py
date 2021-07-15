@@ -7,8 +7,8 @@ from .. import *
 
 varinfo = {
     f"jet_m":     {"bins":np.linspace(0,60,50)      ,"xlabel":"Jet Mass"},
-    f"jet_E":     {"bins":np.linspace(0,300,50)     ,"xlabel":"Jet Energy"},
-    f"jet_pt":    {"bins":np.linspace(0,300,50)     ,"xlabel":"Jet Pt (GeV)"},
+    f"jet_E":     {"bins":np.linspace(0,1000,50)     ,"xlabel":"Jet Energy"},
+    f"jet_pt":    {"bins":np.linspace(0,1000,50)     ,"xlabel":"Jet Pt (GeV)"},
     f"jet_btag":  {"bins":np.linspace(0,1,50)       ,"xlabel":"Jet Btag"},
     f"jet_qgl":   {"bins":np.linspace(0,1,50)       ,"xlabel":"Jet QGL"},
     f"jet_min_dr":{"bins":np.linspace(0,3,50)       ,"xlabel":"Jet Min dR"},

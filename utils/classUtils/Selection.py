@@ -1,86 +1,13 @@
 from . import *
 
-class Branches:
-    def __init__(self,tfname,sample=None,xsec=1,is_signal=False):
-        self.tfname = tfname
-        self.tfile = ut.open(tfname)
-        self.total_events = ak.sum(self.tfile["n_events"].to_numpy(),axis=None)
-        self.ttree = self.tfile["sixBtree"]
-        self.extended = {}
-        self.nevents = ak.size( self["Run"] )
-        self.is_signal = is_signal
+import os
 
-        self.sample = sample
-        self.xsec = xsec
-        if sample: self.xsec = xsecMap[sample]
-        self.scale = self.xsec/self.total_events
+class Selection(Tree):
+    def __init__(self,tree,cuts={},include=None,previous=None,variable=None,njets=-1,mask=None,tag="selected",ignore_tag=False):
+        copy_fields(tree,self)
         
-        self.all_events_mask = ak.broadcast_arrays(True,self["Run"])[0]
-        self.all_jets_mask = ak.broadcast_arrays(True,self["jet_pt"])[0]
-        
-        self.sixb_jet_mask = self["jet_signalId"] != -1
-        self.bkgs_jet_mask = self.sixb_jet_mask == False
-
-        self.sixb_found_mask = self["nfound_all"] == 6
-        # self.reco_XY()
-    def __str__(self):
-        string = [
-            f"=== File Info ===",
-            f"File: {self.tfname}",
-            f"Total Events:    {self.total_events}",
-            f"Selected Events: {self.nevents}",
-        ]
-        return "\n".join(string)
-    def __getitem__(self,key): 
-        if key in self.extended:
-            return self.extended[key]
-#         if key == "jet_pt": key = "jet_ptRegressed"
-        return self.ttree[key].array()
-    def reco_XY(self):
-        bjet_p4 = lambda key : vector.obj(pt=self[f"gen_{key}_recojet_pt"],eta=self[f"gen_{key}_recojet_eta"],
-                                          phi=self[f"gen_{key}_recojet_phi"],mass=self[f"gen_{key}_recojet_m"])
-        hx_b1 = bjet_p4("HX_b1")
-        hx_b2 = bjet_p4("HX_b2")
-        hy1_b1= bjet_p4("HY1_b1")
-        hy1_b2= bjet_p4("HY1_b2")
-        hy2_b1= bjet_p4("HY2_b1")
-        hy2_b2= bjet_p4("HY2_b2")
-        
-        Y = hy1_b1 + hy1_b2 + hy2_b1 + hy2_b2
-        X = hx_b1 + hx_b2 + Y
-        
-        self.extended.update({"X_pt":X.pt,"X_m":X.mass,"X_eta":X.eta,"X_phi":X.phi,
-                              "Y_pt":Y.pt,"Y_m":Y.mass,"Y_eta":Y.eta,"Y_phi":Y.phi})
-    def calc_jet_dr(self,compare=None,tag="jet"):
-        select_eta = self["jet_eta"]
-        select_phi = self["jet_phi"]
-
-        compare_eta = self["jet_eta"][compare]
-        compare_phi = self["jet_phi"][compare]
-        
-        dr = calc_dr(select_eta,select_phi,compare_eta,compare_phi)
-        dr_index = ak.local_index(dr,axis=-1)
-
-        remove_self = dr != 0
-        dr = dr[remove_self]
-        dr_index = dr_index[remove_self]
-
-        imin_dr = ak.argmin(dr,axis=-1,keepdims=True)
-        imax_dr = ak.argmax(dr,axis=-1,keepdims=True)
-
-        min_dr = ak.flatten(dr[imin_dr],axis=-1)
-        imin_dr = ak.flatten(dr_index[imin_dr],axis=-1)
-
-        max_dr = ak.flatten(dr[imax_dr],axis=-1)
-        imax_dr = ak.flatten(dr_index[imax_dr],axis=-1)
-
-        self.extended.update({f"{tag}_min_dr":min_dr,f"{tag}_imin_dr":imin_dr,f"{tag}_max_dr":max_dr,f"{tag}_imax_dr":imax_dr})
-class Selection:
-    def __init__(self,branches,cuts={},include=None,previous=None,variable=None,njets=-1,mask=None,tag="selected",ignore_tag=False):
+        self.tree = tree
         self.tag = tag
-        self.branches = branches
-        self.is_signal = branches.is_signal
-        self.scale = branches.scale
         
         self.include = include
         self.previous = previous
@@ -88,27 +15,34 @@ class Selection:
         self.ignore_include_tag = ignore_tag
             
         self.previous_index = previous.total_jets_selected_index if previous else None
-        self.previous_selected = previous.total_jets_selected if previous else (branches.all_jets_mask == False)
+        self.previous_selected = previous.total_jets_selected if previous else (self.all_jets_mask == False)
         self.previous_njets = previous.total_njets if previous else 0
         
-        self.include_jet_mask = include.total_jets_selected if include else branches.all_jets_mask
-        self.include_events_mask = include.mask if include else branches.all_events_mask
+        self.include_jet_mask = include.total_jets_selected if include else self.all_jets_mask
+        self.include_events_mask = include.mask if include else self.all_events_mask
         
         self.exclude_jet_mask = previous.total_jets_selected if previous else None
-        self.exclude_events_mask = previous.mask if previous else branches.all_events_mask
+        self.exclude_events_mask = previous.mask if previous else self.all_events_mask
         
         self.previous_events_mask = self.include_events_mask & self.exclude_events_mask
         self.previous_nevents = ak.sum(self.previous_events_mask)
         
-        self.sixb_jet_mask = branches.sixb_jet_mask
-        self.bkgs_jet_mask = branches.bkgs_jet_mask
-        
         if cuts is None: cuts = {"passthrough":True}
         self.cuts = cuts
-        self.mask = branches.all_events_mask
-        self.jets_passed = branches.all_jets_mask
+        self.mask = self.all_events_mask
+        self.jets_passed = self.all_jets_mask
         
         self.choose_jets(cuts,variable,njets,mask)
+
+    def __getitem__(self,key):
+        item = self.tree[key]
+        if "jet_" in key: return item[self.jets_selected_index]
+        return item[self.mask]
+
+    def scale_weights(self,jets=False):
+        weights = self.tree.scale_weights(jets=jets)
+        if jets: weights = weights[self.jets_selected]
+        return weights[self.mask]
                 
     def choose_jets(self,cuts={},variable=None,njets=-1,mask=None,tag=None):
         if cuts is None: cuts = {"passthrough":True}
@@ -118,12 +52,12 @@ class Selection:
             self.cuts.update(cuts)
         if tag: self.tag = tag
             
-        self.mask, self.jets_passed = std_preselection(self.branches,exclude_events_mask=self.previous_events_mask & self.mask,
+        self.mask, self.jets_passed = std_preselection(self.tree,exclude_events_mask=self.previous_events_mask & self.mask,
                                                         exclude_jet_mask=self.exclude_jet_mask,
                                                         include_jet_mask=self.include_jet_mask & self.jets_passed,**self.cuts)
         if mask is not None: self.mask = self.mask & mask
         self.njets_passed = ak.sum(self.jets_passed,axis=-1)
-        self.jets_failed = exclude_jets(self.branches.all_jets_mask,self.jets_passed)
+        self.jets_failed = exclude_jets(self.tree.all_jets_mask,self.jets_passed)
         self.njets_failed = ak.sum(self.jets_failed,axis=-1)
         
         self.nevents = ak.sum(self.mask)
@@ -141,7 +75,7 @@ class Selection:
             included_passed_index = self.jets_passed[self.include.total_jets_selected_index]
             self.jets_passed_index = self.include.total_jets_selected_index[included_passed_index]
         else: 
-            self.jets_passed_index = sort_jet_index(self.branches,self.variable,self.jets_passed,method=method)
+            self.jets_passed_index = sort_jet_index(self.tree,self.variable,self.jets_passed,method=method)
         self.select_njets(njets)
         
     def sorted_jets(self,variable,njets=-1,method=max):
@@ -153,9 +87,9 @@ class Selection:
         self.extra_collections = False
         
         self.njets = njets
-        self.jets_selected_index, self.jets_remaining_index = get_top_njet_index(self.branches,self.jets_passed_index,self.njets)
+        self.jets_selected_index, self.jets_remaining_index = get_top_njet_index(self.tree,self.jets_passed_index,self.njets)
         
-        self.jets_selected = get_jet_index_mask(self.branches,self.jets_selected_index)
+        self.jets_selected = get_jet_index_mask(self.tree,self.jets_selected_index)
         self.njets_selected = ak.sum(self.jets_selected,axis=-1)
         
         self.total_jets_selected_index = self.jets_selected_index
@@ -170,7 +104,7 @@ class Selection:
     
     def sort_selected_jets(self,variable):
         self.variable = variable
-        self.jets_selected_index = sort_jet_index(self.branches,self.variable,self.jets_selected)
+        self.jets_selected_index = sort_jet_index(self.tree,self.variable,self.jets_selected)
         
     def sorted_selected_jets(self,variable):
         new_selection = self.copy()
@@ -187,10 +121,10 @@ class Selection:
         fill_zero = lambda ary : ak.fill_none(ak.pad_none(ary,6,axis=-1,clip=1),0)
         
         jets = self.jets_selected_index
-        jet_pt = fill_zero(self.branches["jet_pt"][jets])
-        jet_eta = fill_zero(self.branches["jet_eta"][jets])
-        jet_phi = fill_zero(self.branches["jet_phi"][jets])
-        jet_m = fill_zero(self.branches["jet_m"][jets])
+        jet_pt = fill_zero(self.tree["jet_pt"][jets])
+        jet_eta = fill_zero(self.tree["jet_eta"][jets])
+        jet_phi = fill_zero(self.tree["jet_phi"][jets])
+        jet_m = fill_zero(self.tree["jet_m"][jets])
 
         njets = min(self.njets,6) if self.njets != -1 else 6
         
@@ -243,16 +177,6 @@ class Selection:
             
         if i != 0: return title
         
-#         tag_map = {}
-#         for tag in re.split('\s[&|]\s',title): 
-#             tag = re.sub('[\(\)]','',tag)
-#             if tag not in tag_map: tag_map[tag] = f"a{len(tag_map)}"
-#         tag_eq = title.replace(" & ","*").replace(" | ","+")#.replace(" / ","/")
-#         for tag,var in tag_map.items(): tag_eq = tag_eq.replace(tag,var)
-#         tag_eq_sim = str(sp.simplify(tag_eq)).replace(" ","")
-#         tag_sim = tag_eq_sim.replace("*"," & ").replace("+"," | ")#.replace("/"," / ")
-#         for tag,var in tag_map.items(): tag_sim = tag_sim.replace(var,tag)
-        
         return title
     
     def __str__(self):
@@ -260,7 +184,7 @@ class Selection:
            
 class SelectionScore:
     def __init__(self,selection):
-        branches = selection.branches
+        tree = selection.tree
         mask = selection.mask
         
         njets = selection.njets
@@ -276,6 +200,12 @@ class SelectionScore:
 
         if selection.is_signal:
             selection.build_extra_collections()
+            nsixb_selected = selection.nsixb_selected[mask]
+            nsixb_passed = selection.nsixb_passed[mask]
+            nbkgs_passed = selection.nbkgs_passed[mask]
+            
+            nsixb_total = ak.sum(tree.sixb_jet_mask[mask],axis=-1)
+            nbkgs_total = ak.sum(tree.bkgs_jet_mask[mask],axis=-1)
             self.purity = ak.sum(nsixb_selected == self.nsixb)/nevents
             self.jet_sovert = ak.sum(nsixb_passed)/ak.sum(njets_passed)
             self.jet_soverb = ak.sum(nsixb_passed)/ak.sum(nbkgs_passed)
@@ -298,8 +228,7 @@ class SelectionScore:
             
 class CopySelection(Selection):
     def __init__(self,selection):
-        for key,value in vars(selection).items():
-            setattr(self,key,value)
+        copy_fields(selection,self)
         
 class MergedSelection(CopySelection): 
     def __init__(self,selection,tag="merged selection"): 
@@ -314,7 +243,7 @@ class MergedSelection(CopySelection):
         self.jets_passed_index = ak.concatenate((self.jets_selected_index,self.jets_remaining_index),axis=-1)
         self.njets_passed = ak.sum(self.jets_passed,axis=-1)
         self.njets_selected = ak.sum(self.jets_selected,axis=-1)
-        self.jets_failed = exclude_jets(self.branches.all_jets_mask,self.jets_passed)
+        self.jets_failed = exclude_jets(self.tree.all_jets_mask,self.jets_passed)
         self.njets_failed = ak.sum(self.jets_failed,axis=-1)
         
         self.previous = None
@@ -332,44 +261,76 @@ class MergedSelection(CopySelection):
             setattr(self,key, ak.concatenate((getattr(selection,key),getattr(self,key)),axis=-1))
         for key in ("jets_failed",):
             setattr(self,key, getattr(self,key) & getattr(selection,key))
+
+vector_methods = [ method for method in vars(Selection) if "__" not in method ]
+
+class SelectionList(TreeList):
+    def __init__(self,treelist,*args,**kwargs):
+        self.treelist = treelist
+        self.collection = [ Selection(tree,*args,**kwargs) for tree in treelist ]
+
+    def __iter__(self): return iter(self.collection)
+
+    def __getitem__(self,key):
+        if type(key) == int: return self.collections[key]
+        return ak.concatenate([selection[key] for selection in self])
+
+    def scale_weights(self,jets=False):
+        return ak.concatenate([selection.scale_weights(jets=jets) for selection in self])
     
-class SignalSelection(MergedSelection):
-    signal_methods = {
-        "xmass":xmass_selected_signal,
-        "top":get_top_njet_index
-    }
-    def __init__(self,branches,previous,njets=6,mask=None,method="top"):
-        MergedSelection.__init__(self,previous)
-        
-        self.variable = None
-        
-        self.previous = previous
-        
-        self.previous_index = self.jets_selected_index
-        self.previous_njets = self.total_njets
-        
-        self.jets_order = self.jets_selected_index
-        self.jets_passed = self.jets_selected
-        self.njets_passed = ak.sum(self.jets_passed,axis=-1)
-        
-        self.previous_events_mask = self.previous.mask
-        self.previous_nevents = ak.sum(self.previous_events_mask)
-        
-        if mask is not None: self.mask = self.mask & mask
-        
-        self.select_signal(njets,method)
-        
-    def select_signal(self,njets=6,method="top"):
-        self.tag = f"{method} selected"
-        self.njets = min(6,njets) if njets != -1 else 6
-        if method == "top": njets = self.njets
-        
-        self.jets_selected_index, self.jets_remaining_index = self.signal_methods[method](self.branches,self.previous_index,njets=njets)
+    def choose_jets(self,*args,**kwargs):
+        [selection.choose_jets(*args,**kwargs) for selection in self]
+
+    def chosen_jets(self,*args,**kwargs):
+        new_list = self.copy()
+        new_list.choose_jets(*args,**kwargs)
+        return new_list
+
+    def sort_jets(self,*args,**kwargs):
+        [selection.choose_jets(*args,**kwargs) for selection in self]
+ 
+    def sorted_jets(self,*args,**kwargs):
+        new_list = self.copy()
+        new_list.sort_jets(*args,**kwargs)
+        return new_list
+
+    def select_njets(self,*args,**kwargs):
+        [selection.select_njets(*args,**kwargs) for selection in self]
+
+    def selected_njets(self,*args,**kwargs):
+        new_list = self.copy()
+        new_list.select_jets(*args,**kwargs)
+        return new_list
+
+    def sort_selected_jets(self,*args,**kwargs):
+        [selection.sort_selected_jets(*args,**kwargs) for selection in self]
+
+    def sorted_selected_jets(self,*args,**kwargs):
+        new_list = self.copy()
+        new_list.sort_selected_jets(*args,**kwargs)
+        return new_list
+
+    def masked(self,*args,**kwargs):
+        new_list = self.copy()
+        [selection.masked(*args,**kwargs) for selection in new_list]
+        return new_list
+
+    def build_extra_collections(self):
+        [selection.build_extra_collections() for selection in self]
+
+    def copy(self):
+        new_list = CopySelectionList(self)
+        return new_list
+
+    def merge(self):
+        new_list = self.copy()
+        new_list.collection = [selection.merge() for selection in self]
+        return new_list
     
-        self.jets_selected = get_jet_index_mask(self.branches,self.jets_selected_index)
-        self.njets_selected = ak.sum(self.jets_selected,axis=-1)
-        
-        self.jets_remaining = get_jet_index_mask(self.branches,self.jets_remaining_index)
-        self.njets_remaining = ak.sum(self.jets_remaining,axis=-1)
-        
-    def title(self,i=0): return Selection.title(self)
+    def __str__(self):
+        return "\n".join([str(selection) for selection in self])
+
+class CopySelectionList(SelectionList):
+    def __init__(self,selection_list):
+        self.treelist = selection_list.treelist
+        self.collection = [selection.copy() for selection in selection_list]

@@ -18,17 +18,17 @@ def get_jet_index_mask(jets,index):
 def exclude_jets(input_mask,exclude_mask):
     return (input_mask == True) & (exclude_mask == False)
 
-def get_top_njet_index(branches,jet_index,njets=6):
+def get_top_njet_index(tree,jet_index,njets=6):
     index_array = ak.local_index(jet_index)
     firstN_array = index_array < njets if njets != -1 else index_array != -1
     top_njet_index = jet_index[firstN_array]
     bot_njet_index = jet_index[firstN_array == False]
     return top_njet_index,bot_njet_index
 
-def sort_jet_index_simple(branches,varbranch,jets=None,method=max):
+def sort_jet_index_simple(tree,varbranch,jets=None,method=max):
     """ Mask of the top njet jets in varbranch """
     
-    if jets is None: jets = branches.all_jets_mask
+    if jets is None: jets = tree.all_jets_mask
     if varbranch is None: return ak.local_index(jets,axis=-1)
         
     polarity = -1 if method is max else 1
@@ -38,12 +38,12 @@ def sort_jet_index_simple(branches,varbranch,jets=None,method=max):
     selected_array = sorted_array[selected_sorted_array]
     return selected_array
 
-def sort_jet_index(branches,variable=None,jets=None,method=max):
+def sort_jet_index(tree,variable=None,jets=None,method=max):
     """ Mask of the top njet jets in variable """
         
-    varbranch = branches[variable] if variable else None
+    varbranch = tree[variable] if variable else None
     if variable == "jet_eta": varbranch = np.abs(varbranch)
-    return sort_jet_index_simple(branches,varbranch,jets,method=method)
+    return sort_jet_index_simple(tree,varbranch,jets,method=method)
 
 def count_sixb_index(jet_index,sixb_jet_mask):
     """ Number of signal b-jets in index list """
@@ -100,38 +100,38 @@ def get_ext_dr(eta_1,phi_1,eta_2,phi_2):
     return dr,min_dr,imin_dr,max_dr,imax_dr
 
 # --- Standard Preselection --- #
-def std_preselection(branches,ptcut=20,etacut=2.5,btagcut=None,jetid=1,puid=1,njetcut=0,min_drcut=None,qglcut=None,
+def std_preselection(tree,ptcut=20,etacut=2.5,btagcut=None,jetid=1,puid=1,njetcut=0,min_drcut=None,qglcut=None,
                      passthrough=False,exclude_events_mask=None,exclude_jet_mask=None,include_jet_mask=None,**kwargs):
     def jet_pu_mask(puid=puid):
-        puid_mask = (1 << puid) == branches["jet_puid"] & ( 1 << puid )
-        low_pt_pu_mask = (branches["jet_pt"] < 50) & puid_mask
-        return (branches["jet_pt"] >= 50) | low_pt_pu_mask
+        puid_mask = (1 << puid) == tree["jet_puid"] & ( 1 << puid )
+        low_pt_pu_mask = (tree["jet_pt"] < 50) & puid_mask
+        return (tree["jet_pt"] >= 50) | low_pt_pu_mask
     
-    jet_mask = branches.all_jets_mask
+    jet_mask = tree.all_jets_mask
     
     if include_jet_mask is not None: jet_mask = jet_mask & include_jet_mask 
     if exclude_jet_mask is not None: jet_mask = exclude_jets(jet_mask,exclude_jet_mask)
         
     if not passthrough:
-        if ptcut: jet_mask = jet_mask & (branches["jet_pt"] > ptcut)
-        if etacut: jet_mask = jet_mask & (np.abs(branches["jet_eta"]) < etacut)
-        if btagcut: jet_mask = jet_mask & (branches["jet_btag"] > btagcut)
-        if jetid: jet_mask = jet_mask & ((1 << jetid) == branches["jet_id"] & ( 1 << jetid ))
+        if ptcut: jet_mask = jet_mask & (tree["jet_pt"] > ptcut)
+        if etacut: jet_mask = jet_mask & (np.abs(tree["jet_eta"]) < etacut)
+        if btagcut: jet_mask = jet_mask & (tree["jet_btag"] > btagcut)
+        if jetid: jet_mask = jet_mask & ((1 << jetid) == tree["jet_id"] & ( 1 << jetid ))
         if puid: jet_mask = jet_mask & jet_pu_mask()
-        if min_drcut: jet_mask = jet_mask & (branches["jet_min_dr"] > min_drcut)
-        if qglcut: jet_mask = jet_mask & (branches["jet_qgl"] > qglcut)
+        if min_drcut: jet_mask = jet_mask & (tree["jet_min_dr"] > min_drcut)
+        if qglcut: jet_mask = jet_mask & (tree["jet_qgl"] > qglcut)
         
     event_mask = ak.sum(jet_mask,axis=-1) >= njetcut
     if exclude_events_mask is not None: event_mask = event_mask & exclude_events_mask
     return event_mask,jet_mask
 
-def xmass_selected_signal(branches,jets_index,njets=6,invm=700):
-    top_jets_index, _ = get_top_njet_index(branches,jets_index,njets=njets)
+def xmass_selected_signal(tree,jets_index,njets=6,invm=700):
+    top_jets_index, _ = get_top_njet_index(tree,jets_index,njets=njets)
     
-    jet_pt = branches["jet_pt"]
-    jet_m = branches["jet_m"]
-    jet_eta = branches["jet_eta"]
-    jet_phi = branches["jet_phi"]
+    jet_pt = tree["jet_pt"]
+    jet_m = tree["jet_m"]
+    jet_eta = tree["jet_eta"]
+    jet_phi = tree["jet_phi"]
 
     comb_jets_index = ak.combinations(top_jets_index,6)
     build_p4 = lambda index : vector.obj(pt=jet_pt[index],mass=jet_m[index],eta=jet_eta[index],phi=jet_phi[index])

@@ -72,13 +72,13 @@ def plot_simple(data,bins=None,xlabel=None,title=None,label=None,figax=None):
     if label: ax.legend()
     return (fig,ax)
     
-def plot_branch(variable,branches,mask=None,selected=None,bins=None,xlabel=None,title=None,label=None,figax=None):
+def plot_branch(variable,tree,mask=None,selected=None,bins=None,xlabel=None,title=None,label=None,figax=None):
     if figax is None: figax = plt.subplots()
-    if mask is None: mask = np.ones(ak.size(branches['Run']),dtype=bool)
+    if mask is None: mask = np.ones(ak.size(tree['Run']),dtype=bool)
     (fig,ax) = figax
     
-    data = branches[variable][mask]
-    if selected is not None: data = branches[variable][mask][selected]
+    data = tree[variable][mask]
+    if selected is not None: data = tree[variable][mask][selected]
     data = ak.flatten( data,axis=-1 )
     
     ax.hist(data,bins=bins,label=label)
@@ -88,7 +88,7 @@ def plot_branch(variable,branches,mask=None,selected=None,bins=None,xlabel=None,
     return (fig,ax)
 
 def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,
-               weights=None,labels=None,histtypes=None,colors=None,scale=1):
+               weights=None,labels=None,histtypes=None,colors=None):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
@@ -107,13 +107,16 @@ def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,
         
     for i,(data,label,histtype,color,weight) in enumerate(zip(datalist,labels,histtypes,colors,weights)):
         nevnts = ak.size(data)
-        scaled_nevnts = nevnts*scale
+        scaled_nevnts = nevnts
+        if weight is not None:
+            weight = ak.flatten(weight,axis=None)
+            scaled_nevnts = ak.sum(weight)
+        
         info = {"bins":bins,"label":f"{label} ({scaled_nevnts:.2e})","weights":weight}
         if histtype: info["histtype"] = histtype
         if color: info["color"] = color
         if histtype == "step": info["linewidth"] = 2
         if density: info["weights"] = np.full(shape=nevnts,fill_value=1/nevnts,dtype=np.float)
-        if scale != 1: info["weights"] = np.full(shape=nevnts,fill_value=scale,dtype=np.float)
         if log: info["log"] = log
             
         ax.hist(data,**info)
