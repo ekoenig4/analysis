@@ -2,38 +2,65 @@ from . import *
 
 import glob
 
+def add_sample(self,tfile,total_events,ttree,sample,xsec,scale):
+    self.tfiles.append(tfile)
+    self.total_events.append(total_events)
+    self.raw_events.append(ak.size(ttree["Run"]))
+    self.ttrees.append(ttree)
+    self.samples.append(sample)
+    self.xsecs.append(xsec)
+    self.scales.append(scale)
+
 def init_file(self,tfname):
-    self.tfname = tfname
-    self.tfile = ut.open(tfname)
-    self.total_events = ak.sum(self.tfile["n_events"].to_numpy(),axis=None)
-    self.ttree = self.tfile["sixBtree"].arrays()
-    return ak.count(self.ttree) > 0
+    tfile = ut.open(tfname)
+    total_events = ak.sum(tfile["n_events"].to_numpy(),axis=None)
+    ttree = tfile["sixBtree"].arrays()
+
+    valid = ak.count(ttree) > 0
+
+    if not valid: return
+    sample,xsec = next( ((key,value) for key,value in xsecMap.items() if key in tfname),("unk",1) )
+    scale = xsec / total_events
+    add_sample(self,tfile,total_events,ttree,sample,xsec,scale)
 
 def init_dir(self,tdir):
-    self.tfname = f"{tdir}/ntuple_*.root"
-    filelist = glob.glob(self.tfname)
+    tfname = f"{tdir}/ntuple_*.root"
+    filelist = glob.glob(tfname)
 
-    self.tfiles = [ ut.open(fname) for fname in filelist ]
-    self.total_events = sum([ak.sum(tfile["n_events"].to_numpy(),axis=None) for tfile in self.tfiles])
-    ttrees = list(ut.iterate(self.tfname,allow_missing=True))
-    if len(ttrees) == 0: return False
+    tfiles = [ ut.open(fname) for fname in filelist ]
+    total_events = sum([ak.sum(tfile["n_events"].to_numpy(),axis=None) for tfile in tfiles])
+    ttrees = list(ut.iterate(tfname,allow_missing=True))
+    if len(ttrees) == 0: return
+    ttree = ak.concatenate(ttrees)
+    valid = ak.count(ttree) > 0
+
+    if not valid: return
+    sample,xsec = next( ((key,value) for key,value in xsecMap.items() if key in tfname),("unk",1) )
+    scale = xsec / total_events
+    add_sample(self,tfiles,total_events,ttree,sample,xsec,scale)
     
-    self.ttree = ak.concatenate(ttrees)
-    return ak.count(self.ttree) > 0
 
 class Tree:
-    def __init__(self,tfname):
-        if os.path.isdir(tfname): valid = init_dir(self,tfname)
-        else:                    valid = init_file(self,tfname)
-        self.valid = valid
-        if not valid: return
+    def __init__(self,filenames):
+        if type(filenames) != list: filenames = [filenames]
+        self.filenames = filenames
+
+        self.tfiles = []
+        self.total_events = []
+        self.raw_events = []
+        self.ttrees = []
+        self.samples = []
+        self.xsecs = []
+        self.scales = []
+        
+        for fname in filenames:
+            if os.path.isdir(fname): init_dir(self,fname)
+            else:                    init_file(self,fname)
+        self.merged_ttree = ak.concatenate(self.ttrees)
         
         self.extended = {}
-        self.nevents = ak.size( self["Run"] )
-        self.is_signal = "NMSSM" in self.tfname
-
-        self.sample,self.xsec = next( ((key,value) for key,value in xsecMap.items() if key in tfname),("unk",1) )
-        self.scale = self.xsec / self.total_events
+        self.nevents = sum(self.raw_events)
+        self.is_signal = all("NMSSM" in fname for fname in self.filenames)
         
         self.all_events_mask = ak.ones_like(self["Run"]) == 1
         self.all_jets_mask = ak.ones_like(self["jet_pt"]) == 1
@@ -42,11 +69,13 @@ class Tree:
         self.bkgs_jet_mask = self.sixb_jet_mask == False
 
         self.sixb_found_mask = self["nfound_all"] == 6
+
+        self.build_scale_weights()
         # self.reco_XY()
     def __str__(self):
-        string = [
+        sample_string = [
             f"=== File Info ===",
-            f"File: {self.tfname}",
+            f"File: {self.filenames}",
             f"Total Events:    {self.total_events}",
             f"Selected Events: {self.nevents}",
         ]
@@ -55,14 +84,13 @@ class Tree:
         if key in self.extended:
             return self.extended[key]
 #         if key == "jet_pt": key = "jet_ptRegressed"
-        return self.ttree[key]
-    def scale_weights(self,jets=False):
-        if jets:
-            njets = ak.sum(self.all_jets_mask,axis=None)
-            weights = np.full(shape=njets,fill_value=self.scale,dtype=np.float)
-            return ak.unflatten(weights,ak.sum(self.all_jets_mask,axis=-1))
-        
-        return np.full(shape=self.nevents,fill_value=self.scale,dtype=np.float)
+        return self.merged_ttree[key]
+    def build_scale_weights(self):
+        # event_scale = ak.concatenate([ scale*ak.ones_like(tree["Run"]) for scale,tree in zip(self.scales,self.ttrees)])
+        jet_scale = ak.concatenate([ ak.full_like(tree["jet_pt"],scale) for scale,tree in zip(self.scales,self.ttrees)])
+        event_scale = jet_scale[:,0]
+        self.extended.update({"scale":event_scale,"jet_scale":jet_scale})
+    
     def reco_XY(self):
         bjet_p4 = lambda key : vector.obj(pt=self[f"gen_{key}_recojet_pt"],eta=self[f"gen_{key}_recojet_eta"],
                                           phi=self[f"gen_{key}_recojet_phi"],mass=self[f"gen_{key}_recojet_m"])
@@ -102,23 +130,4 @@ class Tree:
         imax_dr = ak.flatten(dr_index[imax_dr],axis=-1)
 
         self.extended.update({f"{tag}_min_dr":min_dr,f"{tag}_imin_dr":imin_dr,f"{tag}_max_dr":max_dr,f"{tag}_imax_dr":imax_dr})
-
-class TreeList:
-    def __init__(self,filelist):
-        self.filelist = filelist
-        self.collection = []
-        for fname in filelist:
-            tree = Tree(fname)
-            if tree.valid:
-                self.collection.append(tree)
-            
-    def __iter__(self): return iter(self.collection)
-                
-    def __getitem__(self,key):
-        print("getitem",key)
-        if type(key) == int: return self.collection[key]
-        return ak.concatenate([ tree[key] for tree in self ])
-
-    def scale_weights(self,jets=False):
-        return ak.concatenate([ tree.scale_weights(jets=jets) for tree in self ])
         

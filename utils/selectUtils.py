@@ -8,7 +8,7 @@ array_min = lambda array,value : ak.min(ak.concatenate(ak.broadcast_arrays(value
 
 def get_jet_index_mask(jets,index):
     """ Generate jet mask for a list of indicies """
-    if hasattr(jets,'ttree'): jets = jets["jet_pt"]
+    if hasattr(jets,'merged_ttree'): jets = jets["jet_pt"]
     
     jet_index = ak.local_index( jets )
     compare , _ = ak.broadcast_arrays( index[:,None],jet_index )

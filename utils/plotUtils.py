@@ -19,7 +19,6 @@ def autobin(data,nstd=3):
     nbins = min(int(1+np.sqrt(ndata)),50)
     return np.linspace(xlo,xhi,nbins)
 
-
 def init_atr(atr,init,size):
     if atr is None: return [init]*size
     atr = list(atr)
@@ -107,16 +106,14 @@ def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,
         
     for i,(data,label,histtype,color,weight) in enumerate(zip(datalist,labels,histtypes,colors,weights)):
         nevnts = ak.size(data)
-        scaled_nevnts = nevnts
-        if weight is not None:
-            weight = ak.flatten(weight,axis=None)
-            scaled_nevnts = ak.sum(weight)
+        weight = ak.flatten(weight,axis=None) if weight is not None else ak.ones_like(data)
+        scaled_nevnts = ak.sum(weight)
         
         info = {"bins":bins,"label":f"{label} ({scaled_nevnts:.2e})","weights":weight}
         if histtype: info["histtype"] = histtype
         if color: info["color"] = color
         if histtype == "step": info["linewidth"] = 2
-        if density: info["weights"] = np.full(shape=nevnts,fill_value=1/nevnts,dtype=np.float)
+        if density: info["weights"] = weight * 1/scaled_nevnts
         if log: info["log"] = log
             
         ax.hist(data,**info)
