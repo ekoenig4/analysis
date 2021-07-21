@@ -8,7 +8,7 @@ class SignalStudy(Study):
         Study.__init__(self,selection,**kwargs)
         selection.build_extra_collections()
 
-def signal_order_study(selection,plot=True,saveas=None,**kwargs):
+def signal_order(selection,plot=True,saveas=None,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
@@ -66,7 +66,7 @@ def signal_order_study(selection,plot=True,saveas=None,**kwargs):
         plt.show()
         if saveas: save_fig(fig,"order",f"{ordinal(ijet+1)}_{saveas}")
     
-def selection_study(selection,plot=True,saveas=None,under6=False,latex=False,required=False,scaled=False,**kwargs):
+def selection(selection,plot=True,saveas=None,under6=False,latex=False,required=False,scaled=False,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
@@ -124,7 +124,7 @@ def selection_study(selection,plot=True,saveas=None,under6=False,latex=False,req
     plt.show()
     if saveas: save_fig(fig,"selection",saveas)
         
-def selection_comparison_study(selections,plot=True,saveas=None,under6=False,latex=False,required=False,title=None,labels=None,**kwargs):
+def selection_comparison(selections,plot=True,saveas=None,under6=False,latex=False,required=False,title=None,labels=None,**kwargs):
     if not plot: return
 
     selection_purities = []
@@ -159,14 +159,13 @@ def selection_comparison_study(selections,plot=True,saveas=None,under6=False,lat
     plt.show()
     if saveas: save_fig(fig,"selection",saveas)
 
-def jets_study(selection,plot=True,saveas=None,density=0,log=0,scaled=False,**kwargs):
+def jets(selection,plot=True,saveas=None,density=0,log=0,scaled=False,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
     subset = study.subset
     title = study.title
     varinfo = study.varinfo
-    scale = study.scale if scaled else 1
     
     if not plot: return
     
@@ -183,7 +182,7 @@ def jets_study(selection,plot=True,saveas=None,density=0,log=0,scaled=False,**kw
     for i,(var,info) in enumerate(varinfo.items()):
         bkgs_var = ak.flatten(tree[var][bkgs_jets][mask])
         sixb_var = ak.flatten(tree[var][sixb_ordered][mask])
-        hist_multi((bkgs_var,sixb_var),figax=(fig,axs[i]),**info,scale=scale,
+        hist_multi((bkgs_var,sixb_var),figax=(fig,axs[i]),**info,
                    labels=labels,colors=colors,histtypes=histtypes,density=density,log=log)
             
     fig.suptitle(f"{title}")
@@ -192,14 +191,13 @@ def jets_study(selection,plot=True,saveas=None,density=0,log=0,scaled=False,**kw
     if saveas: save_fig(fig,f"jets_{subset}",saveas)
         
 
-def jets_2d_study(selection,plot=True,saveas=None,density=0,log=1,**kwargs):
+def jets_2d(selection,plot=True,saveas=None,density=0,log=1,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
     subset = study.subset
     title = study.title
     varinfo = study.varinfo
-    scale = study.scale if scaled else 1
     
     if not plot: return
     
@@ -232,14 +230,13 @@ def jets_2d_study(selection,plot=True,saveas=None,density=0,log=1,**kwargs):
     plt.show()
     if saveas: save_fig(fig,f"jets_2d_{subset}",saveas)
         
-def ijets_study(selection,plot=True,saveas=None,njets=-1,show_ijet=None,topbkg=False,density=0,log=0,scaled=0,**kwargs):
+def ijets(selection,plot=True,saveas=None,njets=-1,show_ijet=None,topbkg=False,density=0,log=0,scaled=0,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
     subset = study.subset
     title = study.title
     varinfo = study.varinfo
-    scale = study.scale if scaled else 1
     
     if not plot: return
     
@@ -273,7 +270,7 @@ def ijets_study(selection,plot=True,saveas=None,njets=-1,show_ijet=None,topbkg=F
             ord_info["xlabel"] = f"{ordinal(ijet+1)} {info['xlabel']}"
             bkgs_var = ak.flatten(tree[var][ibkgs_mask][mask])
             sixb_var = ak.flatten(tree[var][isixb_mask][mask])
-            hist_multi((bkgs_var,sixb_var),figax=(fig,axs[i]),**ord_info,scale=scale,
+            hist_multi((bkgs_var,sixb_var),figax=(fig,axs[i]),**ord_info,
                        labels=labels,colors=colors,histtypes=histtypes,density=density,log=log)
             
         fig.suptitle(f"{title} {ordinal(ijet+1)} Jet")
@@ -281,7 +278,7 @@ def ijets_study(selection,plot=True,saveas=None,njets=-1,show_ijet=None,topbkg=F
         plt.show()
         if saveas: save_fig(fig,f"ijets_{subset}",f"{ordinal(ijet+1)}_{saveas}")
 
-def jets_ordered_study(selection,plot=True,saveas=None,njets=6,topbkg=True,density=0,log=0,**kwargs):
+def jets_ordered(selection,plot=True,saveas=None,njets=6,topbkg=True,density=0,log=0,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
@@ -337,7 +334,7 @@ def jets_ordered_study(selection,plot=True,saveas=None,njets=6,topbkg=True,densi
         plt.show()
         if saveas: save_fig(fig,f"jets_{subset}",f"{ordinal(ijet+1)}_{saveas}")
             
-def jets_2d_ordered_study(selection,plot=True,saveas=None,njets=6,topbkg=True,compare=False,density=0,log=1,**kwargs):
+def jets_2d_ordered(selection,plot=True,saveas=None,njets=6,topbkg=True,compare=False,density=0,log=1,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
@@ -423,14 +420,13 @@ def jets_2d_ordered_study(selection,plot=True,saveas=None,njets=6,topbkg=True,co
         plt.show()
         if saveas: save_fig(fig,f"jets_2d_{subset}",f"{ordinal(ijet+1)}_{saveas}")
     
-def x_reco_study(selection,plot=True,saveas=None,scaled=False,**kwargs):
+def x_reco(selection,plot=True,saveas=None,scaled=False,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
     subset = study.subset
     title = study.title
     varinfo = study.varinfo
-    scale = study.scale if scaled else 1
     
     if not plot: return
     
@@ -457,20 +453,19 @@ def x_reco_study(selection,plot=True,saveas=None,scaled=False,**kwargs):
         sixb_X_var = X_var[sixb_mask]
         bkgs_X_var = X_var[bkgs_mask]
         datalist = [bkgs_X_var,sixb_X_var]
-        hist_multi(datalist,labels=labels,histtypes=histtypes,colors=colors,scale=scale,figax=(fig,axs[int(i/ncols),i%ncols]),**info)
+        hist_multi(datalist,labels=labels,histtypes=histtypes,colors=colors,figax=(fig,axs[int(i/ncols),i%ncols]),**info)
     fig.suptitle(title)
     fig.tight_layout()
     plt.show()
     if saveas: save_fig(fig,"x_reco",saveas)
 
-def x_res_study(selection,plot=True,saveas=None,**kwargs):
+def x_res(selection,plot=True,saveas=None,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
     subset = study.subset
     title = study.title
     varinfo = study.varinfo
-    scale = study.scale if scaled else 1
     
     if not plot: return
     
@@ -498,13 +493,13 @@ def x_res_study(selection,plot=True,saveas=None,**kwargs):
         sixb_X_var = X_var[sixb_mask]
         bkgs_X_var = X_var[bkgs_mask]
         datalist = [bkgs_X_var,sixb_X_var]
-        hist_multi(datalist,labels=labels,colors=colors,histtypes=histtypes,scale=scale,figax=(fig,axs[int(i/ncols),i%ncols]),**info)
+        hist_multi(datalist,labels=labels,colors=colors,histtypes=histtypes,figax=(fig,axs[int(i/ncols),i%ncols]),**info)
     fig.suptitle(title)
     fig.tight_layout()
     plt.show()
     if saveas: save_fig(fig,"x_res",saveas)
 
-def njet_study(selection,plot=True,saveas=None,density=0,**kwargs):
+def njet(selection,plot=True,saveas=None,density=0,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
@@ -535,14 +530,13 @@ def njet_study(selection,plot=True,saveas=None,density=0,**kwargs):
     if saveas: save_fig(fig,f"njets_{subset}",saveas)
     
 
-def presel_study(selection,plot=True,saveas=None,density=0,**kwargs):
+def presel(selection,plot=True,saveas=None,density=0,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
     subset = study.subset
     title = study.title
     varinfo = study.varinfo
-    scale = study.scale if scaled else 1
     
     if not plot: return
     
@@ -570,7 +564,7 @@ def presel_study(selection,plot=True,saveas=None,density=0,**kwargs):
     plt.show()
     if saveas: save_fig(fig,f"presel_{subset}",saveas)
     
-def jet_issue_study(selection,plot=True,saveas=None,density=0,**kwargs):
+def jet_issue(selection,plot=True,saveas=None,density=0,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
@@ -601,7 +595,7 @@ def jet_issue_study(selection,plot=True,saveas=None,density=0,**kwargs):
     hist2d_simple(jet_pt[eta24],jet_eta[eta24],xbins=ptbins,ybins=etabins,xlabel="jet pt",ylabel="jet eta",title="|jet eta|<2.4",figax=(fig,axs[1,1]))
     return fig,axs
     
-def jet_comp_study(selection,plot=True,saveas=None,signal=False,density=0,**kwargs):
+def jet_comp(selection,plot=True,saveas=None,signal=False,density=0,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
@@ -639,7 +633,7 @@ def jet_comp_study(selection,plot=True,saveas=None,signal=False,density=0,**kwar
 #             b_var = ak.flatten(tree[var][mask][b_selected])
 #             hist_multi([b_var],**b_info,figax=(fig,axs[i]))
 
-def compare_scores_study(scores,cutlist,cutlabel,values=("efficiency","purity"),prod=False,title=None,saveas=None,**kwargs):
+def compare_scores(scores,cutlist,cutlabel,values=("efficiency","purity"),prod=False,title=None,saveas=None,**kwargs):
     valuemap = { value:np.array([getattr(score,value) for score in scores]) for value in values }
     if prod and len(values) > 1: 
         prodkey = '*'.join(valuemap.keys())

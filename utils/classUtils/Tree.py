@@ -2,7 +2,9 @@ from . import *
 
 import glob
 
-def add_sample(self,tfile,total_events,ttree,sample,xsec,scale):
+def add_sample(self,fname,tfile,total_events,ttree,sample,xsec,scale):
+    self.nfiles += 1
+    self.filenames.append(fname)
     self.tfiles.append(tfile)
     self.total_events.append(total_events)
     self.raw_events.append(ak.size(ttree["Run"]))
@@ -18,10 +20,10 @@ def init_file(self,tfname):
 
     valid = ak.count(ttree) > 0
 
-    if not valid: return
+    if not valid and self.verify: return
     sample,xsec = next( ((key,value) for key,value in xsecMap.items() if key in tfname),("unk",1) )
     scale = xsec / total_events
-    add_sample(self,tfile,total_events,ttree,sample,xsec,scale)
+    add_sample(self,tfname,tfile,total_events,ttree,sample,xsec,scale)
 
 def init_dir(self,tdir):
     tfname = f"{tdir}/ntuple_*.root"
@@ -34,17 +36,18 @@ def init_dir(self,tdir):
     ttree = ak.concatenate(ttrees)
     valid = ak.count(ttree) > 0
 
-    if not valid: return
+    if not valid and self.verify: return
     sample,xsec = next( ((key,value) for key,value in xsecMap.items() if key in tfname),("unk",1) )
     scale = xsec / total_events
-    add_sample(self,tfiles,total_events,ttree,sample,xsec,scale)
+    add_sample(self,tfname,tfiles,total_events,ttree,sample,xsec,scale)
     
-
 class Tree:
-    def __init__(self,filenames):
+    def __init__(self,filenames,verify=True):
         if type(filenames) != list: filenames = [filenames]
-        self.filenames = filenames
-
+        self.verify = verify
+        
+        self.nfiles = 0
+        self.filenames = []
         self.tfiles = []
         self.total_events = []
         self.raw_events = []
@@ -53,17 +56,23 @@ class Tree:
         self.xsecs = []
         self.scales = []
         
-        for fname in filenames:
-            if os.path.isdir(fname): init_dir(self,fname)
-            else:                    init_file(self,fname)
+        for fname in filenames: self.addTree(fname)
+        self.valid = self.nfiles > 0
+
+        if not self.valid: return
         self.merged_ttree = ak.concatenate(self.ttrees)
+
+        sample_id = ak.concatenate([ i*ak.ones_like(tree["Run"]) for i,tree in enumerate(self.ttrees) ])
         
-        self.extended = {}
+        self.extended = {"sample_id":sample_id}
         self.nevents = sum(self.raw_events)
         self.is_signal = all("NMSSM" in fname for fname in self.filenames)
         
         self.all_events_mask = ak.ones_like(self["Run"]) == 1
         self.all_jets_mask = ak.ones_like(self["jet_pt"]) == 1
+
+        self.mask = self.all_events_mask
+        self.jets_selected = self.all_jets_mask
         
         self.sixb_jet_mask = self["jet_signalId"] != -1
         self.bkgs_jet_mask = self.sixb_jet_mask == False
@@ -73,20 +82,23 @@ class Tree:
         self.build_scale_weights()
         # self.reco_XY()
     def __str__(self):
+        if not self.valid: return "invalid"
         sample_string = [
             f"=== File Info ===",
             f"File: {self.filenames}",
             f"Total Events:    {self.total_events}",
+            f"Raw Events:      {self.raw_events}",
             f"Selected Events: {self.nevents}",
         ]
-        return "\n".join(string)
+        return "\n".join(sample_string)
     def __getitem__(self,key): 
         if key in self.extended:
             return self.extended[key]
-#         if key == "jet_pt": key = "jet_ptRegressed"
         return self.merged_ttree[key]
+    def addTree(self,fname):
+        if os.path.isdir(fname): init_dir(self,fname)
+        else:                    init_file(self,fname)
     def build_scale_weights(self):
-        # event_scale = ak.concatenate([ scale*ak.ones_like(tree["Run"]) for scale,tree in zip(self.scales,self.ttrees)])
         jet_scale = ak.concatenate([ ak.full_like(tree["jet_pt"],scale) for scale,tree in zip(self.scales,self.ttrees)])
         event_scale = jet_scale[:,0]
         self.extended.update({"scale":event_scale,"jet_scale":jet_scale})
@@ -130,4 +142,11 @@ class Tree:
         imax_dr = ak.flatten(dr_index[imax_dr],axis=-1)
 
         self.extended.update({f"{tag}_min_dr":min_dr,f"{tag}_imin_dr":imin_dr,f"{tag}_max_dr":max_dr,f"{tag}_imax_dr":imax_dr})
+
+    def copy(self):
+        new_tree = CopyTree(self)
+        return new_tree
         
+class CopyTree(Tree):
+    def __init__(self,tree):
+        copy_fields(tree,self)

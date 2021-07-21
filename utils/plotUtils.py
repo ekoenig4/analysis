@@ -10,6 +10,14 @@ import matplotlib.gridspec as gs
 # plt.rc('text', usetex=True)
 # plt.rc('font', family='serif')
 
+lumiMap = {
+    None:[1,None],
+    2016:[35900,"(13 TeV,2016)"],
+    2017:[41500,"(13 TeV,2017)"],
+    2018:[57900,"(13 TeV,2018)"],
+    "Run2":[101000,"13 TeV,Run 2)"],
+}
+
 def autobin(data,nstd=3):
     ndata = ak.size(data)
     mean = ak.mean(data)
@@ -87,10 +95,11 @@ def plot_branch(variable,tree,mask=None,selected=None,bins=None,xlabel=None,titl
     return (fig,ax)
 
 def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,
-               weights=None,labels=None,histtypes=None,colors=None):
+               weights=None,labels=None,histtypes=None,colors=None,lumikey=None):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
+    lumi,lumi_tag = lumiMap[lumikey]
     nhist = len(datalist)
 
     histdef = "bar" if nhist == 1 else "step"
@@ -106,7 +115,10 @@ def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,
         
     for i,(data,label,histtype,color,weight) in enumerate(zip(datalist,labels,histtypes,colors,weights)):
         nevnts = ak.size(data)
+        is_scaled = weight is not None
         weight = ak.flatten(weight,axis=None) if weight is not None else ak.ones_like(data)
+        if is_scaled: weight = lumi*weight
+        
         scaled_nevnts = ak.sum(weight)
         
         info = {"bins":bins,"label":f"{label} ({scaled_nevnts:.2e})","weights":weight}
@@ -119,6 +131,7 @@ def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,
         ax.hist(data,**info)
         
     if ylabel is None: ylabel = "Fraction of Events" if density else "Events"
+    if lumi != 1: title = f"{lumi/1000:0.1f} fb^{-1} {lumi_tag}"
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
     ax.set_title(title)

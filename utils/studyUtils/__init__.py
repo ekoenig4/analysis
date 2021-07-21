@@ -33,7 +33,6 @@ class Study:
         if subset not in ["selected","passed","remaining","failed"]: raise ValueError(f"{subset} not available")
         if mask is not None: selection = selection.masked(mask)
         self.selection = selection
-        self.scale = selection.nevents*selection.scale
         self.subset = subset
         self.saveas = saveas
         self.varinfo = { var:dict(**varinfo[var]) for var in varlist }
@@ -49,4 +48,5 @@ class Study:
         if print_score: print(score)
         if saveas: save_scores(score,saveas)
         
-from .signal_study import *
+from .signal_studies import signal_study
+from .studies import study
