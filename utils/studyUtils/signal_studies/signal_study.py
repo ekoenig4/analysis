@@ -4,9 +4,13 @@
 from . import *
 
 class SignalStudy(Study):
-    def __init__(self,selection,**kwargs):
+    def __init__(self,selection,subset="selected",**kwargs):
         Study.__init__(self,selection,**kwargs)
         selection.build_extra_collections()
+
+        self.selection = self.selections[0]
+        self.subset = subset
+        self.tree = selection.tree
 
 def signal_order(selection,plot=True,saveas=None,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     

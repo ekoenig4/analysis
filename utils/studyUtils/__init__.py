@@ -29,24 +29,19 @@ def save_fig(fig,directory,saveas):
     fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
     
 class Study:
-    def __init__(self,selection,title=None,saveas=None,print_score=True,subset="selected",mask=None,varlist=["jet_pt","jet_btag","jet_qgl","jet_eta"],autobin=False,**kwargs):
-        if subset not in ["selected","passed","remaining","failed"]: raise ValueError(f"{subset} not available")
-        if mask is not None: selection = selection.masked(mask)
-        self.selection = selection
-        self.subset = subset
+    def __init__(self,selections,labels=None,density=0,log=0,lumikey=2018,title=None,saveas=None,mask=None,**kwargs):
+        if type(selections) != list: selections = [selections]
+        if mask is not None: selections = [ selection.masked(mask) for selection in selections ]
+        
+        self.selections = selections
+        self.labels = labels if labels else [ selection.tag for selection in selections ]
+        self.title = selections[0].title() if title is None and len(selections) == 1 else title
+        self.denisty = density
+        self.log = log
+        self.lumikey = lumikey
         self.saveas = saveas
-        self.varinfo = { var:dict(**varinfo[var]) for var in varlist }
+        self.varinfo = dict(**varinfo)
         
-        if autobin: 
-            for var in self.varinfo.values(): var["bins"] = None
-        
-        if title is None: title = selection.title()
-        self.title = title
-        print(f"--- {title} ---")
-        
-        score = selection.score()
-        if print_score: print(score)
-        if saveas: save_scores(score,saveas)
         
 from .signal_studies import signal_study
 from .studies import study

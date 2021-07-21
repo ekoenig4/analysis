@@ -94,8 +94,7 @@ def plot_branch(variable,tree,mask=None,selected=None,bins=None,xlabel=None,titl
     ax.legend()
     return (fig,ax)
 
-def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,
-               weights=None,labels=None,histtypes=None,colors=None,lumikey=None):
+def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,weights=None,labels=None,histtypes=None,colors=None,lumikey=None,**kwargs):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
@@ -139,8 +138,7 @@ def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,
     ax.legend()
     return (fig,ax)
     
-def plot_mask_stack_comparison(datalist,bins=None,title=None,xlabel=None,figax=None,density=0,
-                         labels=None,histtype="bar",colors=None):
+def plot_mask_stack_comparison(datalist,bins=None,title=None,xlabel=None,figax=None,density=0,labels=None,histtype="bar",colors=None):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
     
