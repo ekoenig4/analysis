@@ -8,7 +8,7 @@ array_min = lambda array,value : ak.min(ak.concatenate(ak.broadcast_arrays(value
 
 def get_jet_index_mask(jets,index):
     """ Generate jet mask for a list of indicies """
-    if hasattr(jets,'merged_ttree'): jets = jets["jet_pt"]
+    if hasattr(jets,'ttree'): jets = jets["jet_pt"]
     
     jet_index = ak.local_index( jets )
     compare , _ = ak.broadcast_arrays( index[:,None],jet_index )
@@ -100,7 +100,7 @@ def get_ext_dr(eta_1,phi_1,eta_2,phi_2):
     return dr,min_dr,imin_dr,max_dr,imax_dr
 
 # --- Standard Preselection --- #
-def std_preselection(tree,ptcut=20,etacut=2.5,btagcut=None,jetid=1,puid=1,njetcut=0,min_drcut=None,qglcut=None,
+def std_preselection(tree,ptcut=20,etacut=2.5,btagcut=None,btagcut_invert=None,jetid=1,puid=1,njetcut=None,njetcut_invert=None,min_drcut=None,qglcut=None,
                      passthrough=False,exclude_events_mask=None,exclude_jet_mask=None,include_jet_mask=None,**kwargs):
     def jet_pu_mask(puid=puid):
         puid_mask = (1 << puid) == tree["jet_puid"] & ( 1 << puid )
@@ -108,6 +108,7 @@ def std_preselection(tree,ptcut=20,etacut=2.5,btagcut=None,jetid=1,puid=1,njetcu
         return (tree["jet_pt"] >= 50) | low_pt_pu_mask
     
     jet_mask = tree.all_jets_mask
+    event_mask = tree.all_events_mask
     
     if include_jet_mask is not None: jet_mask = jet_mask & include_jet_mask 
     if exclude_jet_mask is not None: jet_mask = exclude_jets(jet_mask,exclude_jet_mask)
@@ -116,12 +117,15 @@ def std_preselection(tree,ptcut=20,etacut=2.5,btagcut=None,jetid=1,puid=1,njetcu
         if ptcut: jet_mask = jet_mask & (tree["jet_pt"] > ptcut)
         if etacut: jet_mask = jet_mask & (np.abs(tree["jet_eta"]) < etacut)
         if btagcut: jet_mask = jet_mask & (tree["jet_btag"] > btagcut)
+        if btagcut_invert: jet_mask = jet_mask & (tree["jet_btag"] <= btagcut_invert)
         if jetid: jet_mask = jet_mask & ((1 << jetid) == tree["jet_id"] & ( 1 << jetid ))
         if puid: jet_mask = jet_mask & jet_pu_mask()
         if min_drcut: jet_mask = jet_mask & (tree["jet_min_dr"] > min_drcut)
         if qglcut: jet_mask = jet_mask & (tree["jet_qgl"] > qglcut)
         
-    event_mask = ak.sum(jet_mask,axis=-1) >= njetcut
+    njets = ak.sum(jet_mask,axis=-1)
+    if njetcut: event_mask = event_mask & (njets >= njetcut)
+    if njetcut_invert: event_mask = event_mask & (njets < njetcut_invert)
     if exclude_events_mask is not None: event_mask = event_mask & exclude_events_mask
     return event_mask,jet_mask
 

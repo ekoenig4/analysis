@@ -37,9 +37,13 @@ class Selection(Tree):
         self.choose_jets(cuts,variable,njets,mask)
 
     def __getitem__(self,key):
+        item = self.get(key)
+        return item[self.mask]
+
+    def get(self,key):
         item = self.extended[key] if key in self.extended else self.tree[key]
         if "jet_" in key: item = item[self.jets_selected_index]
-        return item[self.mask]
+        return item
 
     def scale_weights(self,jets=False):
         weights = self.tree.scale_weights(jets=jets)

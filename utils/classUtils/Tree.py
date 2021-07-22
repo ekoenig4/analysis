@@ -60,7 +60,7 @@ class Tree:
         self.valid = self.nfiles > 0
 
         if not self.valid: return
-        self.merged_ttree = ak.concatenate(self.ttrees)
+        self.ttree = ak.concatenate(self.ttrees)
 
         sample_id = ak.concatenate([ i*ak.ones_like(tree["Run"]) for i,tree in enumerate(self.ttrees) ])
         
@@ -94,7 +94,7 @@ class Tree:
     def __getitem__(self,key): 
         if key in self.extended:
             return self.extended[key]
-        return self.merged_ttree[key]
+        return self.ttree[key]
     def addTree(self,fname):
         if os.path.isdir(fname): init_dir(self,fname)
         else:                    init_file(self,fname)
@@ -119,11 +119,13 @@ class Tree:
         self.extended.update({"X_pt":X.pt,"X_m":X.mass,"X_eta":X.eta,"X_phi":X.phi,
                               "Y_pt":Y.pt,"Y_m":Y.mass,"Y_eta":Y.eta,"Y_phi":Y.phi})
     def calc_jet_dr(self,compare=None,tag="jet"):
-        select_eta = self["jet_eta"]
-        select_phi = self["jet_phi"]
+        select_eta = self.ttree["jet_eta"]
+        select_phi = self.ttree["jet_phi"]
 
-        compare_eta = self["jet_eta"][compare]
-        compare_phi = self["jet_phi"][compare]
+        if compare is None: compare = self.jets_selected
+        
+        compare_eta = self.ttree["jet_eta"][compare]
+        compare_phi = self.ttree["jet_phi"][compare]
         
         dr = calc_dr(select_eta,select_phi,compare_eta,compare_phi)
         dr_index = ak.local_index(dr,axis=-1)

@@ -30,13 +30,14 @@ def save_fig(fig,directory,saveas):
     
 class Study:
     def __init__(self,selections,labels=None,density=0,log=0,lumikey=2018,title=None,saveas=None,mask=None,**kwargs):
+        if type(selections) == tuple: selections = list(selections)
         if type(selections) != list: selections = [selections]
         if mask is not None: selections = [ selection.masked(mask) for selection in selections ]
         
         self.selections = selections
         self.labels = labels if labels else [ selection.tag for selection in selections ]
         self.title = selections[0].title() if title is None and len(selections) == 1 else title
-        self.denisty = density
+        self.density = density
         self.log = log
         self.lumikey = lumikey
         self.saveas = saveas
