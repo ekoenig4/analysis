@@ -57,7 +57,6 @@ class Selection(Tree):
             self.cuts["passthrough"] = False
             self.cuts.update(cuts)
         if tag: self.tag = tag
-            
         self.mask, self.jets_passed = std_preselection(self.tree,exclude_events_mask=self.previous_events_mask & self.mask,
                                                         exclude_jet_mask=self.exclude_jet_mask,
                                                         include_jet_mask=self.include_jet_mask & self.jets_passed,**self.cuts)
@@ -81,7 +80,7 @@ class Selection(Tree):
         if variable is None and self.include:
             included_passed_index = self.jets_passed[self.include.total_jets_selected_index]
             self.jets_passed_index = self.include.total_jets_selected_index[included_passed_index]
-        else: 
+        else:
             self.jets_passed_index = sort_jet_index(self.tree,self.variable,self.jets_passed,method=method)
         self.select_njets(njets)
         

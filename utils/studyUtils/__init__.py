@@ -14,6 +14,22 @@ varinfo = {
     f"jet_min_dr":{"bins":np.linspace(0,3,50)       ,"xlabel":"Jet Min dR"},
     f"jet_eta":   {"bins":np.linspace(-3,3,50)      ,"xlabel":"Jet Eta"},
     f"jet_phi":   {"bins":np.linspace(-3.14,3.14,50),"xlabel":"Jet Phi"},
+    f"n_jet":     {"bins":range(12)                 ,"xlabel":"N Jets"},
+}
+
+shapeinfo = {
+    "event_y23":dict(xlabel="Event y23",bins=np.linspace(0,0.25,30)),
+    "M_eig_w1":dict(xlabel="Momentum Tensor W1",bins=np.linspace(0,1,30)),
+    "M_eig_w2":dict(xlabel="Momentum Tensor W2",bins=np.linspace(0,1,30)),
+    "M_eig_w3":dict(xlabel="Momentum Tensor W3",bins=np.linspace(0,1,30)),
+    "event_S":dict(xlabel="Event S",bins=np.linspace(0,1,30)),
+    "event_St":dict(xlabel="Event S_T",bins=np.linspace(0,1,30)),
+    "event_F":dict(xlabel="Event W2/W1",bins=np.linspace(0,1,30)),
+    "event_A":dict(xlabel="Event A",bins=np.linspace(0,0.5,30)),
+    "event_AL":dict(xlabel="Event A_L",bins=np.linspace(-1,1,30)),
+    "thrust_phi":dict(xlabel="T_T Phi",bins=np.linspace(-3.14,3.14,30)),
+    "event_Tt":dict(xlabel="1 - T_T",bins=np.linspace(0,1/3,30)),
+    "event_Tm":dict(xlabel="T_m",bins=np.linspace(0,2/3,30)),
 }
 
 date_tag = date.today().strftime("%Y%m%d")

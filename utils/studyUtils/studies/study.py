@@ -64,3 +64,68 @@ def njet_var_sum(*args,variable="jet_btag",**kwargs):
     fig.tight_layout()
     plt.show()
     if study.saveas: save_fig(fig,f"n{variable}_sum",study.saveas)
+
+        
+def jet_display(*args,ie=0,printout=[],boosted=False,**kwargs):
+    study = Study(*args,title="",**kwargs)
+    tree = study.selections[0]
+    
+    for out in printout:
+        print(f"{out}: {tree[out][ie]}")
+
+    njet = tree["n_jet"][ie]
+    jet_pt = tree["jet_pt"][ie][np.newaxis]
+    jet_eta = tree["jet_eta"][ie][np.newaxis]
+    jet_phi = tree["jet_phi"][ie][np.newaxis]
+    jet_m = tree["jet_m"][ie][np.newaxis]
+
+    if boosted:
+        boost = com_boost_vector(jet_pt,jet_eta,jet_phi,jet_m,njet=njet)
+        boosted_jets = vector.obj(pt=jet_pt,eta=jet_eta,phi=jet_phi,m=jet_m).boost_p4(boost)
+        jet_pt,jet_eta,jet_phi,jet_m = boosted_jets.pt,boosted_jets.eta,boosted_jets.phi,boosted_jets.m
+    
+    fig = plt.figure(figsize=(10,5))
+    plot_barrel_display(jet_eta,jet_phi,jet_pt,figax=(fig,fig.add_subplot(1,2,1)))
+    plot_endcap_display(jet_eta,jet_phi,jet_pt,figax=(fig,fig.add_subplot(1,2,2,projection='polar')))
+    
+    r,l,e,id = [ tree[info][ie] for info in ("Run","Event","LumiSec","sample_id") ]
+    sample = tree.samples[id]
+
+    title = f"{sample} | Run: {r} | Lumi: {l} | Event: {e}"
+    if boosted: title = f"Boosted COM: {title}"
+    fig.suptitle(title)
+    fig.tight_layout()
+    plt.show()
+
+    if study.saveas: save_fig(fig,"jet_display",study.saveas)
+    
+def jet_sphericity(*args,**kwargs):
+    study = Study(*args,**kwargs)
+    
+    nrows,ncols = 2,3
+    fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,10))
+    shapes = ["M_eig_w1","M_eig_w2","M_eig_w3","event_S","event_St","event_A"]
+    weights = [ selection["scale"] for selection in study.selections ]
+    for i,shape in enumerate(shapes):
+        shape_var = [ selection[shape] for selection in study.selections ]
+        info = shapeinfo[shape]
+        hist_multi(shape_var,weights=weights,**info,**vars(study),figax=(fig,axs[i//ncols,i%ncols]))
+    fig.tight_layout()
+    plt.show()
+    if study.saveas: save_fig(fig,"sphericity",study.saveas)
+        
+def jet_thrust(*args,**kwargs):
+    study = Study(*args,**kwargs)
+    
+    nrows,ncols = 1,3
+    fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,5))
+    shapes = ["thrust_phi","event_Tt","event_Tm"]
+    weights = [ selection["scale"] for selection in study.selections ]
+    
+    for i,shape in enumerate(shapes):
+        shape_var = [ selection[shape] for selection in study.selections ]
+        info = shapeinfo[shape]
+        hist_multi(shape_var,weights=weights,**info,**vars(study),figax=(fig,axs[i]))
+    fig.tight_layout()
+    plt.show()
+    if study.saveas: save_fig(fig,"thrust",study.saveas)

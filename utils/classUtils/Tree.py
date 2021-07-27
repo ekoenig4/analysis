@@ -95,13 +95,15 @@ class Tree:
         if key in self.extended:
             return self.extended[key]
         return self.ttree[key]
+    def get(self,key): return self[key]
     def addTree(self,fname):
         if os.path.isdir(fname): init_dir(self,fname)
         else:                    init_file(self,fname)
+    def extend(self,**kwargs): self.extended.update(**kwargs)
     def build_scale_weights(self):
         jet_scale = ak.concatenate([ ak.full_like(tree["jet_pt"],scale) for scale,tree in zip(self.scales,self.ttrees)])
         event_scale = jet_scale[:,0]
-        self.extended.update({"scale":event_scale,"jet_scale":jet_scale})
+        self.extend(scale=event_scale,jet_scale=jet_scale)
     
     def reco_XY(self):
         bjet_p4 = lambda key : vector.obj(pt=self[f"gen_{key}_recojet_pt"],eta=self[f"gen_{key}_recojet_eta"],
@@ -119,7 +121,7 @@ class Tree:
         self.extended.update({"X_pt":X.pt,"X_m":X.mass,"X_eta":X.eta,"X_phi":X.phi,
                               "Y_pt":Y.pt,"Y_m":Y.mass,"Y_eta":Y.eta,"Y_phi":Y.phi})
     def calc_jet_dr(self,compare=None,tag="jet"):
-        select_eta = self.ttree["jet_eta"]
+        select_eta = self.get("jet_eta")
         select_phi = self.ttree["jet_phi"]
 
         if compare is None: compare = self.jets_selected
@@ -145,6 +147,16 @@ class Tree:
 
         self.extended.update({f"{tag}_min_dr":min_dr,f"{tag}_imin_dr":imin_dr,f"{tag}_max_dr":max_dr,f"{tag}_imax_dr":imax_dr})
 
+    def calc_event_shapes(self):
+        jet_pt,jet_eta,jet_phi,jet_m = self.get("jet_pt"),self.get("jet_eta"),self.get("jet_phi"),self.get("jet_m")
+        
+        self.extend (
+            **calc_y23(jet_pt),
+            **calc_sphericity(jet_pt,jet_eta,jet_phi,jet_m),
+            **calc_thrust(jet_pt,jet_eta,jet_phi,jet_m),
+            **calc_asymmetry(jet_pt,jet_eta,jet_phi,jet_m),
+        )
+        
     def copy(self):
         new_tree = CopyTree(self)
         return new_tree

@@ -14,12 +14,16 @@ def check(selections,fields,ie=5):
         print(f"--- {field} ---")
         for selection in selections:
             if hasattr(selection,field): 
-                value = getattr(selection,field)[ie]
+                value = getattr(selection,field)
+                if is_iter(value): value = value[ie]
                 tag = selection.tag
             else: 
-                value = selection[field][ie]
+                value = selection[field]
+                if is_iter(value): value = value[ie]
                 tag = "event"
-            print(f"{tag:<15}: {print_nice(value)}")
+            printout = str(value)
+            if is_iter(value): printout=print_nice(value)
+            print(f"{tag:<15}: {printout}")
             
 def icheck(arrays,ie=None,mask=None,imax=9):
     for i,array in enumerate(arrays):

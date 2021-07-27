@@ -158,15 +158,19 @@ def plot_mask_stack_comparison(datalist,bins=None,title=None,xlabel=None,figax=N
     return (fig,ax)
 
 
-def hist2d_simple(xdata,ydata,xbins=None,ybins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=1,grid=False,label=None):
+def hist2d_simple(xdata,ydata,xbins=None,ybins=None,title=None,xlabel=None,ylabel=None,figax=None,weights=None,lumikey=None,density=0,log=1,grid=False,label=None):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
     xdata = ak.to_numpy(ak.flatten(xdata,axis=None))
     ydata = ak.to_numpy(ak.flatten(ydata,axis=None))
+    
+    lumi,lumi_tag = lumiMap[lumikey]
+    if weights is not None: weights = lumi*ak.to_numpy(weights)
+    
 
     nevnts = ak.size(xdata)
-    n,bx,by,im = ax.hist2d(np.array(xdata),np.array(ydata),(xbins,ybins),density=density,norm=clrs.LogNorm() if log else clrs.Normalize(),cmap="jet")
+    n,bx,by,im = ax.hist2d(np.array(xdata),np.array(ydata),(xbins,ybins),weights=weights,density=density,norm=clrs.LogNorm() if log else clrs.Normalize(),cmap="jet")
     
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
@@ -180,17 +184,40 @@ def hist2d_simple(xdata,ydata,xbins=None,ybins=None,title=None,xlabel=None,ylabe
     fig.colorbar(im,ax=ax)
     return (fig,ax)
     
-def plot_jet_display(jet_eta,jet_phi,jet_weight,nbins=20,figax=None,cblabel=None,cmin=0.01):
+def plot_barrel_display(eta,phi,weight,nbins=20,figax=None,cblabel=None,cmin=0.01):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
-    xbins = np.linspace(-2.4,2.4,nbins)
+    
+    eta =    ak.to_numpy(ak.flatten(eta,axis=None))
+    phi =    ak.to_numpy(ak.flatten(phi,axis=None))
+    weight = ak.to_numpy(ak.flatten(weight,axis=None))
+
+    max_eta = max(ak.max(np.abs(eta)),2.5)
+    
+    xbins = np.linspace(-max_eta,max_eta,nbins)
     ybins = np.linspace(-3.14159,3.14159,nbins)
 
-    n,bx,by,im = ax.hist2d(jet_eta,jet_phi,bins=(xbins,ybins),weights=jet_weight,cmin=cmin)
+    n,bx,by,im = ax.hist2d(eta,phi,bins=(xbins,ybins),weights=weight,cmin=cmin)
     ax.set_xlabel("Jet Eta")
     ax.set_ylabel("Jet Phi")
     ax.grid()
 
     cb = fig.colorbar(im,ax=ax)
     if cblabel: cb.ax.set_ylabel(cblabel)
+    return (fig,ax)
+
+def plot_endcap_display(eta,phi,weight,nbins=20,figax=None):
+    if figax is None: figax = plt.subplots(projection='polar')
+    (fig,ax) = figax
+    
+    eta =    ak.to_numpy(ak.flatten(eta,axis=None))
+    phi =    ak.to_numpy(ak.flatten(phi,axis=None))
+    weight = ak.to_numpy(ak.flatten(weight,axis=None))/ak.max(weight,axis=None)
+    
+    for p,w in zip(phi,weight):
+        ax.plot([p,p],[0,1],linewidth=5*w,color="b")
+        
+    ax.set_ylim(0,1)
+    ax.set_yticks([0,1])
+    ax.set_yticklabels(["",""])
     return (fig,ax)
