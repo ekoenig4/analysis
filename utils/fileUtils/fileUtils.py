@@ -7,6 +7,7 @@ NMSSM_MX_600_MY_300 = "/eos/uscms/store/user/ekoenig/6BAnalysis/NTuples/2018/Sel
 NMSSM_MX_600_MY_400 = "/eos/uscms/store/user/ekoenig/6BAnalysis/NTuples/2018/Selection/NMSSM/NMSSM_XYH_YToHH_6b_MX_600_MY_400_accstudies.root"
 NMSSM_MX_700_MY_300 = "/eos/uscms/store/user/ekoenig/6BAnalysis/NTuples/2018/Selection/NMSSM/NMSSM_XYH_YToHH_6b_MX_700_MY_300_accstudies.root"
 NMSSM_MX_700_MY_400 = "/eos/uscms/store/user/ekoenig/6BAnalysis/NTuples/2018/Selection/NMSSM/NMSSM_XYH_YToHH_6b_MX_700_MY_400/ntuple.root"
+NMSSM_MX_700_MY_400_v2 = "/eos/uscms/store/user/ekoenig/6BAnalysis/NTuples/2018/Selection/NMSSM/NMSSM_XYH_YToHH_6b_MX_700_MY_400-v2/ntuple.root"
 NMSSM_MX_700_MY_500 = "/eos/uscms/store/user/ekoenig/6BAnalysis/NTuples/2018/Selection/NMSSM/NMSSM_XYH_YToHH_6b_MX_700_MY_500_accstudies.root"
 
 NMSSM_List = [NMSSM_MX_450_MY_300,NMSSM_MX_500_MY_300,NMSSM_MX_600_MY_300,NMSSM_MX_600_MY_400,NMSSM_MX_700_MY_300,NMSSM_MX_700_MY_400,NMSSM_MX_700_MY_500]

@@ -3,12 +3,11 @@ from . import *
 import os
 
 class Selection(Tree):
-    def __init__(self,tree,cuts={},include=None,previous=None,variable=None,njets=-1,mask=None,tag="selected",ignore_tag=False):
+    def __init__(self,tree,cuts={},include=None,previous=None,variable=None,njets=-1,mask=None,tag=None,ignore_tag=False):
         copy_fields(tree,self)
         self.extended = {}
         
         self.tree = tree
-        self.tag = tag
         self.subset = "selected"
         
         self.include = include
@@ -34,7 +33,7 @@ class Selection(Tree):
         self.mask = self.all_events_mask
         self.jets_passed = self.all_jets_mask
         
-        self.choose_jets(cuts,variable,njets,mask)
+        self.choose_jets(cuts,variable,njets,mask,tag)
 
     def __getitem__(self,key):
         item = self.get(key)

@@ -3,6 +3,33 @@
 
 from . import *
 
+def quick(*args,varlist=[],binlist=None,**kwargs):
+    study = Study(*args,**kwargs)
+
+    nvar = len(varlist)
+    binlist = init_atr(binlist,None,nvar)
+
+    if nvar % 2 == 1: nvar += 1
+    ncols = nvar//2
+    nrows = nvar//ncols
+    fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(8*ncols,5*nrows))
+
+    event_weights = [ selection["scale"] for selection in study.selections ]
+    jet_weights = [ selection["jet_scale"] for selection in study.selections ]
+    higgs_weights = [ selection["higgs_scale"] for selection in study.selections ]
+    for i,(var,bins) in enumerate(zip(varlist,binlist)):
+        if var in varinfo and bins is None: bins = varinfo[var]["bins"]
+        hists = [selection[var] for selection in study.selections]
+        weights = next( (weights for weights in [event_weights,jet_weights,higgs_weights] if ak.count(weights[0]) == ak.count(hists[0])),None )
+
+        if ncols == 1 and nrows > 1: ax = axs[i]
+        else: ax = axs[i//ncols,i%ncols]
+        
+        hist_multi(hists,bins=bins,xlabel=var,weights=weights,**vars(study),figax=(fig,ax))
+    fig.suptitle(study.title)
+    fig.tight_layout()
+    plt.show()
+
 def njets(*args,**kwargs):
     study = Study(*args,**kwargs)
     
@@ -40,8 +67,28 @@ def jets(*args,**kwargs):
     fig.tight_layout()
     plt.show()
     if study.saveas: save_fig(fig,"jets",study.saveas)
+    
+def higgs(*args,**kwargs):
+    study = Study(*args,**kwargs)
+    
+    varlist=["higgs_m","higgs_pt","higgs_phi","higgs_eta"]
+    
+    nrows,ncols = 2,2
+    fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,10))
+    
+    weights = [ selection["scale"] for selection in study.selections ]
+    higgs_weights = [ selection["higgs_scale"] for selection in study.selections ]
+    for i,varname in enumerate(varlist):
+        hists = [ selection[varname] for selection in study.selections ]
+        info = study.varinfo[varname]
+        hist_multi(hists,weights=higgs_weights,**info,figax=(fig,axs[i//ncols,i%ncols]),**vars(study))
 
-def njet_var_sum(*args,variable="jet_btag",**kwargs):
+    fig.suptitle(study.title)
+    fig.tight_layout()
+    plt.show()
+    if study.saveas: save_fig(fig,"higgs",study.saveas)
+
+def njet_var_sum(*args,variable="jet_btag",start=3,**kwargs):
     study = Study(*args,**kwargs)
 
     nrows,ncols = 2,2
@@ -52,10 +99,13 @@ def njet_var_sum(*args,variable="jet_btag",**kwargs):
     weights = [ selection["scale"] for selection in study.selections ]
     selection_vars = [ ak.fill_none(ak.pad_none(selection[variable],6,axis=-1,clip=1),0) for selection in study.selections ]
     for i in range(4):
-        ijet = i+3
+        ijet = i+start
         ijet_var_sum = [ ak.sum(var[:,:ijet],axis=-1) for var in selection_vars ]
 
-        bins = np.linspace(0,binmax*(1+0.05*ijet),50)
+        varstd = max([ ak.std(var,axis=None) for var in ijet_var_sum ])
+        varavg = max([ ak.mean(var,axis=None) for var in ijet_var_sum ])
+        
+        bins = np.linspace(varavg-varstd,varavg+varstd,50)
         if variable == "jet_btag": bins = np.linspace(0,binmax*ijet,50)
         
         hist_multi(ijet_var_sum,weights=weights,bins=bins,**vars(study),xlabel=f"{ijet} {info['xlabel']} Sum",figax=(fig,axs[i//ncols,i%ncols]))

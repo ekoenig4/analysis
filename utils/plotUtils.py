@@ -23,14 +23,9 @@ def autobin(data,nstd=3):
     mean = ak.mean(data)
     stdv = ak.std(data)
     minim,maxim = ak.min(data),ak.max(data)
-    xlo,xhi = max([minim,mean-nstd*stdv]),min([mean+nstd*stdv])
+    xlo,xhi = max([minim,mean-nstd*stdv]),min([maxim,mean+nstd*stdv])
     nbins = min(int(1+np.sqrt(ndata)),50)
     return np.linspace(xlo,xhi,nbins)
-
-def init_atr(atr,init,size):
-    if atr is None: return [init]*size
-    atr = list(atr)
-    return (atr + size*[init])[:size]
 
 def graph_simple(xdata,ydata,xlabel=None,ylabel=None,title=None,label=None,marker='o',ylim=None,xticklabels=None,figax=None):
     if figax is None: figax = plt.subplots()

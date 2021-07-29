@@ -12,6 +12,11 @@ from .xsecUtils import *
 from .fileUtils import fileUtils as fc
 from .cutConfig import *
 
+def init_atr(atr,init,size):
+    if atr is None: return [init]*size
+    atr = list(atr)
+    return (atr + size*[init])[:size]
+
 from .selectUtils import *
 from .plotUtils import *
 from .studyUtils import *

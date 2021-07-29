@@ -15,6 +15,12 @@ varinfo = {
     f"jet_eta":   {"bins":np.linspace(-3,3,50)      ,"xlabel":"Jet Eta"},
     f"jet_phi":   {"bins":np.linspace(-3.14,3.14,50),"xlabel":"Jet Phi"},
     f"n_jet":     {"bins":range(12)                 ,"xlabel":"N Jets"},
+    f"higgs_m":   {"bins":np.linspace(0,250,50)      ,"xlabel":"DiJet Mass"},
+    f"higgs_E":   {"bins":np.linspace(0,1000,50)     ,"xlabel":"DiJet Energy"},
+    f"higgs_pt":  {"bins":np.linspace(0,1000,50)     ,"xlabel":"DiJet Pt (GeV)"},
+    f"higgs_eta": {"bins":np.linspace(-3,3,50)      ,"xlabel":"DiJet Eta"},
+    f"higgs_phi": {"bins":np.linspace(-3.14,3.14,50),"xlabel":"DiJet Phi"},
+    f"n_higgs":   {"bins":range(12)                 ,"xlabel":"N DiJets"},
 }
 
 shapeinfo = {
@@ -52,7 +58,7 @@ class Study:
         
         self.selections = selections
         self.labels = labels if labels else [ selection.tag for selection in selections ]
-        self.title = selections[0].title() if title is None and len(selections) == 1 else title
+        self.title = title
         self.density = density
         self.log = log
         self.lumikey = lumikey

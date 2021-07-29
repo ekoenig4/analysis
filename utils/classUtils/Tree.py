@@ -40,6 +40,11 @@ def init_dir(self,tdir):
     sample,xsec = next( ((key,value) for key,value in xsecMap.items() if key in tfname),("unk",1) )
     scale = xsec / total_events
     add_sample(self,tfname,tfiles,total_events,ttree,sample,xsec,scale)
+
+tagMap = {
+    "QCD":"QCD",
+    "NMSSM":"Signal",
+}
     
 class Tree:
     def __init__(self,filenames,verify=True):
@@ -60,6 +65,7 @@ class Tree:
         self.valid = self.nfiles > 0
 
         if not self.valid: return
+        self.tag = next( (tag for key,tag in tagMap.items() if key in self.samples[0]),None )
         self.ttree = ak.concatenate(self.ttrees)
 
         sample_id = ak.concatenate([ i*ak.ones_like(tree["Run"]) for i,tree in enumerate(self.ttrees) ])
@@ -101,9 +107,13 @@ class Tree:
         else:                    init_file(self,fname)
     def extend(self,**kwargs): self.extended.update(**kwargs)
     def build_scale_weights(self):
-        jet_scale = ak.concatenate([ ak.full_like(tree["jet_pt"],scale) for scale,tree in zip(self.scales,self.ttrees)])
-        event_scale = jet_scale[:,0]
+        event_scale = ak.concatenate( [np.full(shape=ak.count(tree["Run"]),fill_value=scale,dtype=np.float) for scale,tree in zip(self.scales,self.ttrees)] )
+        jet_scale = ak.unflatten( np.repeat(ak.to_numpy(event_scale),self["n_jet"]),self["n_jet"] )
         self.extend(scale=event_scale,jet_scale=jet_scale)
+        
+        if "n_higgs" in ak.fields(self.ttree):
+            higgs_scale = ak.unflatten( np.repeat(ak.to_numpy(event_scale),self["n_higgs"]),self["n_higgs"] )
+            self.extend(higgs_scale=higgs_scale)
     
     def reco_XY(self):
         bjet_p4 = lambda key : vector.obj(pt=self[f"gen_{key}_recojet_pt"],eta=self[f"gen_{key}_recojet_eta"],
