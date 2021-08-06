@@ -2,44 +2,31 @@ from . import *
 
 import glob
 
-def add_sample(self,fname,tfile,total_events,ttree,sample,xsec,scale):
+def add_sample(self,fname,cutflow,ttree,sample,xsec,scale):
     self.nfiles += 1
     self.filenames.append(fname)
-    self.tfiles.append(tfile)
-    self.total_events.append(total_events)
-    self.raw_events.append(ak.size(ttree["Run"]))
+    self.cutflow.append(cutflow)
+    self.total_events.append(cutflow[0])
+    self.raw_events.append(len(ttree))
     self.ttrees.append(ttree)
     self.samples.append(sample)
     self.xsecs.append(xsec)
     self.scales.append(scale)
 
 def init_file(self,tfname):
-    tfile = ut.open(tfname)
-    total_events = ak.sum(tfile["n_events"].to_numpy(),axis=None)
-    ttree = tfile["sixBtree"].arrays()
+    cutflow = ut.open(tfname+":h_cutflow").to_numpy()[0]
+    if not self.lazy:
+        ttree = ut.open(tfname+":sixBtree").arrays()
+    else:
+        ttree = ut.lazy(tfname+":sixBtree")
 
-    valid = ak.count(ttree) > 0
-
-    if not valid and self.verify: return
-    sample,xsec = next( ((key,value) for key,value in xsecMap.items() if key in tfname),("unk",1) )
-    scale = xsec / total_events
-    add_sample(self,tfname,tfile,total_events,ttree,sample,xsec,scale)
-
-def init_dir(self,tdir):
-    tfname = f"{tdir}/ntuple_*.root"
-    filelist = glob.glob(tfname)
-
-    tfiles = [ ut.open(fname) for fname in filelist ]
-    total_events = sum([ak.sum(tfile["n_events"].to_numpy(),axis=None) for tfile in tfiles])
-    ttrees = list(ut.iterate(tfname,allow_missing=True))
-    if len(ttrees) == 0: return
-    ttree = ak.concatenate(ttrees)
-    valid = ak.count(ttree) > 0
+    valid = len(ttree) > 0
 
     if not valid and self.verify: return
     sample,xsec = next( ((key,value) for key,value in xsecMap.items() if key in tfname),("unk",1) )
-    scale = xsec / total_events
-    add_sample(self,tfname,tfiles,total_events,ttree,sample,xsec,scale)
+    scale = xsec / cutflow[0] if type(xsec) == float else 1
+
+    add_sample(self,tfname,cutflow,ttree,sample,xsec,scale)
 
 tagMap = {
     "QCD":"QCD",
@@ -47,13 +34,15 @@ tagMap = {
 }
     
 class Tree:
-    def __init__(self,filenames,verify=True):
+    def __init__(self,filenames,verify=True,lazy=False):
         if type(filenames) != list: filenames = [filenames]
         self.verify = verify
+        self.lazy = lazy
         
         self.nfiles = 0
         self.filenames = []
         self.tfiles = []
+        self.cutflow = []
         self.total_events = []
         self.raw_events = []
         self.ttrees = []
@@ -65,14 +54,21 @@ class Tree:
         self.valid = self.nfiles > 0
 
         if not self.valid: return
+        self.is_data = any("Data" in fn for fn in self.filenames)
         self.tag = next( (tag for key,tag in tagMap.items() if key in self.samples[0]),None )
-        self.ttree = ak.concatenate(self.ttrees)
+        if self.is_data: self.tag = "Data"
 
-        sample_id = ak.concatenate([ i*ak.ones_like(tree["Run"]) for i,tree in enumerate(self.ttrees) ])
+        if not self.lazy:
+            self.ttree = ak.concatenate(self.ttrees)
+
+        sample_id = ak.concatenate([ ak.Array([i]*len(tree)) for i,tree in enumerate(self.ttrees) ])
         
         self.extended = {"sample_id":sample_id}
         self.nevents = sum(self.raw_events)
         self.is_signal = all("NMSSM" in fname for fname in self.filenames)
+        self.build_scale_weights()
+        
+        if self.lazy: return
         
         self.all_events_mask = ak.ones_like(self["Run"]) == 1
         self.all_jets_mask = ak.ones_like(self["jet_pt"]) == 1
@@ -83,9 +79,8 @@ class Tree:
         self.sixb_jet_mask = self["jet_signalId"] != -1
         self.bkgs_jet_mask = self.sixb_jet_mask == False
 
-        self.sixb_found_mask = self["nfound_all"] == 6
+        self.sixb_found_mask = self["nfound_presel"] == 6
 
-        self.build_scale_weights()
         # self.reco_XY()
     def __str__(self):
         if not self.valid: return "invalid"
@@ -100,18 +95,18 @@ class Tree:
     def __getitem__(self,key): 
         if key in self.extended:
             return self.extended[key]
-        return self.ttree[key]
+        item = self.ttree[key] if not self.lazy else ak.concatenate([tree[key] for tree in self.ttrees])
+        self.extend(key=item)
+        return item
     def get(self,key): return self[key]
-    def addTree(self,fname):
-        if os.path.isdir(fname): init_dir(self,fname)
-        else:                    init_file(self,fname)
+    def addTree(self,fname): init_file(self,fname)
     def extend(self,**kwargs): self.extended.update(**kwargs)
     def build_scale_weights(self):
-        event_scale = ak.concatenate( [np.full(shape=ak.count(tree["Run"]),fill_value=scale,dtype=np.float) for scale,tree in zip(self.scales,self.ttrees)] )
+        event_scale = ak.concatenate( [np.full(shape=len(tree),fill_value=scale,dtype=np.float) for scale,tree in zip(self.scales,self.ttrees)] )
         jet_scale = ak.unflatten( np.repeat(ak.to_numpy(event_scale),self["n_jet"]),self["n_jet"] )
         self.extend(scale=event_scale,jet_scale=jet_scale)
         
-        if "n_higgs" in ak.fields(self.ttree):
+        if "n_higgs" in ak.fields(self.ttrees[0]):
             higgs_scale = ak.unflatten( np.repeat(ak.to_numpy(event_scale),self["n_higgs"]),self["n_higgs"] )
             self.extend(higgs_scale=higgs_scale)
     
@@ -132,12 +127,12 @@ class Tree:
                               "Y_pt":Y.pt,"Y_m":Y.mass,"Y_eta":Y.eta,"Y_phi":Y.phi})
     def calc_jet_dr(self,compare=None,tag="jet"):
         select_eta = self.get("jet_eta")
-        select_phi = self.ttree["jet_phi"]
+        select_phi = self["jet_phi"]
 
         if compare is None: compare = self.jets_selected
         
-        compare_eta = self.ttree["jet_eta"][compare]
-        compare_phi = self.ttree["jet_phi"][compare]
+        compare_eta = self["jet_eta"][compare]
+        compare_phi = self["jet_phi"][compare]
         
         dr = calc_dr(select_eta,select_phi,compare_eta,compare_phi)
         dr_index = ak.local_index(dr,axis=-1)
@@ -166,6 +161,9 @@ class Tree:
             **calc_thrust(jet_pt,jet_eta,jet_phi,jet_m),
             **calc_asymmetry(jet_pt,jet_eta,jet_phi,jet_m),
         )
+
+    def calc_btagsum(self):
+        for nj in (5,6): self.extend(**{f"jet{nj}_btagsum":ak.sum(self.get("jet_btag")[:,:nj],axis=-1)})
         
     def copy(self):
         new_tree = CopyTree(self)

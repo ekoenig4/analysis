@@ -33,3 +33,14 @@ def icheck(arrays,ie=None,mask=None,imax=9):
             
         if is_iter(array) and len(array) < 10: array = print_nice(array)
         print(array)
+        
+def print_bovers(selections):
+    scale =ak.sum(selections[0]["scale"])/ak.sum(selections[1]["scale"])
+    print(f"QCD/Signal: {scale:0.2f}")
+    for selection in selections:print(selection)
+    print("------")
+    
+def print_raw_info(tree):
+    for sample,xsec,total,raw in zip(tree.samples,tree.xsecs,tree.total_events,tree.raw_events):
+        sample = sample.replace("_","\_")
+        print(f"{sample} & {xsec} & {total:.0f} & {raw}\\\\")

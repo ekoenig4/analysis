@@ -41,7 +41,7 @@ class Selection(Tree):
 
     def get(self,key):
         item = self.extended[key] if key in self.extended else self.tree[key]
-        if "jet_" in key: item = item[self.jets_selected_index]
+        if key.startswith("jet_"): item = item[self.jets_selected_index]
         return item
 
     def scale_weights(self,jets=False):
@@ -233,6 +233,7 @@ class SelectionScore:
 class CopySelection(Selection):
     def __init__(self,selection):
         copy_fields(selection,self)
+        self.extended = dict(**self.extended)
         
 class MergedSelection(CopySelection): 
     def __init__(self,selection,tag="merged selection"): 

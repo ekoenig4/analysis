@@ -4,13 +4,16 @@
 from . import *
 
 class SignalStudy(Study):
-    def __init__(self,selection,subset="selected",**kwargs):
+    def __init__(self,selection,subset="selected",plot=True,**kwargs):
         Study.__init__(self,selection,**kwargs)
         selection.build_extra_collections()
 
         self.selection = self.selections[0]
+        if self.title is None: self.title = self.selection.title()
         self.subset = subset
         self.tree = selection.tree
+        self.plot = plot
+        self.lumikey = None
 
 def signal_order(selection,plot=True,saveas=None,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
@@ -163,36 +166,30 @@ def selection_comparison(selections,plot=True,saveas=None,under6=False,latex=Fal
     plt.show()
     if saveas: save_fig(fig,"selection",saveas)
 
-def jets(selection,plot=True,saveas=None,density=0,log=0,scaled=False,**kwargs):
-    study = SignalStudy(selection,saveas=saveas,**kwargs)     
-    selection = study.selection     
-    tree = selection.tree     
-    subset = study.subset
-    title = study.title
-    varinfo = study.varinfo
+def jets(*args,varlist=["jet_pt","jet_eta","jet_btag","jet_qgl"],**kwargs):
+    study = SignalStudy(*args,varlist=varlist,labels=(f"Background Jets",f"Signal Jets"),**kwargs)    
     
-    if not plot: return
+    if not study.plot: return
     
-    labels = (f"Background Jets",f"Signal Jets")
     colors = ("tab:orange","black")
     histtypes = ("bar","step")
     
-    mask = selection.mask
-    bkgs_jets = getattr(selection,f"bkgs_{subset}")
-    sixb_ordered = getattr(selection,f"sixb_{subset}")
+    mask = study.selection.mask
+    bkgs_jets = getattr(study.selection,f"bkgs_{study.subset}")
+    sixb_ordered = getattr(study.selection,f"sixb_{study.subset}")
             
     nrows,ncols=1,4
     fig, axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,5))
-    for i,(var,info) in enumerate(varinfo.items()):
-        bkgs_var = ak.flatten(tree[var][bkgs_jets][mask])
-        sixb_var = ak.flatten(tree[var][sixb_ordered][mask])
+    for i,(var,info) in enumerate(study.varinfo.items()):
+        bkgs_var = ak.flatten(study.tree[var][bkgs_jets][mask])
+        sixb_var = ak.flatten(study.tree[var][sixb_ordered][mask])
         hist_multi((bkgs_var,sixb_var),figax=(fig,axs[i]),**info,
-                   labels=labels,colors=colors,histtypes=histtypes,density=density,log=log)
+                   colors=colors,histtypes=histtypes,**vars(study))
             
-    fig.suptitle(f"{title}")
+    fig.suptitle(f"{study.title}")
     fig.tight_layout()
     plt.show()
-    if saveas: save_fig(fig,f"jets_{subset}",saveas)
+    if study.saveas: save_fig(fig,f"jets_{study.subset}",study.saveas)
         
 
 def jets_2d(selection,plot=True,saveas=None,density=0,log=1,**kwargs):
@@ -282,44 +279,40 @@ def ijets(selection,plot=True,saveas=None,njets=-1,show_ijet=None,topbkg=False,d
         plt.show()
         if saveas: save_fig(fig,f"ijets_{subset}",f"{ordinal(ijet+1)}_{saveas}")
 
-def jets_ordered(selection,plot=True,saveas=None,njets=6,topbkg=True,density=0,log=0,**kwargs):
-    study = SignalStudy(selection,saveas=saveas,**kwargs)     
-    selection = study.selection     
-    tree = selection.tree     
-    subset = study.subset
-    title = study.title
-    varinfo = study.varinfo
+def jets_ordered(*args,varlist=["jet_pt","jet_eta","jet_btag","jet_qgl"],njets=1,topbkg=True,**kwargs):
+    study = SignalStudy(*args,varlist=varlist,**kwargs) 
     
-    if not plot: return
+    if not study.plot: return
     
     label1 = "Top Background Jet" if topbkg else "Background Jets"
     colors = ["tab:orange","black"]
     histtypes = ["bar","step"]
     
-    mask = selection.mask
+    mask = study.selection.mask
     
-    bkgs = getattr(selection,f"bkgs_{subset}")
-    nbkgs= getattr(selection,f"nbkgs_{subset}")
-    bkgs_position = getattr(selection,f"bkgs_{subset}_position")
-    bkgs_ordered = getattr(selection,f"bkgs_{subset}_index")
+    bkgs = getattr(study.selection,f"bkgs_{study.subset}")
+    nbkgs= getattr(study.selection,f"nbkgs_{study.subset}")
+    bkgs_position = getattr(study.selection,f"bkgs_{study.subset}_position")
+    bkgs_ordered = getattr(study.selection,f"bkgs_{study.subset}_index")
     
-    sixb = getattr(selection,f"sixb_{subset}")
-    nsixb= getattr(selection,f"nsixb_{subset}")
-    sixb_position = getattr(selection,f"sixb_{subset}_position")
-    sixb_ordered = getattr(selection,f"sixb_{subset}_index")
+    sixb = getattr(study.selection,f"sixb_{study.subset}")
+    nsixb= getattr(study.selection,f"nsixb_{study.subset}")
+    sixb_position = getattr(study.selection,f"sixb_{study.subset}_position")
+    sixb_ordered = getattr(study.selection,f"sixb_{study.subset}_index")
     
     
     if topbkg: bkgs_ordered = ak.pad_none(bkgs_ordered,1,axis=-1,clip=1)
     
-    bkgs_mask = get_jet_index_mask(tree,bkgs_ordered)
+    bkgs_mask = get_jet_index_mask(study.tree,bkgs_ordered)
     sixb_ordered = ak.pad_none(sixb_ordered,6,axis=-1)
     
-    njets = min(njets,selection.njets if selection.njets != -1 else 6) 
+    njets = min(njets,study.selection.njets if study.selection.njets != -1 else 6) 
     
     for ijet in range(njets):
         labels = [label1,f"{ordinal(ijet+1)} Signal Jet"]
+        study.labels = labels
         nsixb_mask = mask & (nsixb > ijet)
-        isixb_mask = get_jet_index_mask(tree,sixb_ordered[:,ijet][:,np.newaxis])
+        isixb_mask = get_jet_index_mask(study.tree,sixb_ordered[:,ijet][:,np.newaxis])
         
         if ak.sum(ak.flatten(isixb_mask[nsixb_mask])) == 0: 
             print(f"*** No incorrect selection in position {ijet} ***")
@@ -327,16 +320,16 @@ def jets_ordered(selection,plot=True,saveas=None,njets=6,topbkg=True,density=0,l
             
         nrows,ncols=1,4
         fig, axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,5))
-        for i,(var,info) in enumerate(varinfo.items()):
-            jets_var = ak.flatten(tree[var][bkgs_mask][mask])
-            sixb_var = ak.flatten(tree[var][isixb_mask][nsixb_mask])
+        for i,(var,info) in enumerate(study.varinfo.items()):
+            jets_var = ak.flatten(study.tree[var][bkgs_mask][mask])
+            sixb_var = ak.flatten(study.tree[var][isixb_mask][nsixb_mask])
             hist_multi((jets_var,sixb_var),figax=(fig,axs[i]),**info,
-                                  labels=labels,colors=colors,histtypes=histtypes,density=density,log=log)
+                        colors=colors,histtypes=histtypes,**vars(study))
             
-        fig.suptitle(f"{title} {ordinal(ijet+1)} Signal Jet")
+        fig.suptitle(f"{study.title} {ordinal(ijet+1)} Signal Jet")
         fig.tight_layout()
         plt.show()
-        if saveas: save_fig(fig,f"jets_{subset}",f"{ordinal(ijet+1)}_{saveas}")
+        if study.saveas: save_fig(fig,f"jets_{study.subset}",f"{ordinal(ijet+1)}_{study.saveas}")
             
 def jets_2d_ordered(selection,plot=True,saveas=None,njets=6,topbkg=True,compare=False,density=0,log=1,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
@@ -385,8 +378,8 @@ def jets_2d_ordered(selection,plot=True,saveas=None,njets=6,topbkg=True,compare=
             print(f"*** No incorrect selection in position {ijet} ***")
             continue
             
-        nrows,ncols=1,2
-        fig, axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,5))
+        nrows,ncols=2,1
+        fig, axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(8,10))
         
         if not (compare and topbkg):
             jets_btag = ak.flatten(tree["jet_btag"][bkgs_mask][mask])

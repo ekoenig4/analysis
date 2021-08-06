@@ -292,3 +292,19 @@ def calc_asymmetry(jet_pt,jet_eta,jet_phi,jet_m,njet=-1):
     AL = ak.sum(jet_pz,axis=-1)/ak.sum(jet_p,axis=-1)
     
     return dict(event_AL=AL)
+
+def optimize_var_cut(selections,variable,nsteps=20,varmin=None,varmax=None,method=min):
+    varmin = min([ ak.min(selection[variable]) for selection in selections ]) if varmin == None else varmin
+    varmax = max([ ak.max(selection[variable]) for selection in selections ]) if varmax == None else varmax
+    
+    cutlist = np.linspace(varmin,varmax,nsteps)
+    
+    if method is min: method = lambda arr,cut : arr < cut
+    elif method is max: method = lambda arr,cut : arr > cut
+    
+    score_list = []
+    for cut in cutlist:
+        nevents = [ ak.sum( selection["scale"][method(selection[variable],cut)] ) for selection in selections ]
+        bovers = nevents[0]/nevents[1] if nevents[1] != 0 else 0
+        score_list.append(bovers)
+    return cutlist,score_list

@@ -6,6 +6,7 @@ from . import *
 import matplotlib.colors as clrs
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # plt.rc('text', usetex=True)
 # plt.rc('font', family='serif')
@@ -27,6 +28,16 @@ def autobin(data,nstd=3):
     nbins = min(int(1+np.sqrt(ndata)),50)
     return np.linspace(xlo,xhi,nbins)
 
+def get_bin_centers(bins):
+    return [ (lo+hi)/2 for lo,hi in zip(bins[:-1],bins[1:]) ]
+def get_bin_widths(bins):
+    return [ (hi-lo)/2 for lo,hi in zip(bins[:-1],bins[1:]) ]
+
+def safe_divide(a,b):
+    tmp = np.full_like(a,None,dtype=float)
+    np.divide(a,b,out=tmp,where=(b!=0))
+    return tmp
+
 def graph_simple(xdata,ydata,xlabel=None,ylabel=None,title=None,label=None,marker='o',ylim=None,xticklabels=None,figax=None):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
@@ -44,22 +55,24 @@ def graph_simple(xdata,ydata,xlabel=None,ylabel=None,title=None,label=None,marke
     if label: ax.legend()
     return (fig,ax)
 
-def graph_multi(xdata,ydatalist,xlabel=None,ylabel=None,title=None,labels=None,markers=None,colors=None,ylim=None,figax=None):
+def graph_multi(xdata,ydatalist,xlabel=None,ylabel=None,title=None,labels=None,markers=None,colors=None,ylim=None,log=False,grid=False,figax=None):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
     ndata = len(ydatalist)
-    labels = init_atr(labels,"",ndata)
+    labels = init_atr(labels,None,ndata)
     markers = init_atr(markers,"o",ndata)
     colors = init_atr(colors,None,ndata)
     
     for i,(ydata,label,marker,color) in enumerate(zip(ydatalist,labels,markers,colors)):
         ax.plot(xdata,ydata,label=label,marker=marker,color=color)
-        
+
+    if log: ax.set_yscale('log')
+    if grid: ax.grid()
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
-    ax.legend()
+    if any(label for label in labels): ax.legend()
     
     if ylim: ax.set_ylim(ylim)
     return (fig,ax)
@@ -89,7 +102,20 @@ def plot_branch(variable,tree,mask=None,selected=None,bins=None,xlabel=None,titl
     ax.legend()
     return (fig,ax)
 
-def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,weights=None,labels=None,histtypes=None,colors=None,lumikey=None,**kwargs):
+def ratio_plot(histolist,bins,is_datas,xlabel,figax,**kwargs):
+    options = { key[2:]:value for key,value in kwargs.items() if key.startswith("r_") }
+    
+    fig,ax = figax
+    divider = make_axes_locatable(ax)
+    ax_ratio = divider.append_axes("bottom", size="20%", pad=0.1, sharex=ax)
+    data_hist = next(hist for i,hist in enumerate(histolist) if is_datas[i])
+        
+    xdata = get_bin_centers(bins)
+    ratio_data = [ safe_divide(data_hist,hist) for i,hist in enumerate(histolist) if not is_datas[i] ]
+    graph_multi(xdata,ratio_data,figax=(fig,ax_ratio),xlabel=xlabel,ylabel="Ratio",**options)
+
+def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,ratio=False,
+               weights=None,labels=None,histtypes=None,colors=None,ylim=None,lumikey=None,is_datas=None,**kwargs):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
@@ -98,39 +124,53 @@ def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,
 
     histdef = "bar" if nhist == 1 else "step"
 
-    datalist = [ ak.flatten(data,axis=None) for data in datalist ]
-    
+    datalist = [ ak.to_numpy(ak.flatten(data,axis=None)) for data in datalist ]
     labels = init_atr(labels,"",nhist)
     histtypes = init_atr(histtypes,histdef,nhist)
     colors = init_atr(colors,None,nhist)
     weights = init_atr(weights,None,nhist)
+    is_datas = init_atr(is_datas,False,nhist)
+        
+    if ratio: ratio = any(is_data for is_data in is_datas)
         
     if bins is None: bins = autobin(datalist[0])
-        
-    for i,(data,label,histtype,color,weight) in enumerate(zip(datalist,labels,histtypes,colors,weights)):
+
+    histolist = []
+    for i,(data,label,histtype,color,weight,is_data) in enumerate(zip(datalist,labels,histtypes,colors,weights,is_datas)):
         nevnts = ak.size(data)
         is_scaled = weight is not None
-        weight = ak.flatten(weight,axis=None) if weight is not None else ak.ones_like(data)
-        if is_scaled: weight = lumi*weight
-        
+        weight = ak.to_numpy(ak.flatten(weight,axis=None)) if (weight is not None and not is_data) else ak.to_numpy(ak.ones_like(data))
+        if is_scaled and not is_data: weight = lumi*weight
         scaled_nevnts = ak.sum(weight)
         
+        histo,bins = np.histogram(data,bins=bins,weights=weight)
+        error_scale = safe_divide(np.sqrt(histo),histo)
+        
+        if density: weight = weight * 1/scaled_nevnts
+        histo,bins = np.histogram(data,bins=bins,weights=weight)
+        error = error_scale*histo
+        histolist.append(histo)
+        
         info = {"bins":bins,"label":f"{label} ({scaled_nevnts:.2e})","weights":weight}
+        if is_data: color = 'black'
         if histtype: info["histtype"] = histtype
         if color: info["color"] = color
         if histtype == "step": info["linewidth"] = 2
-        if density: info["weights"] = weight * 1/scaled_nevnts
         if log: info["log"] = log
-            
-        ax.hist(data,**info)
+        
+        if is_data: ax.errorbar(get_bin_centers(bins),histo,yerr=error,xerr=get_bin_widths(bins),color="black",marker="o",linestyle='None',label=info['label'])
+        else: ax.hist(data,**info)
         
     if ylabel is None: ylabel = "Fraction of Events" if density else "Events"
     if lumi != 1: title = f"{lumi/1000:0.1f} fb^{-1} {lumi_tag}"
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
     ax.set_title(title)
-#     if density: ax.set_ylim([0,1])
     ax.legend()
+
+    if ylim is not None: ax.set_ylim(ylim)
+    if ratio: ratio_plot(histolist,bins,is_datas,xlabel,figax,**kwargs)
+    
     return (fig,ax)
     
 def plot_mask_stack_comparison(datalist,bins=None,title=None,xlabel=None,figax=None,density=0,labels=None,histtype="bar",colors=None):
@@ -162,7 +202,9 @@ def hist2d_simple(xdata,ydata,xbins=None,ybins=None,title=None,xlabel=None,ylabe
     
     lumi,lumi_tag = lumiMap[lumikey]
     if weights is not None: weights = lumi*ak.to_numpy(weights)
-    
+
+    if xbins is None: xbins = autobin(xdata)
+    if ybins is None: ybins = autobin(ydata)
 
     nevnts = ak.size(xdata)
     n,bx,by,im = ax.hist2d(np.array(xdata),np.array(ydata),(xbins,ybins),weights=weights,density=density,norm=clrs.LogNorm() if log else clrs.Normalize(),cmap="jet")
@@ -210,7 +252,7 @@ def plot_endcap_display(eta,phi,weight,nbins=20,figax=None):
     weight = ak.to_numpy(ak.flatten(weight,axis=None))/ak.max(weight,axis=None)
     
     for p,w in zip(phi,weight):
-        ax.plot([p,p],[0,1],linewidth=5*w,color="b")
+        ax.plot([p,p],[0,1],linewidth=max(5*w,1))
         
     ax.set_ylim(0,1)
     ax.set_yticks([0,1])

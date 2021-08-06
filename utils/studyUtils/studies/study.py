@@ -3,15 +3,22 @@
 
 from . import *
 
-def quick(*args,varlist=[],binlist=None,**kwargs):
+def quick(*args,varlist=[],binlist=None,vertical=False,**kwargs):
     study = Study(*args,**kwargs)
 
     nvar = len(varlist)
     binlist = init_atr(binlist,None,nvar)
 
-    if nvar % 2 == 1: nvar += 1
-    ncols = nvar//2
-    nrows = nvar//ncols
+    if nvar % 2 == 1 and nvar != 1: nvar += 1
+
+    if nvar == 1:
+        ncols,nrows = 1,1
+    elif vertical:
+        ncols = nvar//2
+        nrows = nvar//ncols
+    else:
+        nrows = nvar//2
+        ncols = nvar//nrows
     fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(8*ncols,5*nrows))
 
     event_weights = [ selection["scale"] for selection in study.selections ]
@@ -22,13 +29,15 @@ def quick(*args,varlist=[],binlist=None,**kwargs):
         hists = [selection[var] for selection in study.selections]
         weights = next( (weights for weights in [event_weights,jet_weights,higgs_weights] if ak.count(weights[0]) == ak.count(hists[0])),None )
 
-        if ncols == 1 and nrows > 1: ax = axs[i]
+        if ncols == 1 and nrows == 1: ax = axs
+        elif bool(ncols >1) != bool(nrows > 1): ax = axs[i]
         else: ax = axs[i//ncols,i%ncols]
         
         hist_multi(hists,bins=bins,xlabel=var,weights=weights,**vars(study),figax=(fig,ax))
     fig.suptitle(study.title)
     fig.tight_layout()
     plt.show()
+    if study.saveas: save_fig(fig,"",study.saveas)
 
 def njets(*args,**kwargs):
     study = Study(*args,**kwargs)
@@ -67,6 +76,27 @@ def jets(*args,**kwargs):
     fig.tight_layout()
     plt.show()
     if study.saveas: save_fig(fig,"jets",study.saveas)
+    
+
+def ijets(*args,njets=6,**kwargs):
+    study = Study(*args,**kwargs)
+    
+    varlist=["jet_pt","jet_phi","jet_eta","jet_btag"]
+    weights = [ selection["scale"] for selection in study.selections ]
+    
+    for ijet in range(njets):
+        nrows,ncols = 1,4
+        fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,5))
+
+        for i,varname in enumerate(varlist):
+            hists = [ selection[varname][:,ijet] for selection in study.selections ]
+            info = study.varinfo[varname]
+            hist_multi(hists,weights=weights,**info,figax=(fig,axs[i]),**vars(study))
+            
+        fig.suptitle(f"{ordinal(ijet+1)} Jet Distributions")
+        fig.tight_layout()
+        plt.show()
+        if study.saveas: save_fig(fig,"ijets",f"jet{ijet}_{study.saveas}")
     
 def higgs(*args,**kwargs):
     study = Study(*args,**kwargs)
