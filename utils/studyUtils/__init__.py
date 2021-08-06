@@ -51,12 +51,12 @@ def save_fig(fig,directory,saveas):
     fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
     
 class Study:
-    def __init__(self,selections,labels=None,density=0,log=0,ratio=0,lumikey=2018,title=None,saveas=None,mask=None,varlist=varinfo.keys(),**kwargs):
+    def __init__(self,selections,labels=None,density=0,log=0,ratio=0,lumikey=2018,title=None,saveas=None,masks=None,varlist=varinfo.keys(),**kwargs):
         if type(selections) == tuple: selections = list(selections)
         if type(selections) != list: selections = [selections]
-        if mask is not None: selections = [ selection.masked(mask) for selection in selections ]
         
         self.selections = selections
+        self.masks = masks
         self.labels = labels if labels else [ selection.tag for selection in selections ]
         self.title = title
         self.density = density
@@ -66,6 +66,13 @@ class Study:
         self.saveas = saveas
         self.varinfo = {key:varinfo[key] for key in varlist}
         self.is_datas = [ selection.is_data for selection in selections ]
+        for key,value in kwargs.items(): setattr(self,key,value)
+
+    def get(self,key):
+        items = [ selection[key] for selection in self.selections ]
+        if self.masks is not None:
+            items = [ item[mask] for item,mask in zip(items,self.masks) ]
+        return items
         
         
 from .signal_studies import signal_study

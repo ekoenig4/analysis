@@ -40,7 +40,10 @@ def print_bovers(selections):
     for selection in selections:print(selection)
     print("------")
     
-def print_raw_info(tree):
+def print_raw_info(tree,lumikey=2018):
+    lumi,tex = lumiMap[lumikey]
+    is_data = tree.is_data
     for sample,xsec,total,raw in zip(tree.samples,tree.xsecs,tree.total_events,tree.raw_events):
         sample = sample.replace("_","\_")
-        print(f"{sample} & {xsec} & {total:.0f} & {raw}\\\\")
+        expect = lumi*xsec*raw/total if not is_data else raw
+        print(f"{sample} & {xsec} & {total:.0f} & {raw} & {expect:0.2f}\\\\")

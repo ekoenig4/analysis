@@ -3,30 +3,35 @@
 
 from . import *
 
-def quick(*args,varlist=[],binlist=None,vertical=False,**kwargs):
-    study = Study(*args,**kwargs)
-
-    nvar = len(varlist)
-    binlist = init_atr(binlist,None,nvar)
-
+def autodim(nvar,dim=None,flip=False):
     if nvar % 2 == 1 and nvar != 1: nvar += 1
-
-    if nvar == 1:
-        ncols,nrows = 1,1
-    elif vertical:
+    if dim is not None:
+        nrows,ncols = dim
+    elif nvar == 1:
+        nrows,ncols = 1,1
+    elif flip:
         ncols = nvar//2
         nrows = nvar//ncols
     else:
         nrows = nvar//2
         ncols = nvar//nrows
-    fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(8*ncols,5*nrows))
+    return nrows,ncols
 
-    event_weights = [ selection["scale"] for selection in study.selections ]
-    jet_weights = [ selection["jet_scale"] for selection in study.selections ]
-    higgs_weights = [ selection["higgs_scale"] for selection in study.selections ]
+def quick(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
+    study = Study(*args,**kwargs)
+
+    nvar = len(varlist)
+    binlist = init_atr(binlist,None,nvar)
+
+    nrows,ncols = autodim(nvar,dim,flip)
+    fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=( int((16/3)*ncols),5*nrows ))
+
+    event_weights = study.get("scale")
+    jet_weights = study.get("jet_scale")
+    higgs_weights = study.get("higgs_scale")
     for i,(var,bins) in enumerate(zip(varlist,binlist)):
         if var in varinfo and bins is None: bins = varinfo[var]["bins"]
-        hists = [selection[var] for selection in study.selections]
+        hists = study.get(var)
         weights = next( (weights for weights in [event_weights,jet_weights,higgs_weights] if ak.count(weights[0]) == ak.count(hists[0])),None )
 
         if ncols == 1 and nrows == 1: ax = axs
