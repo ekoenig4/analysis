@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 
 from .xsecUtils import *
-from .fileUtils import fileUtils as fc
+from . import fileUtils as fc
 from .cutConfig import *
 
 def init_atr(atr,init,size):
