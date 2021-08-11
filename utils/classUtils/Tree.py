@@ -2,11 +2,15 @@ from . import *
 
 import glob
 
-def add_sample(self,fname,cutflow,ttree,sample,xsec,scale):
+def add_sample(self,fname,cutflow,cutflow_labels,ttree,sample,xsec,scale):
     self.nfiles += 1
     self.filenames.append(fname)
     self.cutflow.append(cutflow)
     self.total_events.append(cutflow[0])
+    ncutflow = len(cutflow_labels)
+    if ncutflow > self.ncutflow:
+        self.ncutflow = ncutflow
+        self.cutflow_labels = cutflow_labels
     self.raw_events.append(len(ttree))
     self.ttrees.append(ttree)
     self.samples.append(sample)
@@ -14,7 +18,12 @@ def add_sample(self,fname,cutflow,ttree,sample,xsec,scale):
     self.scales.append(scale)
 
 def init_file(self,tfname):
-    cutflow = ut.open(tfname+":h_cutflow").to_numpy()[0]
+    cutflow = ut.open(tfname+":h_cutflow")
+    cutflow_labels = cutflow.axis().labels()
+    if cutflow_labels is None: cutflow_labels = []
+    
+    cutflow = cutflow.to_numpy()[0]
+    
     if not self.lazy:
         ttree = ut.open(tfname+":sixBtree").arrays()
     else:
@@ -26,7 +35,7 @@ def init_file(self,tfname):
     sample,xsec = next( ((key,value) for key,value in xsecMap.items() if key in tfname),("unk",1) )
     scale = xsec / cutflow[0] if type(xsec) == float else 1
 
-    add_sample(self,tfname,cutflow,ttree,sample,xsec,scale)
+    add_sample(self,tfname,cutflow,cutflow_labels,ttree,sample,xsec,scale)
 
 tagMap = {
     "QCD":"QCD",
@@ -43,6 +52,8 @@ class Tree:
         self.filenames = []
         self.tfiles = []
         self.cutflow = []
+        self.cutflow_labels = []
+        self.ncutflow = 0
         self.total_events = []
         self.raw_events = []
         self.ttrees = []
@@ -58,6 +69,8 @@ class Tree:
         self.tag = next( (tag for key,tag in tagMap.items() if key in self.samples[0]),None )
         if self.is_data: self.tag = "Data"
 
+        self.cutflow = [ ak.fill_none( ak.pad_none(cutflow,self.ncutflow,axis=0,clip=True),0 ) for cutflow in self.cutflow ]
+        
         if not self.lazy:
             self.ttree = ak.concatenate(self.ttrees)
 
@@ -68,13 +81,14 @@ class Tree:
         self.is_signal = all("NMSSM" in fname for fname in self.filenames)
         self.build_scale_weights()
         
-        if self.lazy: return
-        
-        self.all_events_mask = ak.ones_like(self["Run"]) == 1
-        self.all_jets_mask = ak.ones_like(self["jet_pt"]) == 1
+        self.all_events_mask = ak.Array([True]*self.nevents)
+        njet = self["n_jet"]
+        self.all_jets_mask = ak.unflatten( np.repeat(np.array(self.all_events_mask,dtype=bool),njet),njet )
 
         self.mask = self.all_events_mask
         self.jets_selected = self.all_jets_mask
+        
+        if self.lazy: return
         
         self.sixb_jet_mask = self["jet_signalId"] != -1
         self.bkgs_jet_mask = self.sixb_jet_mask == False

@@ -15,9 +15,25 @@ lumiMap = {
     None:[1,None],
     2016:[35900,"(13 TeV,2016)"],
     2017:[41500,"(13 TeV,2017)"],
-    2018:[57900,"(13 TeV,2018)"],
+    2018:[59740,"(13 TeV,2018)"],
+    20180:[14300,"(13 TeV,2018 A)"],
+    20181:[7070,"(13 TeV,2018 B)"],
+    20182:[6900,"(13 TeV,2018 C)"],
+    20183:[13540,"(13 TeV,2018 D)"],
     "Run2":[101000,"13 TeV,Run 2)"],
 }
+
+def format_axis(ax,title=None,xlabel=None,ylabel=None,ylim=None,grid=False,**kwargs):
+    ax.set_ylabel(ylabel)
+
+    if grid: ax.grid()
+    if type(xlabel) == list:
+        ax.set_xticks(range(len(xlabel)))
+        ax.set_xticklabels(xlabel)
+    else:
+            ax.set_xlabel(xlabel)
+    ax.set_title(title)
+    if ylim is not None: ax.set_ylim(ylim)
 
 def autobin(data,nstd=3):
     ndata = ak.size(data)
@@ -55,7 +71,7 @@ def graph_simple(xdata,ydata,xlabel=None,ylabel=None,title=None,label=None,marke
     if label: ax.legend()
     return (fig,ax)
 
-def graph_multi(xdata,ydatalist,xlabel=None,ylabel=None,title=None,labels=None,markers=None,colors=None,ylim=None,log=False,grid=False,figax=None):
+def graph_multi(xdata,ydatalist,title=None,labels=None,markers=None,colors=None,log=False,figax=None,**kwargs):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
@@ -68,13 +84,9 @@ def graph_multi(xdata,ydatalist,xlabel=None,ylabel=None,title=None,labels=None,m
         ax.plot(xdata,ydata,label=label,marker=marker,color=color)
 
     if log: ax.set_yscale('log')
-    if grid: ax.grid()
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
     if any(label for label in labels): ax.legend()
+    format_axis(ax,**kwargs)
     
-    if ylim: ax.set_ylim(ylim)
     return (fig,ax)
 
 def plot_simple(data,bins=None,xlabel=None,title=None,label=None,figax=None):
@@ -106,6 +118,8 @@ def ratio_plot(histolist,bins,is_datas,xlabel,figax,**kwargs):
     options = { key[2:]:value for key,value in kwargs.items() if key.startswith("r_") }
     
     fig,ax = figax
+
+    ax.get_xaxis().set_visible(0)
     divider = make_axes_locatable(ax)
     ax_ratio = divider.append_axes("bottom", size="20%", pad=0.1, sharex=ax)
     data_hist = next(hist for i,hist in enumerate(histolist) if is_datas[i])
@@ -115,7 +129,7 @@ def ratio_plot(histolist,bins,is_datas,xlabel,figax,**kwargs):
     graph_multi(xdata,ratio_data,figax=(fig,ax_ratio),xlabel=xlabel,ylabel="Ratio",**options)
 
 def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,ratio=False,
-               weights=None,labels=None,histtypes=None,colors=None,ylim=None,lumikey=None,is_datas=None,**kwargs):
+               weights=None,labels=None,histtypes=None,colors=None,lumikey=None,is_datas=None,**kwargs):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
@@ -134,17 +148,17 @@ def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,
     if ratio: ratio = any(is_data for is_data in is_datas)
         
     if bins is None: bins = autobin(datalist[0])
-
     histolist = []
     for i,(data,label,histtype,color,weight,is_data) in enumerate(zip(datalist,labels,histtypes,colors,weights,is_datas)):
         nevnts = ak.size(data)
         is_scaled = weight is not None
-        weight = ak.to_numpy(ak.flatten(weight,axis=None)) if (weight is not None and not is_data) else ak.to_numpy(ak.ones_like(data))
+        weight = ak.to_numpy(ak.flatten(weight,axis=None)) if (weight is not None) else ak.to_numpy(ak.ones_like(data))
         if is_scaled and not is_data: weight = lumi*weight
         scaled_nevnts = ak.sum(weight)
-        
+
         histo,bins = np.histogram(data,bins=bins,weights=weight)
-        error_scale = safe_divide(np.sqrt(histo),histo)
+        raw_histo,_ = np.histogram(data,bins=bins)
+        error_scale = safe_divide(np.sqrt(raw_histo),raw_histo)
         
         if density: weight = weight * 1/scaled_nevnts
         histo,bins = np.histogram(data,bins=bins,weights=weight)
@@ -158,17 +172,18 @@ def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,
         if histtype == "step": info["linewidth"] = 2
         if log: info["log"] = log
         
-        if is_data: ax.errorbar(get_bin_centers(bins),histo,yerr=error,xerr=get_bin_widths(bins),color="black",marker="o",linestyle='None',label=info['label'])
-        else: ax.hist(data,**info)
+        bin_centers,bin_widths  = get_bin_centers(bins),get_bin_widths(bins)
+        if is_data: ax.errorbar(bin_centers,histo,yerr=error,xerr=bin_widths,color="black",marker="o",linestyle='None',label=info['label'])
+        else:
+            _,_,container = ax.hist(data,**info)
+            color = container[0].get_fc()
+            ax.errorbar(bin_centers,histo,yerr=error,xerr=bin_widths,fmt='none',color=color)
         
     if ylabel is None: ylabel = "Fraction of Events" if density else "Events"
     if lumi != 1: title = f"{lumi/1000:0.1f} fb^{-1} {lumi_tag}"
-    ax.set_ylabel(ylabel)
-    ax.set_xlabel(xlabel)
-    ax.set_title(title)
+    format_axis(ax,xlabel=xlabel,ylabel=ylabel,title=title,**kwargs)
     ax.legend()
-
-    if ylim is not None: ax.set_ylim(ylim)
+    
     if ratio: ratio_plot(histolist,bins,is_datas,xlabel,figax,**kwargs)
     
     return (fig,ax)

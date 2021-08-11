@@ -102,6 +102,8 @@ class Selection(Tree):
         if self.previous: self.total_jets_selected_index = ak.concatenate([self.previous_index,self.total_jets_selected_index],axis=-1)
         self.total_jets_selected = self.previous_selected | self.jets_selected
         self.total_njets = self.previous_njets + (self.njets if self.njets != -1 else 6)
+
+        if self.is_signal: self.build_extra_collections()
         
     def selected_njets(self,njets):
         new_selection = self.copy()
