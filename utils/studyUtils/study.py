@@ -17,6 +17,21 @@ def autodim(nvar,dim=None,flip=False):
         ncols = nvar//nrows
     return nrows,ncols
 
+def cutflow(*args,size=None,**kwargs):
+    study = Study(*args,**kwargs)
+    get_scaled_cutflow = lambda tree : np.array([cutflow*scale for cutflow,scale in zip(tree.cutflow,tree.scales)])
+    scaled_cutflows = [ get_scaled_cutflow(tree) for tree in study.selections ]
+    cutflow_bins = [ ak.local_index(cutflow,axis=-1) for cutflow in scaled_cutflows ]
+    cutflow_labels = max((selection.cutflow_labels for selection in study.selections),key=lambda a:len(a))
+    ncutflow = len(cutflow_labels)+1
+
+    figax = None
+    if size: figax = plt.subplots(figsize=size)
+    
+    fig,ax = hist_multi(cutflow_bins,bins=range(ncutflow),weights=scaled_cutflows,xlabel=cutflow_labels,histtypes=["step"]*len(study.selections),**vars(study),figax=figax)
+    fig.tight_layout()
+    plt.show()
+
 def quick(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
     study = Study(*args,**kwargs)
 
@@ -47,12 +62,16 @@ def quick(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
 def njets(*args,**kwargs):
     study = Study(*args,**kwargs)
     
-    nrows,ncols = 1,1
-    fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(8,5))
+    nrows,ncols = 1,4
+    fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,5))
     
-    weights = [ selection["scale"] for selection in study.selections ]
-    n_jet_list = [ selection["n_jet"] for selection in study.selections ]
-    hist_multi(n_jet_list,weights=weights,bins=range(12),xlabel="N Jet",figax=(fig,axs),**vars(study))
+    weights = study.get("scale")
+
+    varlist = ["n_jet","nloose_btag","nmedium_btag","ntight_btag"]
+
+    for i,var in enumerate(varlist):
+        tree_vars = study.get(var)
+        hist_multi(tree_vars,weights=weights,bins=range(12),xlabel=var,figax=(fig,axs[i]),**vars(study))
 
     fig.suptitle(study.title)
     fig.tight_layout()
@@ -87,14 +106,14 @@ def ijets(*args,njets=6,**kwargs):
     study = Study(*args,**kwargs)
     
     varlist=["jet_pt","jet_phi","jet_eta","jet_btag"]
-    weights = [ selection["scale"] for selection in study.selections ]
+    weights = study.get("scale")
     
     for ijet in range(njets):
         nrows,ncols = 1,4
         fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,5))
 
         for i,varname in enumerate(varlist):
-            hists = [ selection[varname][:,ijet] for selection in study.selections ]
+            hists = [ var[:,ijet] for var in study.get(varname) ]
             info = study.varinfo[varname]
             hist_multi(hists,weights=weights,**info,figax=(fig,axs[i]),**vars(study))
             

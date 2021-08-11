@@ -231,8 +231,8 @@ def jets_2d(selection,plot=True,saveas=None,density=0,log=1,**kwargs):
     plt.show()
     if saveas: save_fig(fig,f"jets_2d_{subset}",saveas)
         
-def ijets(selection,plot=True,saveas=None,njets=-1,show_ijet=None,topbkg=False,density=0,log=0,scaled=0,**kwargs):
-    study = SignalStudy(selection,saveas=saveas,**kwargs)     
+def ijets(selection,plot=True,saveas=None,njets=-1,show_ijet=None,varlist=["jet_pt","jet_btag","jet_eta","jet_phi"],topbkg=False,density=0,log=0,scaled=0,**kwargs):
+    study = SignalStudy(selection,saveas=saveas,varlist=varlist,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
     subset = study.subset
@@ -252,10 +252,8 @@ def ijets(selection,plot=True,saveas=None,njets=-1,show_ijet=None,topbkg=False,d
     
     maxjets = ak.max(selection.njets_selected)
     if njets == -1: njets = maxjets
-    else: njets = min(njets,selection.njets)
     
     jets_ordered = ak.pad_none(getattr(selection,f"jets_{subset}_index"),njets)
-    
     for ijet in range(njets):
         if show_ijet and ijet not in show_ijet: continue
         labels = (f"Background Jet",f"Signal Jet")
