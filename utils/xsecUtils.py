@@ -1,5 +1,20 @@
 from . import *
 
+
+tagMap = {
+    "QCD":"QCD",
+    "NMSSM":"Signal",
+    "TTJets":"TTJets",
+    "Data":"Data",
+}
+
+colorMap = {
+    "QCD":"tab:blue",
+    "NMSSM":"tab:orange",
+    "TTJets":"tab:green",
+    "Data":"black"
+}
+
 xsecMap = {
     "JetHT_Run2018A":'N/A',
     "JetHT_Run2018B":'N/A',
@@ -41,4 +56,6 @@ xsecMap = {
     "QCD_HT1000to1500_BGenFilter":138.2,
     "QCD_HT1500to2000_BGenFilter":13.61,
     "QCD_HT2000toInf_BGenFilter" :2.92,
+
+    "TTJets":831.76,
 }

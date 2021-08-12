@@ -36,11 +36,6 @@ def init_file(self,tfname):
     scale = xsec / cutflow[0] if type(xsec) == float else 1
 
     add_sample(self,tfname,cutflow,cutflow_labels,ttree,sample,xsec,scale)
-
-tagMap = {
-    "QCD":"QCD",
-    "NMSSM":"Signal",
-}
     
 class Tree:
     def __init__(self,filenames,verify=True,lazy=False):
@@ -68,6 +63,7 @@ class Tree:
         self.is_data = any("Data" in fn for fn in self.filenames)
         self.tag = next( (tag for key,tag in tagMap.items() if key in self.samples[0]),None )
         if self.is_data: self.tag = "Data"
+        self.color = colorMap.get(self.tag,None)
 
         self.cutflow = [ ak.fill_none( ak.pad_none(cutflow,self.ncutflow,axis=0,clip=True),0 ) for cutflow in self.cutflow ]
         

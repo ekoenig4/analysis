@@ -46,7 +46,7 @@ def save_fig(fig,directory,saveas):
     fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
     
 class Study:
-    def __init__(self,selections,labels=None,density=0,log=0,ratio=0,lumikey=2018,title=None,saveas=None,masks=None,varlist=varinfo.keys(),**kwargs):
+    def __init__(self,selections,labels=None,density=0,log=0,ratio=0,stacked=0,lumikey=2018,title=None,saveas=None,masks=None,varlist=varinfo.keys(),**kwargs):
         if type(selections) == tuple: selections = list(selections)
         if type(selections) != list: selections = [selections]
         
@@ -57,10 +57,12 @@ class Study:
         self.density = density
         self.log = log
         self.ratio = ratio
+        self.stacked = stacked
         self.lumikey = lumikey
         self.saveas = saveas
         self.varinfo = {key:varinfo[key] for key in varlist}
         self.is_datas = [ selection.is_data for selection in selections ]
+        self.colors = [ selection.color for selection in selections ]
         for key,value in kwargs.items(): setattr(self,key,value)
 
     def get(self,key):

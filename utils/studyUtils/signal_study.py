@@ -329,7 +329,7 @@ def jets_ordered(*args,varlist=["jet_pt","jet_eta","jet_btag","jet_qgl"],njets=1
         plt.show()
         if study.saveas: save_fig(fig,f"jets_{study.subset}",f"{ordinal(ijet+1)}_{study.saveas}")
             
-def jets_2d_ordered(selection,plot=True,saveas=None,njets=6,topbkg=True,compare=False,density=0,log=1,**kwargs):
+def jets_2d_ordered(selection,plot=True,saveas=None,njets=1,topbkg=True,compare=True,density=0,log=1,**kwargs):
     study = SignalStudy(selection,saveas=saveas,**kwargs)     
     selection = study.selection     
     tree = selection.tree     
@@ -376,8 +376,8 @@ def jets_2d_ordered(selection,plot=True,saveas=None,njets=6,topbkg=True,compare=
             print(f"*** No incorrect selection in position {ijet} ***")
             continue
             
-        nrows,ncols=2,1
-        fig, axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(8,10))
+        nrows,ncols=1,2
+        fig, axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,5))
         
         if not (compare and topbkg):
             jets_btag = ak.flatten(tree["jet_btag"][bkgs_mask][mask])

@@ -24,11 +24,12 @@ def cutflow(*args,size=None,**kwargs):
     cutflow_bins = [ ak.local_index(cutflow,axis=-1) for cutflow in scaled_cutflows ]
     cutflow_labels = max((selection.cutflow_labels for selection in study.selections),key=lambda a:len(a))
     ncutflow = len(cutflow_labels)+1
+    bins = np.arange(ncutflow)-0.5
 
     figax = None
     if size: figax = plt.subplots(figsize=size)
     
-    fig,ax = hist_multi(cutflow_bins,bins=range(ncutflow),weights=scaled_cutflows,xlabel=cutflow_labels,histtypes=["step"]*len(study.selections),**vars(study),figax=figax)
+    fig,ax = hist_multi(cutflow_bins,bins=bins,weights=scaled_cutflows,xlabel=cutflow_labels,histtypes=["step"]*len(study.selections),**vars(study),figax=figax)
     fig.tight_layout()
     plt.show()
 
@@ -36,7 +37,7 @@ def quick(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
     study = Study(*args,**kwargs)
 
     nvar = len(varlist)
-    binlist = init_atr(binlist,None,nvar)
+    binlist = init_attr(binlist,None,nvar)
 
     nrows,ncols = autodim(nvar,dim,flip)
     fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=( int((16/3)*ncols),5*nrows ))
@@ -71,7 +72,8 @@ def njets(*args,**kwargs):
 
     for i,var in enumerate(varlist):
         tree_vars = study.get(var)
-        hist_multi(tree_vars,weights=weights,bins=range(12),xlabel=var,figax=(fig,axs[i]),**vars(study))
+        maxjet= int(max( ak.max(var) for var in tree_vars))
+        hist_multi(tree_vars,weights=weights,bins=range(maxjet),xlabel=var,figax=(fig,axs[i]),**vars(study))
 
     fig.suptitle(study.title)
     fig.tight_layout()
@@ -86,14 +88,14 @@ def jets(*args,**kwargs):
     nrows,ncols = 2,3
     fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,10))
     
-    weights = [ selection["scale"] for selection in study.selections ]
-    jet_weights = [ selection["jet_scale"] for selection in study.selections ]
+    weights = study.get("scale")
+    jet_weights = study.get("jet_scale")
     for i,varname in enumerate(varlist):
-        hists = [ selection[varname] for selection in study.selections ]
+        hists = study.get(varname)
         info = study.varinfo[varname]
         hist_multi(hists,weights=jet_weights,**info,figax=(fig,axs[i//ncols,i%ncols]),**vars(study))
 
-    n_jet_list = [ selection["n_jet"] for selection in study.selections ]
+    n_jet_list = study.get("n_jet")
     hist_multi(n_jet_list,bins=range(12),weights=weights,xlabel="N Jet",figax=(fig,axs[1,2]),**vars(study))
 
     fig.suptitle(study.title)
