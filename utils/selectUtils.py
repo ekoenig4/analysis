@@ -305,6 +305,12 @@ def optimize_var_cut(selections,variable,nsteps=20,varmin=None,varmax=None,metho
     score_list = []
     for cut in cutlist:
         nevents = [ ak.sum( selection["scale"][method(selection[variable],cut)] ) for selection in selections ]
-        bovers = nevents[0]/nevents[1] if nevents[1] != 0 else 0
-        score_list.append(bovers)
+        bkg_eff = sum(nevents[1:])/sum([ ak.sum(selection["scale"]) for selection in selections[1:]])
+        bovers = sum(nevents[1:])/nevents[0] if nevents[0] != 0 else 0
+        score_list.append(bovers*bkg_eff)
+
+    imax = np.argmax(score_list)
+
+    print(cutlist[imax],score_list[imax])
+        
     return cutlist,score_list

@@ -35,4 +35,4 @@ QCD_bGf_List = [QCD_bGf_Ht_100to200,QCD_bGf_Ht_200to300, QCD_bGf_Ht_300to500, QC
 
 QCD_B_List = QCD_bEn_List + QCD_bGf_List
 
-TTJets = "f{base}/TTJets/TTJets/ntuple.root"
+TTJets = f"{base}/TTJets/TTJets/ntuple.root"

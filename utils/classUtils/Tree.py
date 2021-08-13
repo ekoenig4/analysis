@@ -61,7 +61,12 @@ class Tree:
 
         if not self.valid: return
         self.is_data = any("Data" in fn for fn in self.filenames)
-        self.tag = next( (tag for key,tag in tagMap.items() if key in self.samples[0]),None )
+
+        sample_tag = [ next( (tag for key,tag in tagMap.items() if key in sample),None ) for sample in self.samples ]
+
+        if (sample_tag.count(sample_tag[0]) == len(sample_tag)): self.tag = sample_tag[0]
+        else: self.tag = "Bkg"
+        
         if self.is_data: self.tag = "Data"
         self.color = colorMap.get(self.tag,None)
 

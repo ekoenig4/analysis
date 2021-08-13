@@ -73,7 +73,7 @@ def njets(*args,**kwargs):
     for i,var in enumerate(varlist):
         tree_vars = study.get(var)
         maxjet= int(max( ak.max(var) for var in tree_vars))
-        hist_multi(tree_vars,weights=weights,bins=range(maxjet),xlabel=var,figax=(fig,axs[i]),**vars(study))
+        hist_multi(tree_vars,weights=weights,bins=range(maxjet+3),xlabel=var,figax=(fig,axs[i]),**vars(study))
 
     fig.suptitle(study.title)
     fig.tight_layout()
@@ -83,7 +83,7 @@ def njets(*args,**kwargs):
 def jets(*args,**kwargs):
     study = Study(*args,**kwargs)
     
-    varlist=["jet_pt","jet_phi","jet_eta","jet_btag","jet_qgl"]
+    varlist=["jet_pt","jet_btag","jet_eta","jet_phi","jet_qgl"]
     
     nrows,ncols = 2,3
     fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,10))
@@ -107,7 +107,7 @@ def jets(*args,**kwargs):
 def ijets(*args,njets=6,**kwargs):
     study = Study(*args,**kwargs)
     
-    varlist=["jet_pt","jet_phi","jet_eta","jet_btag"]
+    varlist=["jet_pt","jet_btag","jet_eta","jet_phi"]
     weights = study.get("scale")
     
     for ijet in range(njets):
@@ -127,15 +127,14 @@ def ijets(*args,njets=6,**kwargs):
 def higgs(*args,**kwargs):
     study = Study(*args,**kwargs)
     
-    varlist=["higgs_m","higgs_pt","higgs_phi","higgs_eta"]
+    varlist=["higgs_pt","higgs_m","higgs_eta","higgs_phi"]
     
     nrows,ncols = 2,2
     fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,10))
-    
-    weights = [ selection["scale"] for selection in study.selections ]
-    higgs_weights = [ selection["higgs_scale"] for selection in study.selections ]
+
+    higgs_weights = study.get("higgs_scale")
     for i,varname in enumerate(varlist):
-        hists = [ selection[varname] for selection in study.selections ]
+        hists = study.get(varname)
         info = study.varinfo[varname]
         hist_multi(hists,weights=higgs_weights,**info,figax=(fig,axs[i//ncols,i%ncols]),**vars(study))
 
@@ -143,6 +142,26 @@ def higgs(*args,**kwargs):
     fig.tight_layout()
     plt.show()
     if study.saveas: save_fig(fig,"higgs",study.saveas)
+    
+def ihiggs(*args,nhiggs=3,**kwargs):
+    study = Study(*args,**kwargs)
+    
+    varlist=["higgs_pt","higgs_m","higgs_eta","higgs_phi"]
+
+    weights = [ selection["scale"] for selection in study.selections ]
+    for ihigg  in range(nhiggs):
+        
+        nrows,ncols = 1,4
+        fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=(16,5))
+        for i,varname in enumerate(varlist):
+            hists = [ var[:,ihigg] for var in study.get(varname) ]
+            info = study.varinfo[varname]
+            hist_multi(hists,weights=weights,**info,figax=(fig,axs[i]),**vars(study))
+
+        fig.suptitle(f"{ordinal(ihigg+1)} Higgs Distributions")
+        fig.tight_layout()
+        plt.show()
+        if study.saveas: save_fig(fig,"ihiggs",f"higgs{ihigg}_{study.saveas}")
 
 def njet_var_sum(*args,variable="jet_btag",start=3,**kwargs):
     study = Study(*args,**kwargs)

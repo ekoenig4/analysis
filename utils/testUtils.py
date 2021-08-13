@@ -35,8 +35,10 @@ def icheck(arrays,ie=None,mask=None,imax=9):
         print(array)
         
 def print_bovers(selections):
-    scale =ak.sum(selections[0]["scale"])/ak.sum(selections[1]["scale"])
-    print(f"QCD/Signal: {scale:0.2f}")
+    signal = selections[0]
+    bkgs = selections[1:]
+    scale =sum( [ ak.sum(bkg["scale"]) for bkg in bkgs ] )/ak.sum(signal["scale"])
+    print(f"Bkg/Signal: {scale:0.2f}")
     for selection in selections:print(selection)
     print("------")
     

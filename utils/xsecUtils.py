@@ -12,7 +12,8 @@ colorMap = {
     "QCD":"tab:blue",
     "Signal":"tab:orange",
     "TTJets":"tab:green",
-    "Data":"black"
+    "Data":"black",
+    "Bkg":"grey"
 }
 
 xsecMap = {

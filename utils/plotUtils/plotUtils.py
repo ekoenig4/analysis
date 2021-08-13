@@ -23,79 +23,6 @@ lumiMap = {
     "Run2":[101000,"13 TeV,Run 2)"],
 }
 
-
-def get_bin_centers(bins):
-    return [ (lo+hi)/2 for lo,hi in zip(bins[:-1],bins[1:]) ]
-def get_bin_widths(bins):
-    return [ (hi-lo)/2 for lo,hi in zip(bins[:-1],bins[1:]) ]
-
-def safe_divide(a,b):
-    tmp = np.full_like(a,None,dtype=float)
-    np.divide(a,b,out=tmp,where=(b!=0))
-    return tmp
-
-class Sample:
-    def __init__(self,data,bins,lumi=1,label="",weight=None,is_data=False,is_signal=False,density=False,**attrs):
-        self.data = ak.to_numpy(ak.flatten(data,axis=None))
-        self.nevnts = ak.size(self.data)
-        
-        if bins is None: bins = autobin(self.data)
-
-        self.lumi = lumi
-        self.weight = weight
-        self.is_data = is_data
-        self.is_signal = is_signal
-        self.density = density
-        
-        for key,value in attrs.items(): setattr(self,key,value)
-
-        if is_data: self.color = "black"
-        self.linewidth = 2
-
-        is_scaled = self.weight is not None
-        self.weight = ak.to_numpy(ak.flatten(self.weight,axis=None)) if (self.weight is not None) else ak.to_numpy(ak.ones_like(self.data))
-        if is_scaled and not is_data: self.weight = lumi*self.weight
-        self.scaled_nevnts = ak.sum(self.weight)
-        self.label = f"{label} ({self.scaled_nevnts:.2e})"
-        
-        if density: self.weight = self.weight * 1/self.scaled_nevnts
-        self.histo,self.bins = np.histogram(self.data,bins=bins,weights=self.weight)
-        sumw2,_ = np.histogram(self.data,bins=self.bins,weights=self.weight**2)
-        self.error = np.sqrt(sumw2)
-
-        self.bin_centers,self.bin_widths = get_bin_centers(bins),get_bin_widths(bins)
-        
-    def hist_error(self):
-        info = {"bins":self.bins,"label":self.label,"weights":self.weight,"linewidth":self.linewidth}
-        if hasattr(self,"histtype"): info["histtype"] = self.histtype
-        if hasattr(self,"color"): info["color"] = self.color
-        return [self.data,self.error],info
-    def errorbar(self):
-        info = dict(yerr=None,xerr=self.bin_widths,color="black",marker="o",linestyle='None',label=self.label)
-        return [self.bin_centers,self.histo],info
-        
-class Samplelist(list):
-    def __init__(self,datalist,bins,lumi=1,density=False,**attrs):
-        self.bins = bins
-        self.density = density
-        self.lumi = lumi
-
-        nhist = len(datalist)
-        defaults = {
-            "labels":"",
-            "histtypes":"bar" if nhist == 1 else "step",
-            "is_datas":False,
-        }
-
-        for key in attrs: attrs[key] = init_attr(attrs[key],defaults.get(key,None),nhist)
-        for i,data in enumerate(datalist):
-            sample = Sample(data,self.bins,lumi=lumi,density=density,**{key[:-1]:value[i] for key,value in attrs.items()})
-            if self.bins is None: self.bins = sample.bins
-            self.append(sample)
-            
-        self.has_data = any( sample.is_data for sample in self )
-        self.nmc = sum( not( sample.is_data or sample.is_signal ) for sample in self )
-
 def format_axis(ax,title=None,xlabel=None,ylabel=None,ylim=None,grid=False,**kwargs):
     ax.set_ylabel(ylabel)
 
@@ -110,15 +37,6 @@ def format_axis(ax,title=None,xlabel=None,ylabel=None,ylim=None,grid=False,**kwa
             ax.set_xlabel(xlabel)
     ax.set_title(title)
     if ylim is not None: ax.set_ylim(ylim)
-
-def autobin(data,nstd=3):
-    ndata = ak.size(data)
-    mean = ak.mean(data)
-    stdv = ak.std(data)
-    minim,maxim = ak.min(data),ak.max(data)
-    xlo,xhi = max([minim,mean-nstd*stdv]),min([maxim,mean+nstd*stdv])
-    nbins = min(int(1+np.sqrt(ndata)),50)
-    return np.linspace(xlo,xhi,nbins)
 
 def graph_simple(xdata,ydata,xlabel=None,ylabel=None,title=None,label=None,marker='o',ylim=None,xticklabels=None,figax=None):
     if figax is None: figax = plt.subplots()
@@ -183,7 +101,6 @@ def plot_branch(variable,tree,mask=None,selected=None,bins=None,xlabel=None,titl
     return (fig,ax)
 
 def ratio_plot(num,dens,denerrs,bins,xlabel,figax,**kwargs):
-    options = { key[2:]:value for key,value in kwargs.items() if key.startswith("r_") }
     
     fig,ax = figax
 
@@ -199,81 +116,97 @@ def ratio_plot(num,dens,denerrs,bins,xlabel,figax,**kwargs):
     xdata = get_bin_centers(bins)
     ratio_info = np.array([ calc_ratio(num,den,denerr) for den,denerr in zip(dens,denerrs) ])
     ratio_data,ratio_error = ratio_info[:,0],ratio_info[:,1]
-    graph_multi(xdata,ratio_data,yerrs=ratio_error,figax=(fig,ax_ratio),xlabel=xlabel,ylabel="Ratio",**options)
+    graph_multi(xdata,ratio_data,yerrs=ratio_error,figax=(fig,ax_ratio),xlabel=xlabel,ylabel="Ratio",**kwargs)
 
-def hist_error(ax,data,error=None,**kwargs):
-    histo,bins,container = ax.hist(data,**kwargs)
+def hist_error(ax,data,error=None,**attrs):
+    histo,bins,container = ax.hist(data,**attrs)
 
-    if error is None: return
+    if error is None: return histo,error
     
     color = container[0].get_ec()
-    histtype = kwargs['histtype'] if 'histtype' in kwargs else None
+    histtype = attrs.get('histtype',None)
     if histtype != 'step': color = 'black'
     
     bin_centers,bin_widths  = get_bin_centers(bins),get_bin_widths(bins)
     ax.errorbar(bin_centers,histo,yerr=error,fmt='none',color=color,capsize=1)
-
-def stack_error(ax,stack,log=False,**kwargs):
-    bins = stack[0].bins
     
-    stack.sort(key=lambda s:s.scaled_nevnts,reverse=not log)
-    stack_data = [ sample.data for sample in stack ]
-    stack_weights = [ sample.weight for sample in stack ]
-    stack_labels = [ sample.label for sample in stack ]
-    stack_colors = [ sample.color for sample in stack ]
-    stack_error = np.array([ sample.error for sample in stack ])
+    return histo,error
 
-    stack,bins,container = ax.hist(stack_data,bins=bins,weights=stack_weights,label=stack_labels,color=stack_colors,stacked=True,log=log,**kwargs)
+def stack_error(ax,datalist,errors=None,**attrs):
+    histos,bins,container = ax.hist(datalist,stacked=True,**attrs)
+    histo = histos[-1]
+
+    if errors is None: return histo,None
     
     bin_centers,bin_widths  = get_bin_centers(bins),get_bin_widths(bins)
-    stack = stack[-1]
-    error = np.sqrt(np.sum(stack_error**2,axis=0))
-    ax.errorbar(bin_centers,stack,yerr=error,fmt='none',color='black',capsize=1,log=log)
-    return stack,error
+    error = np.sqrt(np.sum(errors**2,axis=0))
+    ax.errorbar(bin_centers,histo,yerr=error,fmt='none',color='grey',capsize=1)
+    return histo,error
 
-def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,ratio=False,stacked=False,
-               weights=None,labels=None,histtypes=None,colors=None,lumikey=None,is_datas=None,is_signals=None,**kwargs):
+def hist_multi(datalist,bins=None,weights=None,labels=None,is_datas=None,is_signals=None,density=0,
+               title=None,xlabel=None,ylabel=None,figax=None,log=0,ratio=False,stacked=False,lumikey=None,**kwargs):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
     lumi,lumi_tag = lumiMap[lumikey]
-    samples = Samplelist( datalist,bins,lumi=lumi,density=density,weights=weights,colors=colors,histtypes=histtypes,labels=labels,is_datas=is_datas,is_signals=is_signals )
+    attrs = { key[2:]:value for key,value in kwargs.items() if key.startswith("s_") }
+    samples = Samplelist( datalist,bins,weights=weights,density=density,lumi=lumi,labels=labels,is_datas=is_datas,is_signals=is_signals,**attrs )
+
+    bins = samples.bins
+    bin_centers,bin_widths = get_bin_centers(bins),get_bin_widths(bins)
         
     if ratio: ratio = samples.has_data
     if stacked: stacked = samples.nmc > 1
     if density: stacked = False
-    
-    stack,dens,denerrs = [],[],[]
-    
-    for i,sample in enumerate(samples):
-        if sample.is_data:
-            num = sample.histo
-            
-            _args,_kwargs = sample.errorbar()
-            ax.errorbar(*_args,**_kwargs)
-        elif sample.is_signal:
-            _args,_kwargs = sample.hist_error()
-            hist_error(ax,*_args,log=log,**_kwargs)
-        elif stacked:
-            stack.append(sample)
-        else:
-            dens.append(sample.histo)
-            denerrs.append(sample.error)
-            
-            _args,_kwargs = sample.hist_error()
-            hist_error(ax,*_args,log=log,**_kwargs)
+    denlist = []
+
+    ymin,ymax = np.inf,0
+
     if stacked:
-        stack,stackerr = stack_error(ax,stack,log=log)
-        dens,denerrs = [stack],[stackerr]
-        kwargs["r_colors"]=["black"]
+        stack = Stack()
+        stack.add( *[ sample for sample in samples if sample.is_bkg ] )
+        stack.sort(key=lambda sample : sample.scaled_nevents,reverse=not log)
+        datalist,errors,weights,labels,attrs = stack.datalist(),stack.errors(),stack.weights(),stack.labels(),stack.attrs()
+        histo,error = stack_error(ax,datalist,bins=bins,errors=errors,weights=weights,label=labels,log=log,**attrs)
+        stack.histo = histo; stack.error = error; stack.color = 'black'
+        denlist.append(stack)
+
+
+    for sample in samples:
+        histo = sample.histo
+        ymax = max(ymax,np.max(histo))
+        ymin = min(ymin,np.min(histo[np.nonzero(histo)]))
+
+        if sample.is_data:
+            histo,error,label = sample.histo,sample.error,sample.label
+            ax.errorbar(bin_centers,histo,yerr=None,xerr=bin_widths,color='black',marker='o',linestyle='None',label=label)
+
+            num = histo
+        elif sample.is_signal or not stacked:
+            data,histo,error,weight,label,attrs = sample.data,sample.histo,sample.error,sample.weight,sample.label,sample.attrs
+            attrs["histtype"] = "step" if len(samples) > 1 else "bar"; attrs["linewidth"] = 2
+            hist_error(ax,data,bins=bins,error=error,weights=weight,label=label,log=log,**attrs)
+
+            if not sample.is_signal: denlist.append(sample)
+            
         
     if ylabel is None: ylabel = "Fraction of Events" if density else "Events"
     if lumi != 1: title = f"{lumi/1000:0.1f} fb^{-1} {lumi_tag}"
+    if kwargs.get('ylim',None) is None:
+        if log: ymin,ymax = 0.1*ymin,10*ymax
+        else:   ymin,ymax = 0.9*ymin,1.1*ymax
+        
+        kwargs['ylim'] = (ymin,ymax)
+    
     format_axis(ax,xlabel=xlabel,ylabel=ylabel,title=title,**kwargs)
     ax.legend()
     
-    bins = samples.bins
-    if ratio: ratio_plot(num,dens,denerrs,bins,xlabel,figax,**kwargs)
+    if ratio:
+        options = { key[2:]:value for key,value in kwargs.items() if key.startswith("r_") }
+        denerrs = [ sample.error for sample in denlist ]
+        colors = [ sample.color for sample in denlist ]
+        denlist = [ sample.histo for sample in denlist ]
+        ratio_plot(num,denlist,denerrs,bins,xlabel,figax,colors=colors,**options)
     
     return (fig,ax)
     
