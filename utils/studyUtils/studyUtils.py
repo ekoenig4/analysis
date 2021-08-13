@@ -62,6 +62,7 @@ class Study:
         self.saveas = saveas
         self.varinfo = {key:varinfo[key] for key in varlist}
         self.is_datas = [ selection.is_data for selection in selections ]
+        self.is_signals = [ selection.is_signal for selection in selections ]
         self.colors = [ selection.color for selection in selections ]
         for key,value in kwargs.items(): setattr(self,key,value)
 

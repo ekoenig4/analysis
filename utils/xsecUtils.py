@@ -10,7 +10,7 @@ tagMap = {
 
 colorMap = {
     "QCD":"tab:blue",
-    "NMSSM":"tab:orange",
+    "Signal":"tab:orange",
     "TTJets":"tab:green",
     "Data":"black"
 }

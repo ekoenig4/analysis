@@ -34,3 +34,5 @@ QCD_bGf_Ht_2000toInf  = f"{base}/QCD/QCD_HT2000toInf_BGenFilter_TuneCP5_13TeV-ma
 QCD_bGf_List = [QCD_bGf_Ht_100to200,QCD_bGf_Ht_200to300, QCD_bGf_Ht_300to500, QCD_bGf_Ht_500to700, QCD_bGf_Ht_700to1000, QCD_bGf_Ht_1000to1500,QCD_bGf_Ht_1500to2000,QCD_bGf_Ht_2000toInf]
 
 QCD_B_List = QCD_bEn_List + QCD_bGf_List
+
+TTJets = "f{base}/TTJets/TTJets/ntuple.root"

@@ -35,7 +35,7 @@ def safe_divide(a,b):
     return tmp
 
 class Sample:
-    def __init__(self,data,bins,lumi=1,label="",weight=None,is_data=False,density=False,**attrs):
+    def __init__(self,data,bins,lumi=1,label="",weight=None,is_data=False,is_signal=False,density=False,**attrs):
         self.data = ak.to_numpy(ak.flatten(data,axis=None))
         self.nevnts = ak.size(self.data)
         
@@ -44,6 +44,7 @@ class Sample:
         self.lumi = lumi
         self.weight = weight
         self.is_data = is_data
+        self.is_signal = is_signal
         self.density = density
         
         for key,value in attrs.items(): setattr(self,key,value)
@@ -93,6 +94,7 @@ class Samplelist(list):
             self.append(sample)
             
         self.has_data = any( sample.is_data for sample in self )
+        self.nmc = sum( not( sample.is_data or sample.is_signal ) for sample in self )
 
 def format_axis(ax,title=None,xlabel=None,ylabel=None,ylim=None,grid=False,**kwargs):
     ax.set_ylabel(ylabel)
@@ -147,7 +149,7 @@ def graph_multi(xdata,ydatalist,yerrs=None,title=None,labels=None,markers=None,c
     
     
     for i,(ydata,yerr,label,marker,color) in enumerate(zip(ydatalist,yerrs,labels,markers,colors)):
-        ax.errorbar(xdata,ydata,yerr=yerr,label=label,marker=marker,color=color,capsize=5)
+        ax.errorbar(xdata,ydata,yerr=yerr,label=label,marker=marker,color=color,capsize=1)
 
     if log: ax.set_yscale('log')
     if any(label for label in labels): ax.legend()
@@ -209,7 +211,7 @@ def hist_error(ax,data,error=None,**kwargs):
     if histtype != 'step': color = 'black'
     
     bin_centers,bin_widths  = get_bin_centers(bins),get_bin_widths(bins)
-    ax.errorbar(bin_centers,histo,yerr=error,fmt='none',color=color,capsize=5)
+    ax.errorbar(bin_centers,histo,yerr=error,fmt='none',color=color,capsize=1)
 
 def stack_error(ax,stack,log=False,**kwargs):
     bins = stack[0].bins
@@ -226,18 +228,19 @@ def stack_error(ax,stack,log=False,**kwargs):
     bin_centers,bin_widths  = get_bin_centers(bins),get_bin_widths(bins)
     stack = stack[-1]
     error = np.sqrt(np.sum(stack_error**2,axis=0))
-    ax.errorbar(bin_centers,stack,yerr=error,fmt='none',color='black',capsize=5,log=log)
+    ax.errorbar(bin_centers,stack,yerr=error,fmt='none',color='black',capsize=1,log=log)
     return stack,error
 
 def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,density=0,log=0,ratio=False,stacked=False,
-               weights=None,labels=None,histtypes=None,colors=None,lumikey=None,is_datas=None,**kwargs):
+               weights=None,labels=None,histtypes=None,colors=None,lumikey=None,is_datas=None,is_signals=None,**kwargs):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
     lumi,lumi_tag = lumiMap[lumikey]
-    samples = Samplelist( datalist,bins,lumi=lumi,density=density,weights=weights,colors=colors,histtypes=histtypes,labels=labels,is_datas=is_datas )
+    samples = Samplelist( datalist,bins,lumi=lumi,density=density,weights=weights,colors=colors,histtypes=histtypes,labels=labels,is_datas=is_datas,is_signals=is_signals )
         
     if ratio: ratio = samples.has_data
+    if stacked: stacked = samples.nmc > 1
     if density: stacked = False
     
     stack,dens,denerrs = [],[],[]
@@ -248,6 +251,9 @@ def hist_multi(datalist,bins=None,title=None,xlabel=None,ylabel=None,figax=None,
             
             _args,_kwargs = sample.errorbar()
             ax.errorbar(*_args,**_kwargs)
+        elif sample.is_signal:
+            _args,_kwargs = sample.hist_error()
+            hist_error(ax,*_args,log=log,**_kwargs)
         elif stacked:
             stack.append(sample)
         else:
