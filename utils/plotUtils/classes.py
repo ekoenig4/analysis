@@ -3,13 +3,14 @@ from . import *
 flatten = lambda array : ak.to_numpy( ak.flatten(array,axis=None) )
 
 class Sample:
-    def __init__(self,data,bins=None,weight=None,density=False,lumi=1,label="",is_data=False,is_signal=False,**attrs):
+    def __init__(self,data,bins=None,weight=None,density=False,lumi=1,label="",is_data=False,is_signal=False,sumw2=True,**attrs):
         self.data = flatten(data)
         self.nevents = len(self.data)
         
         self.is_data = is_data
         self.is_signal = is_signal
         self.is_bkg = not( is_data or is_signal )
+        self.color = attrs.get("color",None)
 
         self.attrs = attrs
 
@@ -22,17 +23,19 @@ class Sample:
         self.label = f"{label} ({self.scaled_nevents:0.2e})"
 
         if density: self.weight = self.weight/self.scaled_nevents
-
         self.histo = np.histogram(self.data,bins=self.bins,weights=self.weight)[0]
-        sumw2      = np.histogram(self.data,bins=self.bins,weights=self.weight**2)[0]
-        self.error = np.sqrt(sumw2)
+
+        if sumw2:
+            sumw2      = np.histogram(self.data,bins=self.bins,weights=self.weight**2)[0]
+            self.error = np.sqrt(sumw2)
+        else:
+            self.error = np.sqrt(self.histo)
 
 class Samplelist(list):
-    def __init__(self,datalist,bins,weights=None,density=False,lumi=1,labels="",is_datas=False,is_signals=False,**attrs):
+    def __init__(self,datalist,bins,weights=None,density=False,lumi=1,labels="",is_datas=False,is_signals=False,sumw2=True,**attrs):
         self.bins = bins
         self.density = density
         self.lumi = lumi
-
         nsample = len(datalist)
         defaults = dict(
             histtypes="bar" if nsample == 1 else "step",
@@ -44,7 +47,7 @@ class Samplelist(list):
         for key in attrs: attrs[key] = init_attr(attrs[key],defaults.get(key,None),nsample)
 
         for i,data in enumerate(datalist):
-            sample = Sample(data,bins=self.bins,weight=weights[i],lumi=lumi,density=density,label=labels[i],
+            sample = Sample(data,bins=self.bins,weight=weights[i],lumi=lumi,density=density,label=labels[i],sumw2=sumw2,
                             is_data=is_datas[i],is_signal=is_signals[i],**{key[:-1]:value[i] for key,value in attrs.items()})
             if self.bins is None: self.bins = sample.bins
             self.append(sample)

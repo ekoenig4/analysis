@@ -16,6 +16,7 @@ varinfo = {
     f"higgs_eta": {"bins":np.linspace(-3,3,30)      ,"xlabel":"DiJet Eta"},
     f"higgs_phi": {"bins":np.linspace(-3.14,3.14,30),"xlabel":"DiJet Phi"},
     f"n_higgs":   {"bins":range(12)                 ,"xlabel":"N DiJets"},
+    f"jet6_btagsum":{"bins":np.linspace(2,6,30)     ,"xlabel":"6 Jet Btag Sum"}
 }
 
 shapeinfo = {
@@ -46,7 +47,7 @@ def save_fig(fig,directory,saveas):
     fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
     
 class Study:
-    def __init__(self,selections,labels=None,density=0,log=0,ratio=0,stacked=0,lumikey=2018,title=None,saveas=None,masks=None,varlist=varinfo.keys(),**kwargs):
+    def __init__(self,selections,labels=None,density=0,log=0,ratio=0,stacked=0,lumikey=2018,sumw2=False,title=None,saveas=None,masks=None,varlist=varinfo.keys(),**kwargs):
         if type(selections) == tuple: selections = list(selections)
         if type(selections) != list: selections = [selections]
         
@@ -64,6 +65,7 @@ class Study:
         self.ratio = ratio
         self.stacked = stacked
         self.lumikey = lumikey
+        self.sumw2 = sumw2
         
         self.saveas = saveas
         self.varinfo = {key:varinfo[key] for key in varlist}

@@ -17,7 +17,7 @@ def autodim(nvar,dim=None,flip=False):
         ncols = nvar//nrows
     return nrows,ncols
 
-def cutflow(*args,size=None,**kwargs):
+def cutflow(*args,size=(16,8),**kwargs):
     study = Study(*args,**kwargs)
     get_scaled_cutflow = lambda tree : np.array([cutflow*scale for cutflow,scale in zip(tree.cutflow,tree.scales)])
     scaled_cutflows = [ get_scaled_cutflow(tree) for tree in study.selections ]
@@ -28,10 +28,11 @@ def cutflow(*args,size=None,**kwargs):
 
     figax = None
     if size: figax = plt.subplots(figsize=size)
-    
+        
     fig,ax = hist_multi(cutflow_bins,bins=bins,weights=scaled_cutflows,xlabel=cutflow_labels,histtypes=["step"]*len(study.selections),**vars(study),figax=figax)
     fig.tight_layout()
     plt.show()
+    if study.saveas: save_fig(fig,"cutflow",study.saveas)
 
 def quick(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
     study = Study(*args,**kwargs)
@@ -46,7 +47,12 @@ def quick(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
     jet_weights = study.get("jet_scale")
     higgs_weights = study.get("higgs_scale")
     for i,(var,bins) in enumerate(zip(varlist,binlist)):
-        if var in varinfo and bins is None: bins = varinfo[var]["bins"]
+
+        xlabel = var
+        if var in study.varinfo:
+            if bins is None: bins = study.varinfo[var]["bins"]
+            xlabel = study.varinfo[var]["xlabel"]
+            
         hists = study.get(var)
         weights = next( (weights for weights in [event_weights,jet_weights,higgs_weights] if ak.count(weights[0]) == ak.count(hists[0])),None )
 
@@ -54,7 +60,7 @@ def quick(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
         elif bool(ncols >1) != bool(nrows > 1): ax = axs[i]
         else: ax = axs[i//ncols,i%ncols]
         
-        hist_multi(hists,bins=bins,xlabel=var,weights=weights,**vars(study),figax=(fig,ax))
+        hist_multi(hists,bins=bins,xlabel=xlabel,weights=weights,**vars(study),figax=(fig,ax))
     fig.suptitle(study.title)
     fig.tight_layout()
     plt.show()

@@ -100,7 +100,7 @@ def plot_branch(variable,tree,mask=None,selected=None,bins=None,xlabel=None,titl
     ax.legend()
     return (fig,ax)
 
-def ratio_plot(num,dens,denerrs,bins,xlabel,figax,**kwargs):
+def ratio_plot(num,dens,denerrs,bins,xlabel,figax,ylim=(0.1,1.9),grid=True,**kwargs):
     
     fig,ax = figax
 
@@ -116,7 +116,7 @@ def ratio_plot(num,dens,denerrs,bins,xlabel,figax,**kwargs):
     xdata = get_bin_centers(bins)
     ratio_info = np.array([ calc_ratio(num,den,denerr) for den,denerr in zip(dens,denerrs) ])
     ratio_data,ratio_error = ratio_info[:,0],ratio_info[:,1]
-    graph_multi(xdata,ratio_data,yerrs=ratio_error,figax=(fig,ax_ratio),xlabel=xlabel,ylabel="Ratio",**kwargs)
+    graph_multi(xdata,ratio_data,yerrs=ratio_error,figax=(fig,ax_ratio),xlabel=xlabel,ylabel="Ratio",ylim=ylim,grid=True,**kwargs)
 
 def hist_error(ax,data,error=None,**attrs):
     histo,bins,container = ax.hist(data,**attrs)
@@ -143,14 +143,14 @@ def stack_error(ax,datalist,errors=None,**attrs):
     ax.errorbar(bin_centers,histo,yerr=error,fmt='none',color='grey',capsize=1)
     return histo,error
 
-def hist_multi(datalist,bins=None,weights=None,labels=None,is_datas=None,is_signals=None,density=0,
+def hist_multi(datalist,bins=None,weights=None,labels=None,is_datas=None,is_signals=None,density=0,sumw2=True,
                title=None,xlabel=None,ylabel=None,figax=None,log=0,ratio=False,stacked=False,lumikey=None,**kwargs):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
     lumi,lumi_tag = lumiMap[lumikey]
     attrs = { key[2:]:value for key,value in kwargs.items() if key.startswith("s_") }
-    samples = Samplelist( datalist,bins,weights=weights,density=density,lumi=lumi,labels=labels,is_datas=is_datas,is_signals=is_signals,**attrs )
+    samples = Samplelist( datalist,bins,weights=weights,density=density,lumi=lumi,labels=labels,is_datas=is_datas,is_signals=is_signals,sumw2=sumw2,**attrs )
 
     bins = samples.bins
     bin_centers,bin_widths = get_bin_centers(bins),get_bin_widths(bins)
@@ -160,6 +160,7 @@ def hist_multi(datalist,bins=None,weights=None,labels=None,is_datas=None,is_sign
     if density: stacked = False
     denlist = []
 
+    get_extrema = lambda h : (np.max(h),np.min(h[np.nonzero(h)]))
     ymin,ymax = np.inf,0
 
     if stacked:
@@ -171,11 +172,14 @@ def hist_multi(datalist,bins=None,weights=None,labels=None,is_datas=None,is_sign
         stack.histo = histo; stack.error = error; stack.color = 'black'
         denlist.append(stack)
 
+        hmax,hmin = get_extrema(histo)
+        ymax,ymin = max(ymax,hmax),min(ymin,hmin)
+
 
     for sample in samples:
         histo = sample.histo
-        ymax = max(ymax,np.max(histo))
-        ymin = min(ymin,np.min(histo[np.nonzero(histo)]))
+        hmax,hmin = get_extrema(histo)
+        ymax,ymin = max(ymax,hmax),min(ymin,hmin)
 
         if sample.is_data:
             histo,error,label = sample.histo,sample.error,sample.label
@@ -192,10 +196,10 @@ def hist_multi(datalist,bins=None,weights=None,labels=None,is_datas=None,is_sign
         
     if ylabel is None: ylabel = "Fraction of Events" if density else "Events"
     if lumi != 1: title = f"{lumi/1000:0.1f} fb^{-1} {lumi_tag}"
+    
     if kwargs.get('ylim',None) is None:
         if log: ymin,ymax = 0.1*ymin,10*ymax
         else:   ymin,ymax = 0.9*ymin,1.1*ymax
-        
         kwargs['ylim'] = (ymin,ymax)
     
     format_axis(ax,xlabel=xlabel,ylabel=ylabel,title=title,**kwargs)

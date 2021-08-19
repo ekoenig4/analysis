@@ -3,6 +3,9 @@
 
 from . import *
 
+from skimage.measure import LineModelND, ransac
+import scipy
+
 ordinal = lambda n : "%d%s"%(n,{1:"st",2:"nd",3:"rd"}.get(n if n<20 else n%10,"th"))
 array_min = lambda array,value : ak.min(ak.concatenate(ak.broadcast_arrays(value,array[:,np.newaxis]),axis=-1),axis=-1)
 
@@ -293,24 +296,19 @@ def calc_asymmetry(jet_pt,jet_eta,jet_phi,jet_m,njet=-1):
     
     return dict(event_AL=AL)
 
-def optimize_var_cut(selections,variable,nsteps=20,varmin=None,varmax=None,method=min):
+def optimize_var_cut(selections,variable,varmin=None,varmax=None,method=min):
     varmin = min([ ak.min(selection[variable]) for selection in selections ]) if varmin == None else varmin
     varmax = max([ ak.max(selection[variable]) for selection in selections ]) if varmax == None else varmax
     
-    cutlist = np.linspace(varmin,varmax,nsteps)
-    
     if method is min: method = lambda arr,cut : arr < cut
     elif method is max: method = lambda arr,cut : arr > cut
-    
-    score_list = []
-    for cut in cutlist:
+
+    def function(cut):
         nevents = [ ak.sum( selection["scale"][method(selection[variable],cut)] ) for selection in selections ]
         bkg_eff = sum(nevents[1:])/sum([ ak.sum(selection["scale"]) for selection in selections[1:]])
         bovers = sum(nevents[1:])/nevents[0] if nevents[0] != 0 else 0
-        score_list.append(bovers*bkg_eff)
-
-    imax = np.argmax(score_list)
-
-    print(cutlist[imax],score_list[imax])
-        
-    return cutlist,score_list
+        score = bovers*bkg_eff
+        return -score
+    
+    f_min = scipy.optimize.fmin(function,(varmax+varmin)/2)
+    return f_min
