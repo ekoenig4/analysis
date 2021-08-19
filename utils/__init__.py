@@ -1,10 +1,18 @@
+import os
+import sys
+import git
+
+GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
+
 import uproot as ut
 import awkward as ak
 import numpy as np
 import sympy as sp
+
 import string
 import re
 import vector
+
 from tqdm import tqdm
 
 

@@ -41,8 +41,8 @@ def save_scores(score,saveas):
     if not os.path.isdir(directory): os.makedirs(directory)
     score.savetex(f"{directory}/{saveas}")
     
-def save_fig(fig,directory,saveas):
-    directory = f"plots/{date_tag}_plots/{directory}"
+def save_fig(fig,directory,saveas,base=GIT_WD):
+    directory = f"{base}/plots/{date_tag}_plots/{directory}"
     if not os.path.isdir(directory): os.makedirs(directory)
     fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
     
