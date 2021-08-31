@@ -34,11 +34,12 @@ def cutflow(*args,size=(16,8),**kwargs):
     plt.show()
     if study.saveas: save_fig(fig,"cutflow",study.saveas)
 
-def quick(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
+def quick(*args,varlist=[],binlist=None,xlabels=None,dim=None,flip=False,**kwargs):
     study = Study(*args,**kwargs)
 
     nvar = len(varlist)
     binlist = init_attr(binlist,None,nvar)
+    xlabels = init_attr(xlabels,None,nvar)
 
     nrows,ncols = autodim(nvar,dim,flip)
     fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=( int((16/3)*ncols),5*nrows ))
@@ -46,9 +47,9 @@ def quick(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
     event_weights = study.get("scale")
     jet_weights = study.get("jet_scale")
     higgs_weights = study.get("higgs_scale")
-    for i,(var,bins) in enumerate(zip(varlist,binlist)):
+    for i,(var,bins,xlabel) in enumerate(zip(varlist,binlist,xlabels)):
 
-        xlabel = var
+        if xlabel is None: xlabel = var
         if var in study.varinfo:
             if bins is None: bins = study.varinfo[var]["bins"]
             xlabel = study.varinfo[var]["xlabel"]
@@ -61,6 +62,27 @@ def quick(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
         else: ax = axs[i//ncols,i%ncols]
         
         hist_multi(hists,bins=bins,xlabel=xlabel,weights=weights,**study.attrs,figax=(fig,ax))
+    fig.suptitle(study.title)
+    fig.tight_layout()
+    plt.show()
+    if study.saveas: save_fig(fig,"",study.saveas)
+
+def overlay(tree,varlist=[],bins=None,labels=None,s_colors=None,**kwargs):
+    if labels is None: labels = varlist
+    study = Study(tree,labels=labels,s_colors=s_colors,**kwargs)
+
+    event_weights = study.get("scale")[0]
+    jet_weights = study.get("jet_scale")[0]
+    higgs_weights = study.get("higgs_scale")[0]
+
+    hists = [ study.get(var)[0] for var in varlist ]
+    weights = next( (weights for weights in [event_weights,jet_weights,higgs_weights] if ak.count(weights) == ak.count(hists[0])),None )
+    if weights is not None: weights = [weights]*len(varlist)
+
+    nrows,ncols = 1,1
+    fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=( 8,5 ))
+    hist_multi(hists,bins=bins,weights=weights,**study.attrs,figax=(fig,axs))
+
     fig.suptitle(study.title)
     fig.tight_layout()
     plt.show()

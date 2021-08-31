@@ -54,11 +54,11 @@ class Study:
         self.selections = selections
         self.masks = masks
 
+        kwargs['s_colors'] = kwargs.get('s_colors',[ selection.color for selection in selections ])
         self.attrs = dict(
             labels = labels if labels else [ selection.tag for selection in selections ],
             is_datas = [ selection.is_data for selection in selections ],
             is_signals = [ selection.is_signal for selection in selections ],
-            s_colors = [ selection.color for selection in selections ],
             
             density = density,
             log = log,
