@@ -29,7 +29,7 @@ def cutflow(*args,size=(16,8),**kwargs):
     figax = None
     if size: figax = plt.subplots(figsize=size)
         
-    fig,ax = hist_multi(cutflow_bins,bins=bins,weights=scaled_cutflows,xlabel=cutflow_labels,histtypes=["step"]*len(study.selections),**vars(study),figax=figax)
+    fig,ax = hist_multi(cutflow_bins,bins=bins,weights=scaled_cutflows,xlabel=cutflow_labels,histtypes=["step"]*len(study.selections),**study.attrs,figax=figax)
     fig.tight_layout()
     plt.show()
     if study.saveas: save_fig(fig,"cutflow",study.saveas)
@@ -60,7 +60,45 @@ def quick(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
         elif bool(ncols >1) != bool(nrows > 1): ax = axs[i]
         else: ax = axs[i//ncols,i%ncols]
         
-        hist_multi(hists,bins=bins,xlabel=xlabel,weights=weights,**vars(study),figax=(fig,ax))
+        hist_multi(hists,bins=bins,xlabel=xlabel,weights=weights,**study.attrs,figax=(fig,ax))
+    fig.suptitle(study.title)
+    fig.tight_layout()
+    plt.show()
+    if study.saveas: save_fig(fig,"",study.saveas)
+
+def quick2d(*args,varlist=[],binlist=None,dim=None,flip=False,**kwargs):
+    study = Study(*args,**kwargs)
+
+    nvar = len(study.selections)
+    
+    binlist = init_attr(binlist,None,2)
+    xvar,yvar = varlist
+    xbins,ybins = binlist
+
+    nrows,ncols = autodim(nvar,dim,flip)
+    fig,axs = plt.subplots(nrows=nrows,ncols=ncols,figsize=( int((16/3)*ncols),5*nrows ))
+
+    event_weights = study.get("scale")
+    jet_weights = study.get("jet_scale")
+    higgs_weights = study.get("higgs_scale")
+
+    xinfo = study.varinfo.get(xvar,{"bins":xbins,"xlabel":xvar})
+    yinfo = study.varinfo.get(yvar,{"bins":ybins,"xlabel":yvar})
+    info = dict(xbins=xinfo["bins"],xlabel=xinfo["xlabel"],ybins=yinfo["bins"],ylabel=yinfo["xlabel"])
+
+    xhists = study.get(xvar)
+    yhists = study.get(yvar)
+    weightlist = next( (weights for weights in [event_weights,jet_weights,higgs_weights] if ak.count(weights[0]) == ak.count(xhists[0])),None )
+    labels = study.attrs.pop("labels")
+    
+    for i,(xhist,yhist,weight,label) in enumerate(zip(xhists,yhists,weightlist,labels)):
+        study.attrs["label"] = label
+
+        if ncols == 1 and nrows == 1: ax = axs
+        elif bool(ncols >1) != bool(nrows > 1): ax = axs[i]
+        else: ax = axs[i//ncols,i%ncols]
+        
+        hist2d_simple(xhist,yhist,weights=weight,**info,**study.attrs,figax=(fig,ax))
     fig.suptitle(study.title)
     fig.tight_layout()
     plt.show()
@@ -79,7 +117,7 @@ def njets(*args,**kwargs):
     for i,var in enumerate(varlist):
         tree_vars = study.get(var)
         maxjet= int(max( ak.max(var) for var in tree_vars))
-        hist_multi(tree_vars,weights=weights,bins=range(maxjet+3),xlabel=var,figax=(fig,axs[i]),**vars(study))
+        hist_multi(tree_vars,weights=weights,bins=range(maxjet+3),xlabel=var,figax=(fig,axs[i]),**study.attrs)
 
     fig.suptitle(study.title)
     fig.tight_layout()
@@ -99,10 +137,10 @@ def jets(*args,**kwargs):
     for i,varname in enumerate(varlist):
         hists = study.get(varname)
         info = study.varinfo[varname]
-        hist_multi(hists,weights=jet_weights,**info,figax=(fig,axs[i//ncols,i%ncols]),**vars(study))
+        hist_multi(hists,weights=jet_weights,**info,figax=(fig,axs[i//ncols,i%ncols]),**study.attrs)
 
     n_jet_list = study.get("n_jet")
-    hist_multi(n_jet_list,bins=range(12),weights=weights,xlabel="N Jet",figax=(fig,axs[1,2]),**vars(study))
+    hist_multi(n_jet_list,bins=range(12),weights=weights,xlabel="N Jet",figax=(fig,axs[1,2]),**study.attrs)
 
     fig.suptitle(study.title)
     fig.tight_layout()
@@ -123,7 +161,7 @@ def ijets(*args,njets=6,**kwargs):
         for i,varname in enumerate(varlist):
             hists = [ var[:,ijet] for var in study.get(varname) ]
             info = study.varinfo[varname]
-            hist_multi(hists,weights=weights,**info,figax=(fig,axs[i]),**vars(study))
+            hist_multi(hists,weights=weights,**info,figax=(fig,axs[i]),**study.attrs)
             
         fig.suptitle(f"{ordinal(ijet+1)} Jet Distributions")
         fig.tight_layout()
@@ -142,7 +180,7 @@ def higgs(*args,**kwargs):
     for i,varname in enumerate(varlist):
         hists = study.get(varname)
         info = study.varinfo[varname]
-        hist_multi(hists,weights=higgs_weights,**info,figax=(fig,axs[i//ncols,i%ncols]),**vars(study))
+        hist_multi(hists,weights=higgs_weights,**info,figax=(fig,axs[i//ncols,i%ncols]),**study.attrs)
 
     fig.suptitle(study.title)
     fig.tight_layout()
@@ -162,7 +200,7 @@ def ihiggs(*args,nhiggs=3,**kwargs):
         for i,varname in enumerate(varlist):
             hists = [ var[:,ihigg] for var in study.get(varname) ]
             info = study.varinfo[varname]
-            hist_multi(hists,weights=weights,**info,figax=(fig,axs[i]),**vars(study))
+            hist_multi(hists,weights=weights,**info,figax=(fig,axs[i]),**study.attrs)
 
         fig.suptitle(f"{ordinal(ihigg+1)} Higgs Distributions")
         fig.tight_layout()
@@ -189,7 +227,7 @@ def njet_var_sum(*args,variable="jet_btag",start=3,**kwargs):
         bins = np.linspace(varavg-varstd,varavg+varstd,50)
         if variable == "jet_btag": bins = np.linspace(0,binmax*ijet,50)
         
-        hist_multi(ijet_var_sum,weights=weights,bins=bins,**vars(study),xlabel=f"{ijet} {info['xlabel']} Sum",figax=(fig,axs[i//ncols,i%ncols]))
+        hist_multi(ijet_var_sum,weights=weights,bins=bins,**study.attrs,xlabel=f"{ijet} {info['xlabel']} Sum",figax=(fig,axs[i//ncols,i%ncols]))
 
     fig.suptitle(study.title)
     fig.tight_layout()
@@ -240,7 +278,7 @@ def jet_sphericity(*args,**kwargs):
     for i,shape in enumerate(shapes):
         shape_var = [ selection[shape] for selection in study.selections ]
         info = shapeinfo[shape]
-        hist_multi(shape_var,weights=weights,**info,**vars(study),figax=(fig,axs[i//ncols,i%ncols]))
+        hist_multi(shape_var,weights=weights,**info,**study.attrs,figax=(fig,axs[i//ncols,i%ncols]))
     fig.tight_layout()
     plt.show()
     if study.saveas: save_fig(fig,"sphericity",study.saveas)
@@ -256,7 +294,7 @@ def jet_thrust(*args,**kwargs):
     for i,shape in enumerate(shapes):
         shape_var = [ selection[shape] for selection in study.selections ]
         info = shapeinfo[shape]
-        hist_multi(shape_var,weights=weights,**info,**vars(study),figax=(fig,axs[i]))
+        hist_multi(shape_var,weights=weights,**info,**study.attrs,figax=(fig,axs[i]))
     fig.tight_layout()
     plt.show()
     if study.saveas: save_fig(fig,"thrust",study.saveas)

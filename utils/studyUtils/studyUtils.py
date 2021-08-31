@@ -10,7 +10,7 @@ varinfo = {
     f"jet_eta":   {"bins":np.linspace(-3,3,30)      ,"xlabel":"Jet Eta"},
     f"jet_phi":   {"bins":np.linspace(-3.14,3.14,30),"xlabel":"Jet Phi"},
     f"n_jet":     {"bins":range(12)                 ,"xlabel":"N Jets"},
-    f"higgs_m":   {"bins":np.linspace(0,250,30)      ,"xlabel":"DiJet Mass"},
+    f"higgs_m":   {"bins":np.linspace(0,300,30)      ,"xlabel":"DiJet Mass"},
     f"higgs_E":   {"bins":np.linspace(0,1500,30)     ,"xlabel":"DiJet Energy"},
     f"higgs_pt":  {"bins":np.linspace(0,1500,30)     ,"xlabel":"DiJet Pt (GeV)"},
     f"higgs_eta": {"bins":np.linspace(-3,3,30)      ,"xlabel":"DiJet Eta"},
@@ -47,29 +47,32 @@ def save_fig(fig,directory,saveas,base=GIT_WD):
     fig.savefig(f"{directory}/{saveas}.pdf",format="pdf")
     
 class Study:
-    def __init__(self,selections,labels=None,density=0,log=0,ratio=0,stacked=0,lumikey=2018,sumw2=False,title=None,saveas=None,masks=None,varlist=varinfo.keys(),**kwargs):
+    def __init__(self,selections,labels=None,density=0,log=0,ratio=0,stacked=0,lumikey=2018,sumw2=True,title=None,saveas=None,masks=None,varlist=varinfo.keys(),**kwargs):
         if type(selections) == tuple: selections = list(selections)
         if type(selections) != list: selections = [selections]
         
         self.selections = selections
         self.masks = masks
+
+        self.attrs = dict(
+            labels = labels if labels else [ selection.tag for selection in selections ],
+            is_datas = [ selection.is_data for selection in selections ],
+            is_signals = [ selection.is_signal for selection in selections ],
+            s_colors = [ selection.color for selection in selections ],
+            
+            density = density,
+            log = log,
+            ratio = ratio,
+            stacked = stacked,
+            lumikey = lumikey,
+            sumw2 = sumw2,
+            **kwargs,
+        )
         
-        self.labels = labels if labels else [ selection.tag for selection in selections ]
-        self.is_datas = [ selection.is_data for selection in selections ]
-        self.is_signals = [ selection.is_signal for selection in selections ]
-        self.s_colors = [ selection.color for selection in selections ]
         
         self.title = title
-        self.density = density
-        self.log = log
-        self.ratio = ratio
-        self.stacked = stacked
-        self.lumikey = lumikey
-        self.sumw2 = sumw2
-        
         self.saveas = saveas
         self.varinfo = {key:varinfo[key] for key in varlist}
-        for key,value in kwargs.items(): setattr(self,key,value)
 
     def get(self,key):
         items = [ selection[key] for selection in self.selections ]

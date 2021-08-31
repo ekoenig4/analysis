@@ -3,7 +3,7 @@ from . import *
 flatten = lambda array : ak.to_numpy( ak.flatten(array,axis=None) )
 
 class Sample:
-    def __init__(self,data,bins=None,weight=None,density=False,lumi=1,label="",is_data=False,is_signal=False,sumw2=True,**attrs):
+    def __init__(self,data,bins=None,weight=None,density=False,lumi=1,label="",is_data=False,is_signal=False,sumw2=True,scale=True,**attrs):
         self.data = flatten(data)
         self.nevents = len(self.data)
         
@@ -15,8 +15,8 @@ class Sample:
         self.attrs = attrs
 
         self.bins = autobin(self.data) if bins is None else bins
-        self.weight = np.array([1.0]*self.nevents) if weight is None else flatten(weight)
-        if weight is not None and not self.is_data: # scale by luminosity is a weight is given and sample is not data
+        self.weight = np.array([1.0]*self.nevents) if (weight is None or not scale) else flatten(weight)
+        if weight is not None and not self.is_data and scale: # scale by luminosity is a weight is given and sample is not data
             self.weight = lumi * self.weight
 
         self.scaled_nevents = ak.sum(self.weight)
@@ -32,22 +32,22 @@ class Sample:
             self.error = np.sqrt(self.histo)
 
 class Samplelist(list):
-    def __init__(self,datalist,bins,weights=None,density=False,lumi=1,labels="",is_datas=False,is_signals=False,sumw2=True,**attrs):
+    def __init__(self,datalist,bins,weights=None,density=False,lumi=1,labels="",is_datas=False,is_signals=False,sumw2=True,scale=True,**attrs):
         self.bins = bins
         self.density = density
         self.lumi = lumi
-        nsample = len(datalist)
+        self.nsample = len(datalist)
         defaults = dict(
-            histtypes="bar" if nsample == 1 else "step",
+            histtypes="bar" if self.nsample == 1 else "step",
         )
-        is_signals = init_attr(is_signals,False,nsample)
-        is_datas = init_attr(is_datas,False,nsample)
-        labels = init_attr(labels,"",nsample)
-        weights = init_attr(weights,None,nsample)
-        for key in attrs: attrs[key] = init_attr(attrs[key],defaults.get(key,None),nsample)
+        is_signals = init_attr(is_signals,False,self.nsample)
+        is_datas = init_attr(is_datas,False,self.nsample)
+        labels = init_attr(labels,"",self.nsample)
+        weights = init_attr(weights,None,self.nsample)
+        for key in attrs: attrs[key] = init_attr(attrs[key],defaults.get(key,None),self.nsample)
 
         for i,data in enumerate(datalist):
-            sample = Sample(data,bins=self.bins,weight=weights[i],lumi=lumi,density=density,label=labels[i],sumw2=sumw2,
+            sample = Sample(data,bins=self.bins,weight=weights[i],lumi=lumi,density=density,label=labels[i],sumw2=sumw2,scale=scale,
                             is_data=is_datas[i],is_signal=is_signals[i],**{key[:-1]:value[i] for key,value in attrs.items()})
             if self.bins is None: self.bins = sample.bins
             self.append(sample)

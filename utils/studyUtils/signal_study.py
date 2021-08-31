@@ -197,7 +197,7 @@ def jets(*args,varlist=["jet_pt","jet_eta","jet_btag","jet_qgl"],**kwargs):
         bkgs_var = study.get_jets(var,jets="bkgs")
         sixb_var = study.get_jets(var,jets="sixb")
         jets_var = study.get_jets(Var,jets="jets")
-        hist_multi((jets_var,bkgs_var,sixb_var),figax=(fig,axs[i]),**info,**vars(study))
+        hist_multi((jets_var,bkgs_var,sixb_var),figax=(fig,axs[i]),**info,**study.attrs)
             
     fig.suptitle(f"{study.title}")
     fig.tight_layout()
@@ -266,7 +266,7 @@ def ijets(selection,varlist=["jet_pt","jet_btag","jet_eta","jet_phi"],njets=6,**
             bkgs_var = study.get(var,ibkgs_mask,mask)
             sixb_var = study.get(var,isixb_mask,mask)
             jets_var = study.get(var,ijet_mask,mask)
-            hist_multi((jets_var,bkgs_var,sixb_var),figax=(fig,axs[i]),**ord_info,**vars(study))
+            hist_multi((jets_var,bkgs_var,sixb_var),figax=(fig,axs[i]),**ord_info,**study.attrs)
             
         fig.suptitle(f"{study.title} {ordinal(ijet+1)} Jet")
         fig.tight_layout()
@@ -317,7 +317,7 @@ def jets_ordered(*args,varlist=["jet_pt","jet_eta","jet_btag","jet_qgl"],njets=1
             jets_var = ak.flatten(study.tree[var][bkgs_mask][mask])
             sixb_var = ak.flatten(study.tree[var][isixb_mask][nsixb_mask])
             hist_multi((sixb_var,jets_var),figax=(fig,axs[i]),**info,
-                        colors=colors,histtypes=histtypes,**vars(study))
+                        colors=colors,histtypes=histtypes,**study.attrs)
             
         fig.suptitle(f"{study.title} {ordinal(ijet+1)} Signal Jet")
         fig.tight_layout()
@@ -508,9 +508,9 @@ def njet(selection,plot=True,saveas=None,density=0,**kwargs):
     nsixb = getattr(selection,f"nsixb_{subset}")[mask]
     nbkgs = getattr(selection,f"nbkgs_{subset}")[mask]
     
-    hist_multi([njets],bins=range(16),xlabel=f"Number of Jets {subset.capitalize()}",figax=(fig,axs[0]),**vars(study))
-    hist_multi([nsixb],bins=range(8),xlabel=f"Number of Signal Jets {subset.capitalize()}",figax=(fig,axs[1]),**vars(study))
-    hist_multi([nbkgs],bins=range(8),xlabel=f"Number of Background Jets {subset.capitalize()}",figax=(fig,axs[2]),**vars(study))
+    hist_multi([njets],bins=range(16),xlabel=f"Number of Jets {subset.capitalize()}",figax=(fig,axs[0]),**study.attrs)
+    hist_multi([nsixb],bins=range(8),xlabel=f"Number of Signal Jets {subset.capitalize()}",figax=(fig,axs[1]),**study.attrs)
+    hist_multi([nbkgs],bins=range(8),xlabel=f"Number of Background Jets {subset.capitalize()}",figax=(fig,axs[2]),**study.attrs)
 
     fig.suptitle(title)
     fig.tight_layout()

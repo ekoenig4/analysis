@@ -143,19 +143,21 @@ def stack_error(ax,datalist,errors=None,**attrs):
     ax.errorbar(bin_centers,histo,yerr=error,fmt='none',color='grey',capsize=1)
     return histo,error
 
-def hist_multi(datalist,bins=None,weights=None,labels=None,is_datas=None,is_signals=None,density=0,sumw2=True,
+def hist_multi(datalist,bins=None,weights=None,labels=None,is_datas=None,is_signals=None,density=0,sumw2=True,scale=True,
                title=None,xlabel=None,ylabel=None,figax=None,log=0,ratio=False,stacked=False,lumikey=None,**kwargs):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
+    if scale is False: lumikey=None
+
     lumi,lumi_tag = lumiMap[lumikey]
     attrs = { key[2:]:value for key,value in kwargs.items() if key.startswith("s_") }
-    samples = Samplelist( datalist,bins,weights=weights,density=density,lumi=lumi,labels=labels,is_datas=is_datas,is_signals=is_signals,sumw2=sumw2,**attrs )
+    samples = Samplelist( datalist,bins,weights=weights,density=density,lumi=lumi,labels=labels,is_datas=is_datas,is_signals=is_signals,sumw2=sumw2,scale=scale,**attrs )
 
     bins = samples.bins
     bin_centers,bin_widths = get_bin_centers(bins),get_bin_widths(bins)
-        
-    if ratio: ratio = samples.has_data
+
+    if ratio: ratio = samples.nsample > 1
     if stacked: stacked = samples.nmc > 1
     if density: stacked = False
     denlist = []
@@ -175,7 +177,7 @@ def hist_multi(datalist,bins=None,weights=None,labels=None,is_datas=None,is_sign
         hmax,hmin = get_extrema(histo)
         ymax,ymin = max(ymax,hmax),min(ymin,hmin)
 
-
+    num = None
     for sample in samples:
         histo = sample.histo
         hmax,hmin = get_extrema(histo)
@@ -190,8 +192,8 @@ def hist_multi(datalist,bins=None,weights=None,labels=None,is_datas=None,is_sign
             data,histo,error,weight,label,attrs = sample.data,sample.histo,sample.error,sample.weight,sample.label,sample.attrs
             attrs["histtype"] = "step" if len(samples) > 1 else "bar"; attrs["linewidth"] = 2
             hist_error(ax,data,bins=bins,error=error,weights=weight,label=label,log=log,**attrs)
-
-            if not sample.is_signal: denlist.append(sample)
+            
+            if not samples.has_data or not sample.is_signal: denlist.append(sample)
             
         
     if ylabel is None: ylabel = "Fraction of Events" if density else "Events"
@@ -204,8 +206,9 @@ def hist_multi(datalist,bins=None,weights=None,labels=None,is_datas=None,is_sign
     
     format_axis(ax,xlabel=xlabel,ylabel=ylabel,title=title,**kwargs)
     ax.legend()
-    
     if ratio:
+        if num is None: num = denlist.pop(0).histo
+        
         options = { key[2:]:value for key,value in kwargs.items() if key.startswith("r_") }
         denerrs = [ sample.error for sample in denlist ]
         colors = [ sample.color for sample in denlist ]
@@ -234,20 +237,22 @@ def plot_mask_stack_comparison(datalist,bins=None,title=None,xlabel=None,figax=N
     return (fig,ax)
 
 
-def hist2d_simple(xdata,ydata,xbins=None,ybins=None,title=None,xlabel=None,ylabel=None,figax=None,weights=None,lumikey=None,density=0,log=1,grid=False,label=None):
+def hist2d_simple(xdata,ydata,xbins=None,ybins=None,title=None,xlabel=None,ylabel=None,figax=None,weights=None,lumikey=None,density=0,log=1,grid=False,label=None,**kwargs):
     if figax is None: figax = plt.subplots()
     (fig,ax) = figax
 
-    xdata = ak.to_numpy(ak.flatten(xdata,axis=None))
-    ydata = ak.to_numpy(ak.flatten(ydata,axis=None))
+    xdata = flatten(xdata)
+    ydata = flatten(ydata)
     
     lumi,lumi_tag = lumiMap[lumikey]
-    if weights is not None: weights = lumi*ak.to_numpy(weights)
+    if weights is not None: weights = lumi*flatten(weights)
 
     if xbins is None: xbins = autobin(xdata)
     if ybins is None: ybins = autobin(ydata)
 
     nevnts = ak.size(xdata)
+    if weights is not None: nevnts = ak.sum(weights)
+    
     n,bx,by,im = ax.hist2d(np.array(xdata),np.array(ydata),(xbins,ybins),weights=weights,density=density,norm=clrs.LogNorm() if log else clrs.Normalize(),cmap="jet")
     
     ax.set_ylabel(ylabel)

@@ -296,7 +296,7 @@ def calc_asymmetry(jet_pt,jet_eta,jet_phi,jet_m,njet=-1):
     
     return dict(event_AL=AL)
 
-def optimize_var_cut(selections,variable,varmin=None,varmax=None,method=min):
+def optimize_var_cut(selections,variable,varmin=None,varmax=None,method=min,plot=False):
     varmin = min([ ak.min(selection[variable]) for selection in selections ]) if varmin == None else varmin
     varmax = max([ ak.max(selection[variable]) for selection in selections ]) if varmax == None else varmax
     
@@ -309,6 +309,13 @@ def optimize_var_cut(selections,variable,varmin=None,varmax=None,method=min):
         bovers = sum(nevents[1:])/nevents[0] if nevents[0] != 0 else 0
         score = bovers*bkg_eff
         return -score
+
+    if plot:
+
+        x = np.linspace(varmin,varmax,100)
+        y = np.vectorize(function)(x)
+
+        graph_simple(x,-y,xlabel=f'{variable} cut',ylabel="b/s*b_eff",marker=None)
     
     f_min = scipy.optimize.fmin(function,(varmax+varmin)/2)
     return f_min
