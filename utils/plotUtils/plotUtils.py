@@ -103,7 +103,6 @@ def plot_branch(variable,tree,mask=None,selected=None,bins=None,xlabel=None,titl
 def ratio_plot(num,dens,denerrs,bins,xlabel,figax,ylim=(0.1,1.9),grid=True,**kwargs):
     
     fig,ax = figax
-
     ax.get_xaxis().set_visible(0)
     divider = make_axes_locatable(ax)
     ax_ratio = divider.append_axes("bottom", size="20%", pad=0.1, sharex=ax)
