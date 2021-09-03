@@ -2,6 +2,14 @@ from . import *
 
 import os
 
+def update_cutflow(self,tag=None):
+    if tag is None: tag = ""
+    self.nevents = ak.sum(self.mask)
+    self.cutflow_labels = self.cutflow_labels+[tag]
+    for i,cutflow in enumerate(self.cutflow):
+        new_cutflow = np.append(cutflow,ak.sum(self['sample_id'] == i))
+        self.cutflow[i] = new_cutflow
+
 class Selection(Tree):
     def __init__(self,tree,cuts={},include=None,previous=None,variable=None,njets=-1,mask=None,tag=None,ignore_tag=False):
         copy_fields(tree,self)
@@ -65,7 +73,7 @@ class Selection(Tree):
         self.jets_failed = exclude_jets(self.tree.all_jets_mask,self.jets_passed)
         self.njets_failed = ak.sum(self.jets_failed,axis=-1)
         
-        self.nevents = ak.sum(self.mask)
+        update_cutflow(self,tag)
         self.sort_jets(variable,njets)
                 
     def chosen_jets(self,cuts={},variable=None,njets=-1,mask=None,tag=None):
@@ -119,10 +127,10 @@ class Selection(Tree):
         new_selection.sort_selected_jets(variable)
         return new_selection
     
-    def masked(self,mask):
+    def masked(self,mask,tag=None):
         new_selection = self.copy()
         new_selection.mask = new_selection.mask & mask
-        new_selection.nevents = ak.sum(new_selection.mask)
+        update_cutflow(new_selection,tag)
         return new_selection
     
     def reco_X(self):

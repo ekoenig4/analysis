@@ -28,7 +28,7 @@ def cutflow(*args,size=(16,8),**kwargs):
 
     figax = None
     if size: figax = plt.subplots(figsize=size)
-        
+
     fig,ax = hist_multi(cutflow_bins,bins=bins,weights=scaled_cutflows,xlabel=cutflow_labels,histtypes=["step"]*len(study.selections),**study.attrs,figax=figax)
     fig.tight_layout()
     plt.show()
@@ -49,7 +49,7 @@ def quick(*args,varlist=[],binlist=None,xlabels=None,dim=None,flip=False,**kwarg
     jet_weights = study.get("jet_scale")
     higgs_weights = study.get("higgs_scale")
     for i,(var,bins,xlabel) in enumerate(varlist):
-
+        
         if xlabel is None: xlabel = var
         if var in study.varinfo:
             if bins is None: bins = study.varinfo[var]["bins"]

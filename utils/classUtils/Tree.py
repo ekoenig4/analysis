@@ -64,13 +64,13 @@ class Tree:
 
         sample_tag = [ next( (tag for key,tag in tagMap.items() if key in sample),None ) for sample in self.samples ]
 
-        if (sample_tag.count(sample_tag[0]) == len(sample_tag)): self.tag = sample_tag[0]
-        else: self.tag = "Bkg"
+        if (sample_tag.count(sample_tag[0]) == len(sample_tag)): self.sample = sample_tag[0]
+        else: self.sample = "Bkg"
         
-        if self.is_data: self.tag = "Data"
-        self.color = colorMap.get(self.tag,None)
+        if self.is_data: self.sample = "Data"
+        self.color = colorMap.get(self.sample,None)
 
-        self.cutflow = [ ak.fill_none( ak.pad_none(cutflow,self.ncutflow,axis=0,clip=True),0 ) for cutflow in self.cutflow ]
+        self.cutflow = [ ak.fill_none( ak.pad_none(cutflow,self.ncutflow,axis=0,clip=True),0 ).to_numpy() for cutflow in self.cutflow ]
         
         if not self.lazy:
             self.ttree = ak.concatenate(self.ttrees)
@@ -114,6 +114,9 @@ class Tree:
         self.extend(key=item)
         return item
     def get(self,key): return self[key]
+    def expected_events(self,lumikey=2018):
+        lumi,_ = lumiMap[lumikey]
+        return ak.sum(self["scale"])*lumi
     def addTree(self,fname): init_file(self,fname)
     def extend(self,**kwargs): self.extended.update(**kwargs)
     def build_scale_weights(self):

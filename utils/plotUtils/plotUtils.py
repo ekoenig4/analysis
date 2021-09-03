@@ -27,14 +27,14 @@ def format_axis(ax,title=None,xlabel=None,ylabel=None,ylim=None,grid=False,**kwa
     ax.set_ylabel(ylabel)
 
     if grid: ax.grid()
-    if type(xlabel) == list:
+    if type(xlabel) == str:
+        ax.set_xlabel(xlabel)
+    else:
         ax.set_xticks(range(len(xlabel)))
 
         rotation = 0
         if type(xlabel[0]) == str: rotation = -45
         ax.set_xticklabels(xlabel,rotation=rotation)
-    else:
-            ax.set_xlabel(xlabel)
     ax.set_title(title)
     if ylim is not None: ax.set_ylim(ylim)
 
