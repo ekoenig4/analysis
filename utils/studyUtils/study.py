@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from . import *
+from .studyUtils import *
+from ..plotUtils import *
+from ..selectUtils import *
+
+import vector
 
 
 def autodim(nvar, dim=None, flip=False):
@@ -374,7 +378,7 @@ def jet_sphericity(*args, **kwargs):
     weights = [selection["scale"] for selection in study.selections]
     for i, shape in enumerate(shapes):
         shape_var = [selection[shape] for selection in study.selections]
-        info = shapeinfo[shape]
+        info = varinfo[shape]
         hist_multi(shape_var, weights=weights, **info, **
                    study.attrs, figax=(fig, axs[i//ncols, i % ncols]))
     fig.tight_layout()
@@ -393,7 +397,7 @@ def jet_thrust(*args, **kwargs):
 
     for i, shape in enumerate(shapes):
         shape_var = [selection[shape] for selection in study.selections]
-        info = shapeinfo[shape]
+        info = varinfo[shape]
         hist_multi(shape_var, weights=weights, **info,
                    **study.attrs, figax=(fig, axs[i]))
     fig.tight_layout()

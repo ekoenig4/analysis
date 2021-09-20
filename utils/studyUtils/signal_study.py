@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from . import *
+from .studyUtils import *
+from ..selectUtils import *
 
 
 class SignalStudy(Study):
@@ -331,7 +332,7 @@ def jets_2d(selection, log=True, **kwargs):
     fig.tight_layout()
     plt.show()
     if study.saveas:
-        save_fig(fig, f"jets_2d_{subset}", study.saveas)
+        save_fig(fig, f"jets_2d_{study.subset}", study.saveas)
 
 
 def ijets(
@@ -384,7 +385,7 @@ def ijets(
         fig.tight_layout()
         plt.show()
         if study.saveas:
-            save_fig(fig, f"ijets_{subset}",
+            save_fig(fig, f"ijets_{study.subset}",
                      f"{ordinal(ijet+1)}_{study.saveas}")
 
 

@@ -1,5 +1,5 @@
-from . import *
 from .cutConfig import *
+from .classUtils import Selection
 
 
 def btag_bias_pt_ordering(tree, baseline=None, tag="btag bias pt ordered"):

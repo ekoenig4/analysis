@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from . import *
+from .classes import *
 
 import matplotlib.colors as clrs
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gs
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # plt.rc('text', usetex=True)

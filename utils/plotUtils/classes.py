@@ -1,4 +1,7 @@
-from . import *
+from ..utils import *
+
+import awkward as ak
+import numpy as np
 
 
 def flatten(array): return ak.to_numpy(ak.flatten(array, axis=None))

@@ -1,6 +1,5 @@
-from . import *
-
 from attrdict import AttrDict
+import numpy as np
 
 
 class VarInfo(AttrDict):
