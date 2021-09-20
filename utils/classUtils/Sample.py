@@ -1,11 +1,5 @@
 from ..utils import *
 
-import awkward as ak
-import numpy as np
-
-
-def flatten(array): return ak.to_numpy(ak.flatten(array, axis=None))
-
 
 class Sample:
     def __init__(self, data, bins=None, weight=None, density=False, lumi=1, label="", is_data=False, is_signal=False, sumw2=True, scale=True, **attrs):
@@ -69,27 +63,3 @@ class Samplelist(list):
         self.has_data = any(sample.is_data for sample in self)
         self.nmc = sum(not(sample.is_data or sample.is_signal)
                        for sample in self)
-
-
-class Stack(list):
-
-    def datalist(self): return [sample.data for sample in self]
-    def weights(self): return [sample.weight for sample in self]
-    def histos(self): return np.array([sample.histo for sample in self])
-    def errors(self): return np.array([sample.error for sample in self])
-    def labels(self): return [sample.label for sample in self]
-
-    def attrs(self):
-        attrs = {}
-        for sample in self:
-            attrs.update(**{key: None for key in sample.attrs})
-        for key in attrs:
-            attrs[key] = [sample.attrs.get(key, None) for sample in self]
-        return attrs
-
-    def add(self, *samples):
-        for sample in samples:
-            if type(sample) == list:
-                self.add(*sample)
-                continue
-            self.append(sample)

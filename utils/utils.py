@@ -5,6 +5,9 @@ import awkward as ak
 GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
 
 
+def flatten(array): return ak.to_numpy(ak.flatten(array, axis=None))
+
+
 def init_attr(attr, init, size):
     if attr is None:
         return [init]*size

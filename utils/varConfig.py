@@ -13,7 +13,7 @@ class VarInfo(AttrDict):
         start_pattern = next(
             (self[name] for name in self if var.startswith(name)), None)
         if start_pattern:
-            return AtrrDict(start_pattern)
+            return AttrDict(start_pattern)
         any_pattern = next((self[name] for name in self if var in name), None)
         if any_pattern:
             return AttrDict(any_pattern)

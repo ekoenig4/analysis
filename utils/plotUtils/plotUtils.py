@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from .classes import *
+from ..utils import *
+from ..classUtils.Sample import Samplelist
+from ..classUtils.Stack import Stack
 
 import matplotlib.colors as clrs
 import matplotlib.pyplot as plt
