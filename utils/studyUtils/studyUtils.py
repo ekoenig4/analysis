@@ -27,9 +27,9 @@ def autodim(nvar, dim=None, flip=False):
 
 
 def cutflow(*args, size=(16, 8), **kwargs):
-    study = Study(*args, **kwargs)
-    def get_scaled_cutflow(tree): return np.array(
-        [cutflow*scale for cutflow, scale in zip(tree.cutflow, tree.scales)])
+    study = Study(*args,sumw2=False,  **kwargs)
+    def get_scaled_cutflow(tree): return ak.Array(
+        [fn.cutflow*fn.scale for fn in tree.filelist])
     scaled_cutflows = [get_scaled_cutflow(tree) for tree in study.selections]
     cutflow_bins = [ak.local_index(cutflow, axis=-1)
                     for cutflow in scaled_cutflows]
@@ -62,15 +62,11 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False, *
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
                             figsize=(int((16/3)*ncols), 5*nrows))
 
-    event_weights = study.get("scale")
-    jet_weights = study.get("jet_scale")
-    higgs_weights = study.get("higgs_scale")
     for i, (var, bins, xlabel) in enumerate(varlist):
 
         bins, xlabel = study.format_var(var, bins, xlabel)
         hists = study.get(var)
-        weights = next((weights for weights in [event_weights, jet_weights, higgs_weights] if ak.count(
-            weights[0]) == ak.count(hists[0])), None)
+        weights = study.get_scale(var)
 
         if ncols == 1 and nrows == 1:
             ax = axs
@@ -102,14 +98,13 @@ def overlay(tree, varlist=[], binlist=None, labels=None, dim=None, xlabels=None,
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
                             figsize=(int((16/3)*ncols), 5*nrows))
 
-    event_weights = study.get("scale")[0]
-    jet_weights = study.get("jet_scale")[0]
+    event_weights = study.get("scale")[0][0]
     higgs_weights = study.get("higgs_scale")[0]
 
     for i, (group, bins, xlabel) in enumerate(varlist):
 
         hists = [study.get(var)[0] for var in group]
-        weights = next((weights for weights in [event_weights, jet_weights, higgs_weights] if ak.count(
+        weights = next((weights for weights in [event_weights, weights, higgs_weights] if ak.count(
             weights) == ak.count(hists[0])), None)
         if weights is not None:
             weights = [weights]*len(group)
@@ -147,7 +142,6 @@ def quick2d(*args, varlist=[], binlist=None, dim=None, flip=False, **kwargs):
                             figsize=(int((16/3)*ncols), 5*nrows))
 
     event_weights = study.get("scale")
-    jet_weights = study.get("jet_scale")
     higgs_weights = study.get("higgs_scale")
 
     xbins, xlabel = study.format_var(xvar, bins=xbins, xlabel=xvar)
@@ -156,11 +150,12 @@ def quick2d(*args, varlist=[], binlist=None, dim=None, flip=False, **kwargs):
 
     xhists = study.get(xvar)
     yhists = study.get(yvar)
-    weightlist = next((weights for weights in [event_weights, jet_weights, higgs_weights] if ak.count(
-        weights[0]) == ak.count(xhists[0])), None)
+
+    weights = study.get_scale(xvar)
+
     labels = study.attrs.pop("labels")
 
-    for i, (xhist, yhist, weight, label) in enumerate(zip(xhists, yhists, weightlist, labels)):
+    for i, (xhist, yhist, weight, label) in enumerate(zip(xhists, yhists, weights, labels)):
         study.attrs["label"] = label
 
         if ncols == 1 and nrows == 1:
@@ -210,12 +205,11 @@ def jets(*args, **kwargs):
     nrows, ncols = 2, 3
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(16, 10))
 
-    weights = study.get("scale")
-    jet_weights = study.get("jet_scale")
     for i, varname in enumerate(varlist):
         hists = study.get(varname)
-        info = study.varinfo[varname]
-        hist_multi(hists, weights=jet_weights, **info,
+        weights = study.get_scale(varname)
+        info = varinfo[varname]
+        hist_multi(hists, weights=weights, **info,
                    figax=(fig, axs[i//ncols, i % ncols]), **study.attrs)
 
     n_jet_list = study.get("n_jet")
@@ -241,7 +235,7 @@ def ijets(*args, njets=6, **kwargs):
 
         for i, varname in enumerate(varlist):
             hists = [var[:, ijet] for var in study.get(varname)]
-            info = study.varinfo[varname]
+            info = varinfo[varname]
             hist_multi(hists, weights=weights, **info,
                        figax=(fig, axs[i]), **study.attrs)
 
@@ -263,7 +257,7 @@ def higgs(*args, **kwargs):
     higgs_weights = study.get("higgs_scale")
     for i, varname in enumerate(varlist):
         hists = study.get(varname)
-        info = study.varinfo[varname]
+        info = varinfo[varname]
         hist_multi(hists, weights=higgs_weights, **info,
                    figax=(fig, axs[i//ncols, i % ncols]), **study.attrs)
 
@@ -286,7 +280,7 @@ def ihiggs(*args, nhiggs=3, **kwargs):
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(16, 5))
         for i, varname in enumerate(varlist):
             hists = [var[:, ihigg] for var in study.get(varname)]
-            info = study.varinfo[varname]
+            info = varinfo[varname]
             hist_multi(hists, weights=weights, **info,
                        figax=(fig, axs[i]), **study.attrs)
 
@@ -302,7 +296,7 @@ def njet_var_sum(*args, variable="jet_btag", start=3, **kwargs):
 
     nrows, ncols = 2, 2
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(16, 10))
-    info = study.varinfo[variable]
+    info = varinfo[variable]
     binmax = info['bins'][-1]
 
     weights = [selection["scale"] for selection in study.selections]

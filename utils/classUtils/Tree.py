@@ -6,136 +6,96 @@ import awkward as ak
 import numpy as np
 
 
-def add_sample(self, fname, cutflow, cutflow_labels, ttree, sample, xsec, scale):
-    self.nfiles += 1
-    self.filenames.append(fname)
-    self.cutflow.append(cutflow)
-    self.total_events.append(cutflow[0])
-    ncutflow = len(cutflow_labels)
-    if ncutflow > self.ncutflow:
-        self.ncutflow = ncutflow
-        self.cutflow_labels = cutflow_labels
-    self.raw_events.append(len(ttree))
-    self.ttrees.append(ttree)
-    self.samples.append(sample)
-    self.xsecs.append(xsec)
-    self.scales.append(scale)
+class SixBFile:
+    def __init__(self, fname):
+        self.fname = fname
+        self.tfile = ut.open(fname)
+
+        cutflow = self.tfile.get('h_cutflow')
+        self.cutflow_labels = cutflow.axis().labels()
+        self.cutflow = cutflow.to_numpy()[0]
+        self.total_events = self.cutflow[0]
+
+        self.sample, self.xsec = next(
+            ((key, value) for key, value in xsecMap.items() if key in fname), ("unk", 1))
+        self.scale = self.xsec / \
+            self.total_events if type(self.xsec) == float else 1
+
+        self.ttree = self.tfile.get('sixBtree')
+        self.raw_events = self.ttree.num_entries
 
 
-def init_file(self, tfname):
-    cutflow = ut.open(tfname+":h_cutflow")
-    cutflow_labels = cutflow.axis().labels()
-    if cutflow_labels is None:
-        cutflow_labels = []
+def init_sample(self):  # Helper Method For Tree Class
+    self.is_data = any("Data" in fn.fname for fn in self.filelist)
+    self.is_signal = all("NMSSM" in fn.fname for fn in self.filelist)
+    sample_tag = [next((tag for key, tag in tagMap.items(
+    ) if key in fn.sample), None) for fn in self.filelist]
 
-    cutflow = cutflow.to_numpy()[0]
-
-    if not self.lazy:
-        ttree = ut.open(tfname+":sixBtree").arrays()
+    if (sample_tag.count(sample_tag[0]) == len(sample_tag)):
+        self.sample = sample_tag[0]
     else:
-        ttree = ut.lazy(tfname+":sixBtree")
+        self.sample = "Bkg"
 
-    valid = len(ttree) > 0
+    if self.is_data:
+        self.sample = "Data"
+    self.color = colorMap.get(self.sample, None)
 
-    if not valid and self.verify:
-        return
-    sample, xsec = next(
-        ((key, value) for key, value in xsecMap.items() if key in tfname), ("unk", 1))
-    scale = xsec / cutflow[0] if type(xsec) == float else 1
 
-    add_sample(self, tfname, cutflow, cutflow_labels,
-               ttree, sample, xsec, scale)
+def init_tree(self):
+    self.ttree = ut.lazy([fn.ttree for fn in self.filelist])
+    self.extended = dict(
+        sample_id=ak.concatenate([ak.Array([i]*fn.raw_events)
+                                 for i, fn in enumerate(self.filelist)]),
+        scale=ak.concatenate([np.full(
+            shape=fn.raw_events, fill_value=fn.scale, dtype=np.float) for fn in self.filelist])
+    )
+
+    self.raw_events = sum(fn.raw_events for fn in self.filelist)
+    self.cutflow_labels = max((fn.cutflow_labels for fn in self.filelist if fn.cutflow_labels),key=lambda l:len(l))
+    ncutflow = len(self.cutflow_labels)
+    self.cutflow = [ak.fill_none(ak.pad_none(
+        fn.cutflow, ncutflow, axis=0, clip=True), 0).to_numpy() for fn in self.filelist]
+
+
+def init_selection(self):
+    self.all_events_mask = ak.Array([True]*self.raw_events)
+    njet = self["n_jet"]
+    self.all_jets_mask = ak.unflatten(
+        np.repeat(np.array(self.all_events_mask, dtype=bool), njet), njet)
+
+    self.mask = self.all_events_mask
+    self.jets_selected = self.all_jets_mask
+
+    self.sixb_jet_mask = self["jet_signalId"] != -1
+    self.bkgs_jet_mask = self.sixb_jet_mask == False
+
+    self.sixb_found_mask = self["nfound_presel"] == 6
 
 
 class Tree:
-    def __init__(self, filenames, verify=True, lazy=False):
-        if type(filenames) != list:
-            filenames = [filenames]
-        self.verify = verify
-        self.lazy = lazy
+    def __init__(self, filelist):
+        if type(filelist) != list:
+            filelist = [filelist]
+        self.filelist = [SixBFile(fn) for fn in filelist]
 
-        self.nfiles = 0
-        self.filenames = []
-        self.tfiles = []
-        self.cutflow = []
-        self.cutflow_labels = []
-        self.ncutflow = 0
-        self.total_events = []
-        self.raw_events = []
-        self.ttrees = []
-        self.samples = []
-        self.xsecs = []
-        self.scales = []
-
-        for fname in filenames:
-            self.addTree(fname)
-        self.valid = self.nfiles > 0
-
-        if not self.valid:
-            return
-        self.is_data = any("Data" in fn for fn in self.filenames)
-
-        sample_tag = [next((tag for key, tag in tagMap.items(
-        ) if key in sample), None) for sample in self.samples]
-
-        if (sample_tag.count(sample_tag[0]) == len(sample_tag)):
-            self.sample = sample_tag[0]
-        else:
-            self.sample = "Bkg"
-
-        if self.is_data:
-            self.sample = "Data"
-        self.color = colorMap.get(self.sample, None)
-
-        self.cutflow = [ak.fill_none(ak.pad_none(
-            cutflow, self.ncutflow, axis=0, clip=True), 0).to_numpy() for cutflow in self.cutflow]
-
-        if not self.lazy:
-            self.ttree = ak.concatenate(self.ttrees)
-
-        sample_id = ak.concatenate([ak.Array([i]*len(tree))
-                                   for i, tree in enumerate(self.ttrees)])
-
-        self.extended = {"sample_id": sample_id}
-        self.nevents = sum(self.raw_events)
-        self.is_signal = all("NMSSM" in fname for fname in self.filenames)
-        self.build_scale_weights()
-
-        self.all_events_mask = ak.Array([True]*self.nevents)
-        njet = self["n_jet"]
-        self.all_jets_mask = ak.unflatten(
-            np.repeat(np.array(self.all_events_mask, dtype=bool), njet), njet)
-
-        self.mask = self.all_events_mask
-        self.jets_selected = self.all_jets_mask
-
-        if self.lazy:
-            return
-
-        self.sixb_jet_mask = self["jet_signalId"] != -1
-        self.bkgs_jet_mask = self.sixb_jet_mask == False
-
-        self.sixb_found_mask = self["nfound_presel"] == 6
+        init_sample(self)
+        init_tree(self)
+        init_selection(self)
 
         # self.reco_XY()
     def __str__(self):
-        if not self.valid:
-            return "invalid"
         sample_string = [
             f"=== File Info ===",
-            f"File: {self.filenames}",
-            f"Total Events:    {self.total_events}",
-            f"Raw Events:      {self.raw_events}",
-            f"Selected Events: {self.nevents}",
+            f"File: {[fn.fname for fn in self.filelist]}",
+            f"Total Events:    {[fn.total_events for fn in self.filelist]}",
+            f"Raw Events:      {[fn.raw_events for fn in self.filelist]}",
         ]
         return "\n".join(sample_string)
 
     def __getitem__(self, key):
-        if key in self.extended:
+        if str(key) in self.extended:
             return self.extended[key]
-        item = self.ttree[key] if not self.lazy else ak.concatenate(
-            [tree[key] for tree in self.ttrees])
-        self.extend(key=item)
+        item = self.ttree[key]
         return item
 
     def get(self, key): return self[key]
@@ -144,20 +104,7 @@ class Tree:
         lumi, _ = lumiMap[lumikey]
         return ak.sum(self["scale"])*lumi
 
-    def addTree(self, fname): init_file(self, fname)
     def extend(self, **kwargs): self.extended.update(**kwargs)
-
-    def build_scale_weights(self):
-        event_scale = ak.concatenate([np.full(shape=len(
-            tree), fill_value=scale, dtype=np.float) for scale, tree in zip(self.scales, self.ttrees)])
-        jet_scale = ak.unflatten(np.repeat(ak.to_numpy(
-            event_scale), self["n_jet"]), self["n_jet"])
-        self.extend(scale=event_scale, jet_scale=jet_scale)
-
-        if "n_higgs" in ak.fields(self.ttrees[0]):
-            higgs_scale = ak.unflatten(np.repeat(ak.to_numpy(
-                event_scale), self["n_higgs"]), self["n_higgs"])
-            self.extend(higgs_scale=higgs_scale)
 
     def reco_XY(self):
         def bjet_p4(key): return vector.obj(pt=self[f"gen_{key}_recojet_pt"], eta=self[f"gen_{key}_recojet_eta"],
@@ -172,8 +119,8 @@ class Tree:
         Y = hy1_b1 + hy1_b2 + hy2_b1 + hy2_b2
         X = hx_b1 + hx_b2 + Y
 
-        self.extended.update({"X_pt": X.pt, "X_m": X.mass, "X_eta": X.eta, "X_phi": X.phi,
-                              "Y_pt": Y.pt, "Y_m": Y.mass, "Y_eta": Y.eta, "Y_phi": Y.phi})
+        self.extend(**{"X_pt": X.pt, "X_m": X.mass, "X_eta": X.eta, "X_phi": X.phi,
+                       "Y_pt": Y.pt, "Y_m": Y.mass, "Y_eta": Y.eta, "Y_phi": Y.phi})
 
     def calc_jet_dr(self, compare=None, tag="jet"):
         select_eta = self.get("jet_eta")
@@ -201,8 +148,8 @@ class Tree:
         max_dr = ak.flatten(dr[imax_dr], axis=-1)
         imax_dr = ak.flatten(dr_index[imax_dr], axis=-1)
 
-        self.extended.update({f"{tag}_min_dr": min_dr, f"{tag}_imin_dr": imin_dr,
-                             f"{tag}_max_dr": max_dr, f"{tag}_imax_dr": imax_dr})
+        self.extend(**{f"{tag}_min_dr": min_dr, f"{tag}_imin_dr": imin_dr,
+                       f"{tag}_max_dr": max_dr, f"{tag}_imax_dr": imax_dr})
 
     def calc_event_shapes(self):
         jet_pt, jet_eta, jet_phi, jet_m = self.get("jet_pt"), self.get(

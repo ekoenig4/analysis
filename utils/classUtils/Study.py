@@ -66,12 +66,19 @@ class Study:
                 items = [item[mask] for item, mask in zip(items, self.masks)]
         return items
 
+    def get_scale(self, key):
+        hists = self.get(key)
+        scales = self.get('scale')
+        return [ak.ones_like(hist) * scale for scale, hist in zip(scales, hists)]
+
     def format_var(self, var, bins=None, xlabel=None):
         if xlabel is None:
             xlabel = var
         info = varinfo.find(var)
+        if bins is None and info:
+            bins = info.bins
         if info:
-            bins, xlabel = info.bins, info.xlabel
+            xlabel = info.xlabel
         return bins, xlabel
 
     def save_fig(self, fig, directory, base=GIT_WD):

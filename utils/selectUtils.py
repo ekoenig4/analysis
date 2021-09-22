@@ -9,22 +9,13 @@ import scipy
 from .plotUtils import *
 
 
-def ordinal(n): return "%d%s" % (
-    n, {1: "st", 2: "nd", 3: "rd"}.get(n if n < 20 else n % 10, "th"))
-
-
-def array_min(array, value): return ak.min(ak.concatenate(
-    ak.broadcast_arrays(value, array[:, np.newaxis]), axis=-1), axis=-1)
-
-
 def get_jet_index_mask(jets, index):
     """ Generate jet mask for a list of indicies """
     if hasattr(jets, 'ttree'):
         jets = jets["jet_pt"]
 
     jet_index = ak.local_index(jets)
-    compare, _ = ak.broadcast_arrays(index[:, None], jet_index)
-    inter = (jet_index == compare)
+    inter = (jet_index == index[:,None])
     return ak.sum(inter, axis=-1) == 1
 
 

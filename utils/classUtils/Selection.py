@@ -24,6 +24,7 @@ class Selection(Tree):
         self.tree = tree
         self.subset = "selected"
 
+        self.tag = None
         self.include = include
         self.previous = previous
         self.ignore_previous_tag = ignore_tag

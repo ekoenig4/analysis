@@ -20,6 +20,10 @@ class Sample:
         if weight is not None and not self.is_data and scale:
             self.weight = lumi * self.weight
 
+        # if scale == "xs" scale by luminosity
+        if scale == "xs":
+            self.weight = self.weight / lumi
+
         self.scaled_nevents = ak.sum(self.weight)
         self.label = f"{label} ({self.scaled_nevents:0.2e})"
 

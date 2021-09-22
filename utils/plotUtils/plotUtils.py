@@ -176,7 +176,7 @@ def stack_error(ax, datalist, errors=None, **attrs):
 def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is_signals=None, density=0, sumw2=True, scale=True,
                title=None, xlabel=None, ylabel=None, figax=None, log=0, ratio=False, stacked=False, lumikey=None, **kwargs):
     if figax is None:
-        figax = plt.subplots()
+        figax = plt.subplots()  
     (fig, ax) = figax
 
     if scale is False:
@@ -241,7 +241,11 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
                 denlist.append(sample)
 
     if ylabel is None:
-        ylabel = "Fraction of Events" if density else "Events"
+        ylabel = "Events"
+        if scale == "xs":
+            ylabel = "Cross-Section (pb)"
+        if density:
+            ylabel = "Fraction of Events"
     if lumi != 1:
         title = f"{lumi/1000:0.1f} fb^{-1} {lumi_tag}"
 

@@ -50,7 +50,6 @@ def signal_order(selection, plot=True, saveas=None, **kwargs):
     tree = selection.tree
     subset = study.subset
     title = study.title
-    varinfo = study.varinfo
 
     if not plot:
         return
@@ -124,7 +123,6 @@ def selection(
     tree = selection.tree
     subset = study.subset
     title = study.title
-    varinfo = study.varinfo
 
     if not plot:
         return
@@ -475,7 +473,6 @@ def jets_2d_ordered(
     tree = selection.tree
     subset = study.subset
     title = study.title
-    varinfo = study.varinfo
 
     if not plot:
         return
@@ -603,7 +600,6 @@ def x_reco(selection, plot=True, saveas=None, scaled=False, **kwargs):
     tree = selection.tree
     subset = study.subset
     title = study.title
-    varinfo = study.varinfo
 
     if not plot:
         return
@@ -652,7 +648,6 @@ def x_res(selection, plot=True, saveas=None, **kwargs):
     tree = selection.tree
     subset = study.subset
     title = study.title
-    varinfo = study.varinfo
 
     if not plot:
         return
@@ -696,13 +691,12 @@ def x_res(selection, plot=True, saveas=None, **kwargs):
         save_fig(fig, "x_res", saveas)
 
 
-def njet(selection, plot=True, saveas=None, density=0, **kwargs):
+def njets(selection, plot=True, saveas=None, density=0, **kwargs):
     study = SignalStudy(selection, saveas=saveas, **kwargs)
     selection = study.selection
     tree = selection.tree
     subset = study.subset
     title = study.title
-    varinfo = study.varinfo
 
     if not plot:
         return
@@ -751,7 +745,6 @@ def presel(selection, plot=True, saveas=None, density=0, **kwargs):
     tree = selection.tree
     subset = study.subset
     title = study.title
-    varinfo = study.varinfo
 
     if not plot:
         return
@@ -792,7 +785,6 @@ def jet_issue(selection, plot=True, saveas=None, density=0, **kwargs):
     tree = selection.tree
     subset = study.subset
     title = study.title
-    varinfo = study.varinfo
 
     if not plot:
         return
@@ -842,7 +834,6 @@ def jet_comp(selection, plot=True, saveas=None, signal=False, density=0, **kwarg
     tree = selection.tree
     subset = study.subset
     title = study.title
-    varinfo = study.varinfo
 
     if not plot:
         return

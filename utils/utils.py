@@ -1,12 +1,19 @@
+import awkward as ak
 import git
 import numpy as np
-import awkward as ak
 
 GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
 
 
 def flatten(array): return ak.to_numpy(ak.flatten(array, axis=None))
 
+
+def ordinal(n): return "%d%s" % (
+    n, {1: "st", 2: "nd", 3: "rd"}.get(n if n < 20 else n % 10, "th"))
+
+
+def array_min(array, value): return ak.min(ak.concatenate(
+    ak.broadcast_arrays(value, array[:, np.newaxis]), axis=-1), axis=-1)
 
 def init_attr(attr, init, size):
     if attr is None:
