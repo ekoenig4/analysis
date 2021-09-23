@@ -1,5 +1,6 @@
 from ..selectUtils import *
 from ..xsecUtils import *
+from ..utils import *
 
 import uproot as ut
 import awkward as ak
@@ -43,7 +44,8 @@ def init_sample(self):  # Helper Method For Tree Class
 
 def init_tree(self):
     self.ttree = ut.lazy([fn.ttree for fn in self.filelist])
-    self.extended = dict(
+    self.fields = self.ttree.fields
+    self.extend(
         sample_id=ak.concatenate([ak.Array([i]*fn.raw_events)
                                  for i, fn in enumerate(self.filelist)]),
         scale=ak.concatenate([np.full(
@@ -51,7 +53,8 @@ def init_tree(self):
     )
 
     self.raw_events = sum(fn.raw_events for fn in self.filelist)
-    self.cutflow_labels = max((fn.cutflow_labels for fn in self.filelist if fn.cutflow_labels),key=lambda l:len(l))
+    self.cutflow_labels = max(
+        (fn.cutflow_labels for fn in self.filelist if fn.cutflow_labels), key=lambda l: len(l))
     ncutflow = len(self.cutflow_labels)
     self.cutflow = [ak.fill_none(ak.pad_none(
         fn.cutflow, ncutflow, axis=0, clip=True), 0).to_numpy() for fn in self.filelist]
@@ -93,85 +96,93 @@ class Tree:
         return "\n".join(sample_string)
 
     def __getitem__(self, key):
-        if str(key) in self.extended:
-            return self.extended[key]
         item = self.ttree[key]
         return item
 
+    def __getattr__(self,key): return self[key]
     def get(self, key): return self[key]
 
     def expected_events(self, lumikey=2018):
         lumi, _ = lumiMap[lumikey]
         return ak.sum(self["scale"])*lumi
 
-    def extend(self, **kwargs): self.extended.update(**kwargs)
-
-    def reco_XY(self):
-        def bjet_p4(key): return vector.obj(pt=self[f"gen_{key}_recojet_pt"], eta=self[f"gen_{key}_recojet_eta"],
-                                            phi=self[f"gen_{key}_recojet_phi"], mass=self[f"gen_{key}_recojet_m"])
-        hx_b1 = bjet_p4("HX_b1")
-        hx_b2 = bjet_p4("HX_b2")
-        hy1_b1 = bjet_p4("HY1_b1")
-        hy1_b2 = bjet_p4("HY1_b2")
-        hy2_b1 = bjet_p4("HY2_b1")
-        hy2_b2 = bjet_p4("HY2_b2")
-
-        Y = hy1_b1 + hy1_b2 + hy2_b1 + hy2_b2
-        X = hx_b1 + hx_b2 + Y
-
-        self.extend(**{"X_pt": X.pt, "X_m": X.mass, "X_eta": X.eta, "X_phi": X.phi,
-                       "Y_pt": Y.pt, "Y_m": Y.mass, "Y_eta": Y.eta, "Y_phi": Y.phi})
-
-    def calc_jet_dr(self, compare=None, tag="jet"):
-        select_eta = self.get("jet_eta")
-        select_phi = self["jet_phi"]
-
-        if compare is None:
-            compare = self.jets_selected
-
-        compare_eta = self["jet_eta"][compare]
-        compare_phi = self["jet_phi"][compare]
-
-        dr = calc_dr(select_eta, select_phi, compare_eta, compare_phi)
-        dr_index = ak.local_index(dr, axis=-1)
-
-        remove_self = dr != 0
-        dr = dr[remove_self]
-        dr_index = dr_index[remove_self]
-
-        imin_dr = ak.argmin(dr, axis=-1, keepdims=True)
-        imax_dr = ak.argmax(dr, axis=-1, keepdims=True)
-
-        min_dr = ak.flatten(dr[imin_dr], axis=-1)
-        imin_dr = ak.flatten(dr_index[imin_dr], axis=-1)
-
-        max_dr = ak.flatten(dr[imax_dr], axis=-1)
-        imax_dr = ak.flatten(dr_index[imax_dr], axis=-1)
-
-        self.extend(**{f"{tag}_min_dr": min_dr, f"{tag}_imin_dr": imin_dr,
-                       f"{tag}_max_dr": max_dr, f"{tag}_imax_dr": imax_dr})
-
-    def calc_event_shapes(self):
-        jet_pt, jet_eta, jet_phi, jet_m = self.get("jet_pt"), self.get(
-            "jet_eta"), self.get("jet_phi"), self.get("jet_m")
-
-        self.extend(
-            **calc_y23(jet_pt),
-            **calc_sphericity(jet_pt, jet_eta, jet_phi, jet_m),
-            **calc_thrust(jet_pt, jet_eta, jet_phi, jet_m),
-            **calc_asymmetry(jet_pt, jet_eta, jet_phi, jet_m),
-        )
-
-    def calc_btagsum(self):
-        for nj in (5, 6):
-            self.extend(
-                **{f"jet{nj}_btagsum": ak.sum(self.get("jet_btag")[:, :nj], axis=-1)})
+    def extend(self,*args, **kwargs): 
+        self.ttree = join_fields(self.ttree,*args, **kwargs)
+        self.fields = self.ttree.fields
 
     def copy(self):
         new_tree = CopyTree(self)
         return new_tree
 
+    def subset(self,nentries,randomize=True): 
+        tree = self.copy()
+        mask = [True]*nentries + [False]*(len(self.ttree)-nentries)
+        if randomize: np.random.shuffle(mask)
+        tree.ttree = tree.ttree[mask]
+        return tree
+
 
 class CopyTree(Tree):
     def __init__(self, tree):
         copy_fields(tree, self)
+
+def reco_XY(self):
+    def bjet_p4(key): return vector.obj(pt=self[f"gen_{key}_recojet_pt"], eta=self[f"gen_{key}_recojet_eta"],
+                                        phi=self[f"gen_{key}_recojet_phi"], mass=self[f"gen_{key}_recojet_m"])
+    hx_b1 = bjet_p4("HX_b1")
+    hx_b2 = bjet_p4("HX_b2")
+    hy1_b1 = bjet_p4("HY1_b1")
+    hy1_b2 = bjet_p4("HY1_b2")
+    hy2_b1 = bjet_p4("HY2_b1")
+    hy2_b2 = bjet_p4("HY2_b2")
+
+    Y = hy1_b1 + hy1_b2 + hy2_b1 + hy2_b2
+    X = hx_b1 + hx_b2 + Y
+
+    self.extend(**{"X_pt": X.pt, "X_m": X.mass, "X_eta": X.eta, "X_phi": X.phi,
+                    "Y_pt": Y.pt, "Y_m": Y.mass, "Y_eta": Y.eta, "Y_phi": Y.phi})
+
+def calc_jet_dr(self, compare=None, tag="jet"):
+    select_eta = self.get("jet_eta")
+    select_phi = self["jet_phi"]
+
+    if compare is None:
+        compare = self.jets_selected
+
+    compare_eta = self["jet_eta"][compare]
+    compare_phi = self["jet_phi"][compare]
+
+    dr = calc_dr(select_eta, select_phi, compare_eta, compare_phi)
+    dr_index = ak.local_index(dr, axis=-1)
+
+    remove_self = dr != 0
+    dr = dr[remove_self]
+    dr_index = dr_index[remove_self]
+
+    imin_dr = ak.argmin(dr, axis=-1, keepdims=True)
+    imax_dr = ak.argmax(dr, axis=-1, keepdims=True)
+
+    min_dr = ak.flatten(dr[imin_dr], axis=-1)
+    imin_dr = ak.flatten(dr_index[imin_dr], axis=-1)
+
+    max_dr = ak.flatten(dr[imax_dr], axis=-1)
+    imax_dr = ak.flatten(dr_index[imax_dr], axis=-1)
+
+    self.extend(**{f"{tag}_min_dr": min_dr, f"{tag}_imin_dr": imin_dr,
+                    f"{tag}_max_dr": max_dr, f"{tag}_imax_dr": imax_dr})
+
+def calc_event_shapes(self):
+    jet_pt, jet_eta, jet_phi, jet_m = self.get("jet_pt"), self.get(
+        "jet_eta"), self.get("jet_phi"), self.get("jet_m")
+
+    self.extend(
+        **calc_y23(jet_pt),
+        **calc_sphericity(jet_pt, jet_eta, jet_phi, jet_m),
+        **calc_thrust(jet_pt, jet_eta, jet_phi, jet_m),
+        **calc_asymmetry(jet_pt, jet_eta, jet_phi, jet_m),
+    )
+
+def calc_btagsum(self):
+    for nj in (5, 6):
+        self.extend(
+            **{f"jet{nj}_btagsum": ak.sum(self.get("jet_btag")[:, :nj], axis=-1)})

@@ -26,10 +26,10 @@ def autodim(nvar, dim=None, flip=False):
     return nrows, ncols
 
 
-def cutflow(*args, size=(16, 8), **kwargs):
-    study = Study(*args,sumw2=False,  **kwargs)
+def cutflow(*args, size=(16, 8),log=1, **kwargs):
+    study = Study(*args,sumw2=False,log=1,  **kwargs)
     def get_scaled_cutflow(tree): return ak.Array(
-        [fn.cutflow*fn.scale for fn in tree.filelist])
+        [cutflow*fn.scale for cutflow,fn in zip(tree.cutflow,tree.filelist)])
     scaled_cutflows = [get_scaled_cutflow(tree) for tree in study.selections]
     cutflow_bins = [ak.local_index(cutflow, axis=-1)
                     for cutflow in scaled_cutflows]
@@ -37,7 +37,6 @@ def cutflow(*args, size=(16, 8), **kwargs):
         (selection.cutflow_labels for selection in study.selections), key=lambda a: len(a))
     ncutflow = len(cutflow_labels)+1
     bins = np.arange(ncutflow)-0.5
-
     figax = None
     if size:
         figax = plt.subplots(figsize=size)
@@ -98,14 +97,10 @@ def overlay(tree, varlist=[], binlist=None, labels=None, dim=None, xlabels=None,
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
                             figsize=(int((16/3)*ncols), 5*nrows))
 
-    event_weights = study.get("scale")[0][0]
-    higgs_weights = study.get("higgs_scale")[0]
-
     for i, (group, bins, xlabel) in enumerate(varlist):
 
         hists = [study.get(var)[0] for var in group]
-        weights = next((weights for weights in [event_weights, weights, higgs_weights] if ak.count(
-            weights) == ak.count(hists[0])), None)
+        weights = [study.get_scale(var)[0] for var in group]
         if weights is not None:
             weights = [weights]*len(group)
         if labels is None:
@@ -140,9 +135,6 @@ def quick2d(*args, varlist=[], binlist=None, dim=None, flip=False, **kwargs):
     nrows, ncols = autodim(nvar, dim, flip)
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
                             figsize=(int((16/3)*ncols), 5*nrows))
-
-    event_weights = study.get("scale")
-    higgs_weights = study.get("higgs_scale")
 
     xbins, xlabel = study.format_var(xvar, bins=xbins, xlabel=xvar)
     ybins, ylabel = study.format_var(yvar, bins=ybins, xlabel=yvar)
@@ -254,11 +246,11 @@ def higgs(*args, **kwargs):
     nrows, ncols = 2, 2
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(16, 10))
 
-    higgs_weights = study.get("higgs_scale")
     for i, varname in enumerate(varlist):
         hists = study.get(varname)
+        weights = study.get_scale(varname)
         info = varinfo[varname]
-        hist_multi(hists, weights=higgs_weights, **info,
+        hist_multi(hists, weights=weights, **info,
                    figax=(fig, axs[i//ncols, i % ncols]), **study.attrs)
 
     fig.suptitle(study.title)

@@ -15,6 +15,7 @@ def ordinal(n): return "%d%s" % (
 def array_min(array, value): return ak.min(ak.concatenate(
     ak.broadcast_arrays(value, array[:, np.newaxis]), axis=-1), axis=-1)
 
+
 def init_attr(attr, init, size):
     if attr is None:
         return [init]*size
@@ -49,3 +50,25 @@ def autobin(data, nstd=3):
     xlo, xhi = max([minim, mean-nstd*stdv]), min([maxim, mean+nstd*stdv])
     nbins = min(int(1+np.sqrt(ndata)), 50)
     return np.linspace(xlo, xhi, nbins)
+
+
+def unzip_records(records):
+    return {field: array for field, array in zip(records.fields, ak.unzip(records))}
+
+def join_fields(awk1, *args, **kwargs):
+    args_unzipped = [ unzip_records(awk) for awk in args ]
+    new_fields= {}
+    for unzipped in args_unzipped:
+        new_fields.update(unzipped)
+    new_fields.update(kwargs)
+
+    awk1_unzipped= {field: array for field,
+                     array in zip(awk1.fields, ak.unzip(awk1))}
+    awk1_unzipped.update(**new_fields)
+    return ak.zip(awk1_unzipped, depth_limit=1)
+
+
+def get_collection(tree, name):
+    collection_branches = list(
+        filter(lambda branch: branch.startswith(name+'_'), tree.fields))
+    return tree[collection_branches]

@@ -2,6 +2,7 @@
 # coding: utf-8
 
 from ..utils import *
+from ..xsecUtils import lumiMap
 from ..classUtils.Sample import Samplelist
 from ..classUtils.Stack import Stack
 
@@ -11,18 +12,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # plt.rc('text', usetex=True)
 # plt.rc('font', family='serif')
-
-lumiMap = {
-    None: [1, None],
-    2016: [35900, "(13 TeV,2016)"],
-    2017: [41500, "(13 TeV,2017)"],
-    2018: [59740, "(13 TeV,2018)"],
-    20180: [14300, "(13 TeV,2018 A)"],
-    20181: [7070, "(13 TeV,2018 B)"],
-    20182: [6900, "(13 TeV,2018 C)"],
-    20183: [13540, "(13 TeV,2018 D)"],
-    "Run2": [101000, "13 TeV,Run 2)"],
-}
 
 
 def format_axis(ax, title=None, xlabel=None, ylabel=None, ylim=None, grid=False, **kwargs):
