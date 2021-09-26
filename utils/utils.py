@@ -36,8 +36,9 @@ def get_bin_widths(bins):
     return [(hi-lo)/2 for lo, hi in zip(bins[:-1], bins[1:])]
 
 
-def safe_divide(a, b):
-    tmp = np.full_like(a, None, dtype=float)
+def safe_divide(a, b, default=None):
+    a, b = np.array(a), np.array(b)
+    tmp = np.full_like(a, default, dtype=float)
     np.divide(a, b, out=tmp, where=(b != 0))
     return tmp
 
@@ -55,14 +56,15 @@ def autobin(data, nstd=3):
 def unzip_records(records):
     return {field: array for field, array in zip(records.fields, ak.unzip(records))}
 
+
 def join_fields(awk1, *args, **kwargs):
-    args_unzipped = [ unzip_records(awk) for awk in args ]
-    new_fields= {}
+    args_unzipped = [unzip_records(awk) for awk in args]
+    new_fields = {}
     for unzipped in args_unzipped:
         new_fields.update(unzipped)
     new_fields.update(kwargs)
 
-    awk1_unzipped= {field: array for field,
+    awk1_unzipped = {field: array for field,
                      array in zip(awk1.fields, ak.unzip(awk1))}
     awk1_unzipped.update(**new_fields)
     return ak.zip(awk1_unzipped, depth_limit=1)

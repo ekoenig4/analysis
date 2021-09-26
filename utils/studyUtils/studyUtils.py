@@ -26,10 +26,10 @@ def autodim(nvar, dim=None, flip=False):
     return nrows, ncols
 
 
-def cutflow(*args, size=(16, 8),log=1, **kwargs):
-    study = Study(*args,sumw2=False,log=1,  **kwargs)
+def cutflow(*args, size=(16, 8), log=1, **kwargs):
+    study = Study(*args, sumw2=False, log=1,  **kwargs)
     def get_scaled_cutflow(tree): return ak.Array(
-        [cutflow*fn.scale for cutflow,fn in zip(tree.cutflow,tree.filelist)])
+        [cutflow*fn.scale for cutflow, fn in zip(tree.cutflow, tree.filelist)])
     scaled_cutflows = [get_scaled_cutflow(tree) for tree in study.selections]
     cutflow_bins = [ak.local_index(cutflow, axis=-1)
                     for cutflow in scaled_cutflows]
@@ -101,8 +101,6 @@ def overlay(tree, varlist=[], binlist=None, labels=None, dim=None, xlabels=None,
 
         hists = [study.get(var)[0] for var in group]
         weights = [study.get_scale(var)[0] for var in group]
-        if weights is not None:
-            weights = [weights]*len(group)
         if labels is None:
             study.attrs['labels'] = group
 
@@ -112,7 +110,6 @@ def overlay(tree, varlist=[], binlist=None, labels=None, dim=None, xlabels=None,
             ax = axs[i]
         else:
             ax = axs[i//ncols, i % ncols]
-
         hist_multi(hists, bins=bins, weights=weights,
                    xlabel=xlabel, **study.attrs, figax=(fig, ax))
 

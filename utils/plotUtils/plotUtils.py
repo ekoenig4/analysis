@@ -21,7 +21,7 @@ def format_axis(ax, title=None, xlabel=None, ylabel=None, ylim=None, grid=False,
         ax.grid()
     if type(xlabel) == str:
         ax.set_xlabel(xlabel)
-    else:
+    elif xlabel is not None:
         ax.set_xticks(range(len(xlabel)))
 
         rotation = 0
@@ -165,7 +165,7 @@ def stack_error(ax, datalist, errors=None, **attrs):
 def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is_signals=None, density=0, sumw2=True, scale=True,
                title=None, xlabel=None, ylabel=None, figax=None, log=0, ratio=False, stacked=False, lumikey=None, **kwargs):
     if figax is None:
-        figax = plt.subplots()  
+        figax = plt.subplots()
     (fig, ax) = figax
 
     if scale is False:
@@ -287,7 +287,7 @@ def plot_mask_stack_comparison(datalist, bins=None, title=None, xlabel=None, fig
     return (fig, ax)
 
 
-def hist2d_simple(xdata, ydata, xbins=None, ybins=None, title=None, xlabel=None, ylabel=None, figax=None, weights=None, lumikey=None, density=0, log=1, grid=False, label=None, **kwargs):
+def hist2d_simple(xdata, ydata, xbins=None, ybins=None, title=None, xlabel=None, ylabel=None, figax=None, weights=None, lumikey=None, density=0, log=1, grid=False, label=None, cmap="YlOrRd", **kwargs):
     if figax is None:
         figax = plt.subplots()
     (fig, ax) = figax
@@ -309,13 +309,13 @@ def hist2d_simple(xdata, ydata, xbins=None, ybins=None, title=None, xlabel=None,
         nevnts = ak.sum(weights)
 
     n, bx, by, im = ax.hist2d(np.array(xdata), np.array(ydata), (xbins, ybins), weights=weights,
-                              density=density, norm=clrs.LogNorm() if log else clrs.Normalize(), cmap="jet")
+                              density=density, norm=clrs.LogNorm() if log else clrs.Normalize(), cmap=cmap)
 
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
     ax.set_title(title)
     if label:
-        ax.text(0.05, 0.9, f"{label} ({nevnts:0.2e})", transform=ax.transAxes)
+        ax.text(0.05, 1.01, f"{label} ({nevnts:0.2e})", transform=ax.transAxes)
 
     if grid:
         ax.set_yticks(ybins)

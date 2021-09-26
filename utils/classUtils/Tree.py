@@ -99,25 +99,26 @@ class Tree:
         item = self.ttree[key]
         return item
 
-    def __getattr__(self,key): return self[key]
+    def __getattr__(self, key): return self[key]
     def get(self, key): return self[key]
 
     def expected_events(self, lumikey=2018):
         lumi, _ = lumiMap[lumikey]
         return ak.sum(self["scale"])*lumi
 
-    def extend(self,*args, **kwargs): 
-        self.ttree = join_fields(self.ttree,*args, **kwargs)
+    def extend(self, *args, **kwargs):
+        self.ttree = join_fields(self.ttree, *args, **kwargs)
         self.fields = self.ttree.fields
 
     def copy(self):
         new_tree = CopyTree(self)
         return new_tree
 
-    def subset(self,nentries,randomize=True): 
+    def subset(self, nentries, randomize=True):
         tree = self.copy()
         mask = [True]*nentries + [False]*(len(self.ttree)-nentries)
-        if randomize: np.random.shuffle(mask)
+        if randomize:
+            np.random.shuffle(mask)
         tree.ttree = tree.ttree[mask]
         return tree
 
@@ -125,6 +126,7 @@ class Tree:
 class CopyTree(Tree):
     def __init__(self, tree):
         copy_fields(tree, self)
+
 
 def reco_XY(self):
     def bjet_p4(key): return vector.obj(pt=self[f"gen_{key}_recojet_pt"], eta=self[f"gen_{key}_recojet_eta"],
@@ -140,7 +142,8 @@ def reco_XY(self):
     X = hx_b1 + hx_b2 + Y
 
     self.extend(**{"X_pt": X.pt, "X_m": X.mass, "X_eta": X.eta, "X_phi": X.phi,
-                    "Y_pt": Y.pt, "Y_m": Y.mass, "Y_eta": Y.eta, "Y_phi": Y.phi})
+                   "Y_pt": Y.pt, "Y_m": Y.mass, "Y_eta": Y.eta, "Y_phi": Y.phi})
+
 
 def calc_jet_dr(self, compare=None, tag="jet"):
     select_eta = self.get("jet_eta")
@@ -169,7 +172,8 @@ def calc_jet_dr(self, compare=None, tag="jet"):
     imax_dr = ak.flatten(dr_index[imax_dr], axis=-1)
 
     self.extend(**{f"{tag}_min_dr": min_dr, f"{tag}_imin_dr": imin_dr,
-                    f"{tag}_max_dr": max_dr, f"{tag}_imax_dr": imax_dr})
+                   f"{tag}_max_dr": max_dr, f"{tag}_imax_dr": imax_dr})
+
 
 def calc_event_shapes(self):
     jet_pt, jet_eta, jet_phi, jet_m = self.get("jet_pt"), self.get(
@@ -181,6 +185,7 @@ def calc_event_shapes(self):
         **calc_thrust(jet_pt, jet_eta, jet_phi, jet_m),
         **calc_asymmetry(jet_pt, jet_eta, jet_phi, jet_m),
     )
+
 
 def calc_btagsum(self):
     for nj in (5, 6):

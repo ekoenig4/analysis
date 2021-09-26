@@ -19,9 +19,9 @@ tagMap = {
 }
 
 colorMap = {
-    "QCD": "tab:blue",
-    "Signal": "tab:orange",
-    "TTJets": "tab:green",
+    "QCD": "blue",
+    "Signal": "orange",
+    "TTJets": "green",
     "Data": "black",
     "Bkg": "grey"
 }
