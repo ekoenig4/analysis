@@ -82,7 +82,6 @@ def get_jet_position(jet_index, jet_mask):
 
 
 def calc_dphi(phi_1, phi_2):
-    phi_2, phi_1 = ak.broadcast_arrays(phi_2[:, np.newaxis], phi_1)
     dphi = phi_2 - phi_1
     shift_over = ak.where(dphi > np.pi, -2*np.pi, 0)
     shift_under = ak.where(dphi <= -np.pi, 2*np.pi, 0)
@@ -90,7 +89,6 @@ def calc_dphi(phi_1, phi_2):
 
 
 def calc_deta(eta_1, eta_2):
-    eta_2, eta_1 = ak.broadcast_arrays(eta_2[:, np.newaxis], eta_1)
     return eta_2 - eta_1
 
 

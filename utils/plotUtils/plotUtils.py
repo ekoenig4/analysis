@@ -78,6 +78,18 @@ def graph_multi(xdata, ydatalist, yerrs=None, title=None, labels=None, markers=N
     return (fig, ax)
 
 
+def graph_avgstd(ydata, ylabel=None, xlabels=None, set={}, figax=None):
+    ndata = len(ydata)
+    ydata = np.array([get_avg_std(array) for array in ydata])
+    fig, ax = graph_multi(range(ndata), ydatalist=[ydata[:, 0]], yerrs=[
+                          ydata[:, 1]], ylabel=ylabel, figax=figax)
+    ax.set_xticks(list(range(ndata)))
+    if xlabels:
+        ax.set_xticklabels(xlabels, rotation=45)
+    ax.set(**set)
+    return fig, ax
+
+
 def plot_simple(data, bins=None, xlabel=None, title=None, label=None, figax=None):
     if figax is None:
         figax = plt.subplots()

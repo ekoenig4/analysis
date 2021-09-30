@@ -1,4 +1,6 @@
 from ..utils import *
+from ..classUtils import TreeIter
+
 
 def get_operation(tags, operation, default):
     k, v = next(((tag, operation[tag])
@@ -14,7 +16,7 @@ functions = {'abs': lambda a: np.abs(a), }
 
 methods = {'min': lambda a, v: a > v, 'max': lambda a, v: a < v,
            'emin': lambda a, v: a >= v, 'emax': lambda a, v: a <= v,
-           'bit': lambda a, v: (1 << v) == a & (1 << v)}
+           'bit': lambda a, v: (1 << v) == a & (1 << v), 'neq': lambda a, v: a != v}
 
 
 def build_collection_filter(name, key, value, functions=functions, methods=methods):
@@ -29,7 +31,7 @@ def build_collection_filter(name, key, value, functions=functions, methods=metho
         def method(a, v): return a == v
     variable = name+'_'+'_'.join(tags)
     def operation(collection): return method(
-        function(collection[variable]), value)
+        function(getattr(collection, variable)), value)
     return operation
 
 
@@ -51,11 +53,12 @@ def build_event_filter(key, value, functions=functions, methods=methods):
 
 def update_cutflow(tree, tag):
     tree.cutflow_labels = tree.cutflow_labels+[tag]
-    for i, cutflow in enumerate(tree.cutflow):
-        new_cutflow = np.append(cutflow, ak.sum(tree['sample_id'] == i))
-        tree.cutflow[i] = new_cutflow
+    new_cutflow = [np.append(cutflow, ak.sum(tree['sample_id'] == i))
+                   for i, cutflow in enumerate(tree.cutflow)]
+    tree.cutflow = new_cutflow
 
-def event_filter(self,tree):
+
+def event_filter(self, tree):
     tree = tree.copy()
 
     collection = tree.ttree
@@ -63,7 +66,7 @@ def event_filter(self,tree):
     for filter in self.filters:
         mask = mask & filter(collection)
     tree.extend(collection[mask])
-    update_cutflow(tree,self.name)
+    update_cutflow(tree, self.name)
 
     return tree
 
@@ -75,24 +78,33 @@ class EventFilter:
                         for key, value in kwargs.items()]
 
     def filter(self, tree, filter=None):
-        if filter: tree = filter.filter(tree)
-        if type(tree) == list: return [ event_filter(self,t) for t in tree ]
-        return event_filter(self,tree)
+        if filter:
+            tree = filter.filter(tree)
+        if type(tree) == list:
+            return [event_filter(self, t) for t in tree]
+        if str(type(tree)) == str(TreeIter):
+            return TreeIter([event_filter(self, t) for t in tree])
+        return event_filter(self, tree)
 
-def collection_filter(self,tree):
+
+def collection_filter(self, tree):
     tree = tree.copy()
 
     collection = get_collection(tree, self.collection)
+    setattr(collection, f"{self.collection}_index", ak.local_index(
+        collection[f"{self.collection}_pt"], axis=-1))
+
     mask = True
     for filter in self.filters:
         mask = mask & filter(collection)
 
     collection_records = {f"n_{self.newname}": ak.sum(mask, axis=-1)}
     collection_records.update({field.replace(self.collection, self.newname): array for field, array in zip(
-        collection.fields, ak.unzip(collection[mask]))})
+        collection.fields, ak.unzip(collection[mask])) if not field.endswith('index')})
     tree.extend(**collection_records)
 
     return tree
+
 
 class CollectionFilter:
     def __init__(self, collection, newname=None, **kwargs):
@@ -102,5 +114,8 @@ class CollectionFilter:
                         for key, value in kwargs.items()]
 
     def filter(self, tree):
-        if type(tree) == list: return [ collection_filter(self,t) for t in tree ]
-        return collection_filter(self,tree)
+        if type(tree) == list:
+            return [collection_filter(self, t) for t in tree]
+        if str(type(tree)) == str(TreeIter):
+            return TreeIter([event_filter(self, t) for t in tree])
+        return collection_filter(self, tree)

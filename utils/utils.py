@@ -70,7 +70,21 @@ def join_fields(awk1, *args, **kwargs):
     return ak.zip(awk1_unzipped, depth_limit=1)
 
 
-def get_collection(tree, name):
+def get_collection(tree, name, named=True):
     collection_branches = list(
         filter(lambda branch: branch.startswith(name+'_'), tree.fields))
-    return tree[collection_branches]
+
+    branches = tree[collection_branches]
+    if named:
+        return branches
+
+    branches_unzipped = {field.replace(name+'_', ''): array for field,
+                         array in zip(branches.fields, ak.unzip(branches))}
+    return ak.zip(branches_unzipped, depth_limit=1)
+
+
+def get_avg_std(array):
+    array = array[~np.isnan(array)]
+    avg = ak.mean(array)
+    std = ak.std(array)
+    return avg, std

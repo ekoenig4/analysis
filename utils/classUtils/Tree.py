@@ -128,6 +128,43 @@ class CopyTree(Tree):
         copy_fields(tree, self)
 
 
+class TreeMethodIter:
+    def __init__(self, trees, calls):
+        self.trees = trees
+        self.calls = calls
+        self.calliter = zip(trees, calls)
+
+    def __str__(self): return str(self.calls)
+    def __iter__(self): return iter(self.calls)
+    def __getitem__(self, key): return self.calls[key]
+
+    def __call__(self, *a, args=lambda t: [], kwargs=lambda t: {}, **kw):
+        f_args, f_kwargs = args, kwargs
+        if not callable(f_args):
+            def f_args(t): return args
+        if not callable(f_kwargs):
+            def f_kwargs(t): return kwargs
+
+        def build_args(t): return list(a)+list(f_args(t))
+        def build_kwargs(t): return dict(**f_kwargs(t), **kw)
+        return [call(*build_args(t), **build_kwargs(t)) for t, call in self.calliter]
+
+
+class TreeIter:
+    def __init__(self, trees):
+        self.trees = trees
+
+    def __str__(self): return str(self.trees)
+    def __iter__(self): return iter(self.trees)
+    def __getitem__(self, key): return self.trees[key]
+
+    def __getattr__(self, key):
+        attriter = [getattr(tree, key) for tree in self]
+        if callable(attriter[0]):
+            attriter = TreeMethodIter(self.trees, attriter)
+        return attriter
+
+
 def reco_XY(self):
     def bjet_p4(key): return vector.obj(pt=self[f"gen_{key}_recojet_pt"], eta=self[f"gen_{key}_recojet_eta"],
                                         phi=self[f"gen_{key}_recojet_phi"], mass=self[f"gen_{key}_recojet_m"])

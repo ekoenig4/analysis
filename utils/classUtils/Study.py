@@ -2,7 +2,9 @@ from datetime import date
 import os
 
 from ..utils import *
+from ..testUtils import is_iter
 from ..varConfig import varinfo
+from ..classUtils import TreeIter
 
 date_tag = date.today().strftime("%Y%m%d")
 
@@ -23,9 +25,11 @@ def save_fig(fig, directory, saveas, base=GIT_WD):
 
 class Study:
     def __init__(self, selections, labels=None, density=0, log=0, ratio=0, stacked=0, lumikey=2018, sumw2=True, title=None, saveas=None, masks=None, **kwargs):
-        if type(selections) == tuple:
+        if str(type(selections)) == str(TreeIter):
+            selections = selections.trees
+        elif is_iter(selections):
             selections = list(selections)
-        if type(selections) != list:
+        elif type(selections) != list:
             selections = [selections]
 
         self.selections = selections
