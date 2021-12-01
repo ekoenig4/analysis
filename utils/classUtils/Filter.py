@@ -16,23 +16,15 @@ functions = {'abs': lambda a: np.abs(a), }
 
 methods = {'min': lambda a, v: a > v, 'max': lambda a, v: a < v,
            'emin': lambda a, v: a >= v, 'emax': lambda a, v: a <= v,
-           'bit': lambda a, v: (1 << v) == a & (1 << v), 'neq': lambda a, v: a != v}
+           'bit': lambda a, v: (1 << v) == a & (1 << v), 'neq': lambda a, v: a != v,
+           'mask': lambda a, v: a[v]}
 
 
-def build_collection_filter(name, key, value, functions=functions, methods=methods):
-    tags = key.split('_')
-
-    function = get_operation(tags, functions, lambda a: a)
-    if function is None:
-        def function(a): return a
-
-    method = get_operation(tags, methods, lambda a, v: a == v)
-    if method is None:
-        def method(a, v): return a == v
-    variable = name+'_'+'_'.join(tags)
-    def operation(collection): return method(
-        function(getattr(collection, variable)), value)
-    return operation
+def update_cutflow(tree, tag):
+    tree.cutflow_labels = tree.cutflow_labels+[tag]
+    new_cutflow = [np.append(cutflow, ak.sum(tree['sample_id'] == i))
+                   for i, cutflow in enumerate(tree.cutflow)]
+    tree.cutflow = new_cutflow
 
 
 def build_event_filter(key, value, functions=functions, methods=methods):
@@ -45,17 +37,16 @@ def build_event_filter(key, value, functions=functions, methods=methods):
     method = get_operation(tags, methods, lambda a, v: a == v)
     if method is None:
         def method(a, v): return a == v
-    variable = '_'.join(tags)
-    def operation(collection): return method(
-        function(collection[variable]), value)
+    variable, index = '_'.join(tags), None
+    if ":" in variable:
+        variable, index = variable.split(":")
+
+    def operation(collection):
+        array = collection[variable]
+        if index is not None:
+            array = array[:, int(index)]
+        return method(function(array), value)
     return operation
-
-
-def update_cutflow(tree, tag):
-    tree.cutflow_labels = tree.cutflow_labels+[tag]
-    new_cutflow = [np.append(cutflow, ak.sum(tree['sample_id'] == i))
-                   for i, cutflow in enumerate(tree.cutflow)]
-    tree.cutflow = new_cutflow
 
 
 def event_filter(self, tree):
@@ -87,14 +78,34 @@ class EventFilter:
         return event_filter(self, tree)
 
 
+def build_collection_filter(name, key, value, functions=functions, methods=methods):
+    tags = key.split('_')
+
+    function = get_operation(tags, functions, lambda a: a)
+    if function is None:
+        def function(a): return a
+
+    method = get_operation(tags, methods, lambda a, v: a == v)
+    if method is None:
+        def method(a, v): return a == v
+    variable = name+'_'+'_'.join(tags)
+    def operation(collection): return method(
+        function(getattr(collection, variable)), value)
+    return operation
+
+
 def collection_filter(self, tree):
     tree = tree.copy()
 
     collection = get_collection(tree, self.collection)
+
+    if self.mask is not None:
+        collection = collection[self.mask]
+
     setattr(collection, f"{self.collection}_index", ak.local_index(
         collection[f"{self.collection}_pt"], axis=-1))
 
-    mask = True
+    mask = getattr(collection,f'{self.collection}_index') > -1
     for filter in self.filters:
         mask = mask & filter(collection)
 
@@ -107,9 +118,10 @@ def collection_filter(self, tree):
 
 
 class CollectionFilter:
-    def __init__(self, collection, newname=None, **kwargs):
+    def __init__(self, collection, newname=None, mask=None, **kwargs):
         self.collection = collection
         self.newname = newname if newname else collection
+        self.mask = mask
         self.filters = [build_collection_filter(collection, key, value)
                         for key, value in kwargs.items()]
 
@@ -117,5 +129,15 @@ class CollectionFilter:
         if type(tree) == list:
             return [collection_filter(self, t) for t in tree]
         if str(type(tree)) == str(TreeIter):
-            return TreeIter([event_filter(self, t) for t in tree])
+            return TreeIter([collection_filter(self, t) for t in tree])
         return collection_filter(self, tree)
+
+
+class FilterSequence:
+    def __init__(self, *filters):
+        self.filters = filters
+
+    def filter(self, tree):
+        for filter in self.filters:
+            tree = filter.filter(tree)
+        return tree

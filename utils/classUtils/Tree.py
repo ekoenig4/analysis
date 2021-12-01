@@ -122,6 +122,11 @@ class Tree:
         tree.ttree = tree.ttree[mask]
         return tree
 
+    def reorder_collection(self,collection,order):
+        tree = self.copy()
+        collection = get_collection(tree,collection)
+        tree.extend( reorder_collection(collection,order) )
+        return tree
 
 class CopyTree(Tree):
     def __init__(self, tree):
