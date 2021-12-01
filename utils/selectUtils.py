@@ -279,7 +279,7 @@ def calc_sphericity(jet_pt, jet_eta, jet_phi, jet_m, njet=-1):
     A = 3/2 * eig_w3
     F = eig_w2/eig_w1
 
-    return dict(M_eig_w1=eig_w1, M_eig_w2=eig_w2, M_eig_w3=eig_w3, event_S=S, event_St=St, event_A=A, event_F=F)
+    return dict(M_eig_w1=eig_w1, M_eig_w2=eig_w2, M_eig_w3=eig_w3, sphericity=S, sphericity_t=St, aplanarity=A, F=F)
 
 
 def find_thrust_phi(jet_px, jet_py, tol=1e-05, niter=10, gr=(1+np.sqrt(5))/2):
@@ -334,7 +334,7 @@ def calc_thrust(jet_pt, jet_eta, jet_phi, jet_m):
     Tm = ak.sum(np.abs(jet_px*np.sin(thrust_phi)-jet_py *
                 np.cos(thrust_phi)), axis=-1)/jet_ht
 
-    return dict(thrust_phi=thrust_phi, event_Tt=Tt, event_Tm=Tm)
+    return dict(thrust_phi=thrust_phi, thrust_t=Tt, thrust_axis=Tm)
 
 
 def calc_asymmetry(jet_pt, jet_eta, jet_phi, jet_m, njet=-1):
@@ -351,7 +351,7 @@ def calc_asymmetry(jet_pt, jet_eta, jet_phi, jet_m, njet=-1):
 
     AL = ak.sum(jet_pz, axis=-1)/ak.sum(jet_p, axis=-1)
 
-    return dict(event_AL=AL)
+    return dict(asymmetry=AL)
 
 
 def optimize_var_cut(selections, variable, varmin=None, varmax=None, method=min, plot=False):

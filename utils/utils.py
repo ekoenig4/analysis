@@ -83,6 +83,10 @@ def get_collection(tree, name, named=True):
     return ak.zip(branches_unzipped, depth_limit=1)
 
 
+def reorder_collection(collection, order):
+    return collection[order]
+
+
 def get_avg_std(array):
     array = array[~np.isnan(array)]
     avg = ak.mean(array)
