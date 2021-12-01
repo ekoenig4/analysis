@@ -1,9 +1,15 @@
 from tqdm import tqdm
 import awkward as ak
 import numpy as np
-from ..utils import get_collection
+from ..utils import get_collection, join_fields, unzip_records
 from ..selectUtils import calc_dr
+import vector
 
+
+def build_dijet(jet_pair):
+    p4_array = [vector.obj(pt=jet_pair.pt[:,i],eta=jet_pair.eta[:,i],phi=jet_pair.phi[:,i],m=jet_pair.m[:,i]) for i in range(2)]
+    dijet_p4 = p4_array[0]+p4_array[1]
+    return dijet_p4
 
 def build_input(jet_pair):
     order = ak.argsort(-jet_pair.pt, axis=-1)
@@ -33,24 +39,36 @@ def process_dijets(jets, model):
         [4, 5]
     ]
 
-    dijet_pair_scores = []
-    dijet_pair_target = []
+    pair_data = {'score':[],'pt':[],'target':[]}
 
     for pair in tqdm(dijet_pairs):
         pair_mask = ak.Array([pair]*len(jets))
         jet_pair = jets[pair_mask]
         score, target = get_score(jet_pair, model)
-        dijet_pair_scores.append(score)
-        dijet_pair_target.append(target)
-    dijet_record = ak.zip({'score': ak.concatenate(
-        dijet_pair_scores, axis=-1), 'target': ak.concatenate(dijet_pair_target, axis=-1)})
+        dijet_p4 = build_dijet(jet_pair)
+
+        pair_data['score'].append(score)
+        pair_data['pt'].append(dijet_p4.pt)
+        pair_data['target'].append(target)
+
+    ndata = len(jets)
+    for key in pair_data: pair_data[key] = ak.Array(np.array(pair_data[key]).reshape(ndata,15))
+
+    dijet_record = ak.zip(pair_data)
     return dijet_record
 
+def reorder_features(data,order):
+    unzipped = unzip_records(data)
+    nhiggs = unzipped.pop('nhiggs')
+    reordered = ak.zip(unzipped)[order]
+    return join_fields(reordered,nhiggs=nhiggs)
 
-def prep_triH_data(data):
-    scores = ak.sort(data.score, axis=-1)
+def prep_triH_data(data,reorder=True):
+    if reorder:
+        order = ak.argsort(data.score,axis=-1)
+        data = data[order]
     nhiggs = ak.sum(data.target, axis=-1)
-    return ak.zip({'score': scores, 'nhiggs': nhiggs}, depth_limit=1)
+    return join_fields(data,nhiggs=nhiggs)
 
 
 def process_triH(dijets):
@@ -61,17 +79,34 @@ def process_triH(dijets):
                    [4,  5, 12], [4,  6, 10], [4,  7,  9]]
     triH_data = [prep_triH_data(dijets[:, combo]) for combo in triH_combos]
 
-    scores = ak.concatenate([data.score for data in triH_data])
-    nhiggs = ak.concatenate([data.nhiggs for data in triH_data])
-    return ak.zip(dict(scores=scores, nhiggs=nhiggs), depth_limit=1)
+    fields = triH_data[0].fields
+    unzipped = { field:ak.concatenate([data[field] for data in triH_data]) for field in fields }
+    return ak.zip(unzipped, depth_limit=1)
 
 
-def process(training, model):
-    jets = get_collection(training, 'jet', named=False)
+def process(training, model, collection='jet'):
+    jets = get_collection(training, collection, named=False)
     dijets = process_dijets(jets, model)
     triH = process_triH(dijets)
     return triH
 
 
+def reshape_features(scores, nhiggs):
+    ndata = len(nhiggs)//15
+    scores = ak.Array(scores.to_numpy().reshape(ndata, 15, 3))
+    nhiggs = ak.Array(nhiggs.to_numpy().reshape(ndata, 15))
+    return ak.zip(dict(scores=scores, nhiggs=nhiggs), depth_limit=1)
+
+
+def reshape_dataset(dataset):
+    return reshape_features(dataset.scores, dataset.nhiggs)
+
+
+def reshape(scores=None, nhiggs=None, dataset=None):
+    if dataset is not None:
+        return reshape_dataset(dataset)
+    return reshape_features(scores, nhiggs)
+
+
 def to_pandas(data):
-    return ak.to_pandas(ak.zip({'score0': data.scores[:, 0], 'score1': data.scores[:, 1], 'score2': data.scores[:, 2], 'nhiggs': data.nhiggs}))
+    return ak.to_pandas(ak.zip({'score0': data.score[:, 0], 'score1': data.score[:, 1], 'score2': data.score[:, 2], 'nhiggs': data.nhiggs}))
