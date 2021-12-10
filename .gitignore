@@ -151,3 +151,7 @@ dmypy.json
 
 #SLURM
 *.out
+
+#Pytorch
+lightning_logs
+processed
