@@ -83,9 +83,9 @@ def get_jet_position(jet_index, jet_mask):
 
 def calc_dphi(phi_1, phi_2):
     dphi = phi_2 - phi_1
-    shift_over = ak.where(dphi > np.pi, -2*np.pi, 0)
-    shift_under = ak.where(dphi <= -np.pi, 2*np.pi, 0)
-    return dphi + shift_over + shift_under
+    dphi_shift = 2*np.pi*(1*(dphi <= -np.pi)-1*(dphi > np.pi))
+    dphi = dphi + dphi_shift
+    return dphi
 
 
 def calc_deta(eta_1, eta_2):
