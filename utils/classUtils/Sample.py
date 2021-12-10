@@ -2,7 +2,7 @@ from ..utils import *
 
 
 class Sample:
-    def __init__(self, data, bins=None, weight=None, density=False, lumi=1, label="", is_data=False, is_signal=False, sumw2=True, scale=True, **attrs):
+    def __init__(self, data, bins=None, weight=None, density=False, cumulative=False, lumi=1, label="", is_data=False, is_signal=False, sumw2=True, scale=True, **attrs):
         self.data = flatten(data)
         self.nevents = len(self.data)
 
@@ -12,6 +12,7 @@ class Sample:
         self.color = attrs.get("color", None)
 
         self.attrs = attrs
+        self.attrs["cumulative"] = cumulative
 
         self.bins = autobin(self.data) if bins is None else bins
         self.weight = np.array(
@@ -27,7 +28,7 @@ class Sample:
         self.scaled_nevents = ak.sum(self.weight)
         self.label = f"{label} ({self.scaled_nevents:0.2e})"
 
-        if density:
+        if density or cumulative:
             self.weight = self.weight/self.scaled_nevents
         self.histo = np.histogram(
             self.data, bins=self.bins, weights=self.weight)[0]
@@ -39,9 +40,13 @@ class Sample:
         else:
             self.error = np.sqrt(self.histo)
 
+        if cumulative:
+            self.histo = np.cumsum(self.histo)
+            self.error = np.cumsum(self.error)
+
 
 class Samplelist(list):
-    def __init__(self, datalist, bins, weights=None, density=False, lumi=1, labels="", is_datas=False, is_signals=False, sumw2=True, scale=True, **attrs):
+    def __init__(self, datalist, bins, weights=None, density=False, cumulative=False, lumi=1, labels="", is_datas=False, is_signals=False, sumw2=True, scale=True, **attrs):
         self.bins = bins
         self.density = density
         self.lumi = lumi
@@ -58,7 +63,7 @@ class Samplelist(list):
                 attrs[key], defaults.get(key, None), self.nsample)
 
         for i, data in enumerate(datalist):
-            sample = Sample(data, bins=self.bins, weight=weights[i], lumi=lumi, density=density, label=labels[i], sumw2=sumw2, scale=scale,
+            sample = Sample(data, bins=self.bins, weight=weights[i], lumi=lumi, density=density, cumulative=cumulative, label=labels[i], sumw2=sumw2, scale=scale,
                             is_data=is_datas[i], is_signal=is_signals[i], **{key[:-1]: value[i] for key, value in attrs.items()})
             if self.bins is None:
                 self.bins = sample.bins

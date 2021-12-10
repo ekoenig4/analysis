@@ -174,7 +174,7 @@ def stack_error(ax, datalist, errors=None, **attrs):
     return histo, error
 
 
-def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is_signals=None, density=0, sumw2=True, scale=True,
+def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is_signals=None, density=False, cumulative=False, sumw2=True, scale=True,
                title=None, xlabel=None, ylabel=None, figax=None, log=0, ratio=False, stacked=False, lumikey=None, **kwargs):
     if figax is None:
         figax = plt.subplots()
@@ -186,7 +186,7 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
     lumi, lumi_tag = lumiMap[lumikey]
     attrs = {key[2:]: value for key,
              value in kwargs.items() if key.startswith("s_")}
-    samples = Samplelist(datalist, bins, weights=weights, density=density, lumi=lumi, labels=labels,
+    samples = Samplelist(datalist, bins, weights=weights, density=density, cumulative=cumulative,lumi=lumi, labels=labels,
                          is_datas=is_datas, is_signals=is_signals, sumw2=sumw2, scale=scale, **attrs)
 
     bins = samples.bins
