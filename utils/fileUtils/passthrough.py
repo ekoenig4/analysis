@@ -1,6 +1,5 @@
 base = "/eos/uscms/store/user/ekoenig/6BAnalysis/NTuples/2018/PASS"
 
-NN_NMSSM_MX_700_MY_400 = f"{base}/NMSSM/NMSSM_XYH_YToHH_6b_MX_700_MY_400_10M/ntuple_training.root"
 NMSSM_MX_450_MY_300 = f"{base}/NMSSM/NMSSM_XYH_YToHH_6b_MX_450_MY_300/ntuple.root"
 NMSSM_MX_500_MY_300 = f"{base}/NMSSM/NMSSM_XYH_YToHH_6b_MX_500_MY_300/ntuple.root"
 NMSSM_MX_600_MY_300 = f"{base}/NMSSM/NMSSM_XYH_YToHH_6b_MX_600_MY_300/ntuple.root"
@@ -8,6 +7,9 @@ NMSSM_MX_600_MY_400 = f"{base}/NMSSM/NMSSM_XYH_YToHH_6b_MX_600_MY_400/ntuple.roo
 NMSSM_MX_700_MY_300 = f"{base}/NMSSM/NMSSM_XYH_YToHH_6b_MX_700_MY_300/ntuple.root"
 NMSSM_MX_700_MY_400 = f"{base}/NMSSM/NMSSM_XYH_YToHH_6b_MX_700_MY_400/ntuple.root"
 NMSSM_MX_700_MY_500 = f"{base}/NMSSM/NMSSM_XYH_YToHH_6b_MX_700_MY_500/ntuple.root"
+
+TRAINING_MX_700_MY_400 = f"{base}/NMSSM/NMSSM_XYH_YToHH_6b_MX_700_MY_400/training.root"
+TESTING_MX_700_MY_400 = f"{base}/NMSSM/NMSSM_XYH_YToHH_6b_MX_700_MY_400/testing.root"
 
 NMSSM_List = [NMSSM_MX_450_MY_300, NMSSM_MX_500_MY_300, NMSSM_MX_600_MY_300,
               NMSSM_MX_600_MY_400, NMSSM_MX_700_MY_300, NMSSM_MX_700_MY_400, NMSSM_MX_700_MY_500]
