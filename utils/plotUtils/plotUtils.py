@@ -10,8 +10,10 @@ import matplotlib.colors as clrs
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-# plt.rc('text', usetex=True)
-# plt.rc('font', family='serif')
+
+plt.style.use('science')
+plt.rcParams["figure.figsize"] = (10,10)
+plt.rcParams['font.size'] =  15
 
 
 def format_axis(ax, title=None, xlabel=None, ylabel=None, ylim=None, grid=False, **kwargs):
@@ -248,7 +250,7 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
         if density:
             ylabel = "Fraction of Events"
     if lumi != 1:
-        title = f"{lumi/1000:0.1f} fb^{-1} {lumi_tag}"
+        title = f"{lumi/1000:0.1f} $fb^{'{-1}'}$ {lumi_tag}"
 
     if kwargs.get('ylim', None) is None:
         if log:
