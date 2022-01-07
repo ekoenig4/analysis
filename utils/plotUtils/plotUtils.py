@@ -12,7 +12,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 plt.style.use('science')
-plt.rcParams["figure.figsize"] = (10,10)
+plt.rcParams["figure.figsize"] = (16/3,5)
 plt.rcParams['font.size'] =  15
 
 

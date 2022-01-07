@@ -7,6 +7,7 @@ import vector
 import scipy
 
 from .plotUtils import *
+from .utils import *
 
 
 def get_jet_index_mask(jets, index):
@@ -15,7 +16,7 @@ def get_jet_index_mask(jets, index):
         jets = jets["jet_pt"]
 
     jet_index = ak.local_index(jets)
-    inter = (jet_index == index[:,None])
+    inter = (jet_index == index[:, None])
     return ak.sum(inter, axis=-1) == 1
 
 
@@ -384,3 +385,81 @@ def optimize_var_cut(selections, variable, varmin=None, varmax=None, method=min,
 
     f_min = scipy.optimize.fmin(function, (varmax+varmin)/2)
     return f_min
+
+
+def build_all_dijets(tree):
+    """Build all possible dijet pairings with the jet collection
+
+    Args:
+        tree (Tree): Tree class object
+
+    Returns:
+        awkward.Record: Awkward collection of dijets
+    """
+    jets = get_collection(tree, 'jet', False)[
+        ['m', 'pt', 'eta', 'phi', 'signalId', 'btag']]
+    jets = join_fields(jets, idx=ak.local_index(jets.pt, axis=-1))
+    pairs = ak.combinations(jets, 2)
+
+    j1_id, j2_id = ak.unzip(pairs.signalId)
+    diff = np.abs(j1_id - j2_id)
+    add = j1_id + j2_id
+    mod2 = add % 2
+    paired = (diff*mod2 == 1) & ((add == 1) | (add == 5) | (add == 9))
+
+    j1_m, j2_m = ak.unzip(pairs.m)
+    j1_pt, j2_pt = ak.unzip(pairs.pt)
+    j1_eta, j2_eta = ak.unzip(pairs.eta)
+    j1_phi, j2_phi = ak.unzip(pairs.phi)
+    j1_idx, j2_idx = ak.unzip(pairs.idx)
+    j1_btag, j2_btag = ak.unzip(pairs.btag)
+    dr = np.sqrt((j1_eta-j2_eta)**2 + (j1_phi-j2_phi)**2)
+
+    j1_p4 = vector.obj(m=j1_m, pt=j1_pt, eta=j1_eta, phi=j1_phi)
+    j2_p4 = vector.obj(m=j2_m, pt=j2_pt, eta=j2_eta, phi=j2_phi)
+    dijet = j1_p4 + j2_p4
+
+    return dict(
+        dijet_m=dijet.m,
+        dijet_dm=np.abs(dijet.m-125),
+        dijet_pt=dijet.pt,
+        dijet_eta=dijet.eta,
+        dijet_phi=dijet.phi,
+        dijet_dr=dr,
+        dijet_btagsum=j1_btag+j2_btag,
+        dijet_signalId=1*paired,
+        dijet_j1Idx=j1_idx,
+        dijet_j2Idx=j2_idx
+    )
+
+
+def select_higgs(tree, field='score', tag='gnn', nhiggs=3):
+    """Select unique dijets based on highest value specified from field
+
+    Args:
+        tree (Tree): Tree class contained already built dijet pairs
+        field (str, optional): Field to select dijets. Defaults to score
+        nhiggs (int, optional): Number of higgs to select. Defaults to 3.
+
+    Returns:
+        awkward.Record: Awkward collection of selected higgs
+    """
+    higgs_list = []
+    dijets = get_collection(tree, 'dijet', False)
+    sorted_dijets = dijets[ak.argsort(-dijets[field], axis=-1)]
+
+    def get_next_higgs(sorted_dijets):
+        higgs = sorted_dijets[:, :, :1]
+        sorted_dijets = sorted_dijets[:, :, 1:]
+        unique = (sorted_dijets.j1Idx != higgs.j1Idx[:, 0]) & \
+            (sorted_dijets.j1Idx != higgs.j2Idx[:, 0]) & \
+            (sorted_dijets.j2Idx != higgs.j1Idx[:, 0]) & \
+            (sorted_dijets.j2Idx != higgs.j2Idx[:, 0])
+        sorted_dijets = sorted_dijets[unique]
+        return higgs, sorted_dijets
+    for _ in range(nhiggs):
+        higgs, sorted_dijets = get_next_higgs(sorted_dijets)
+        higgs_list.append(higgs)
+    higgs = ak.concatenate(higgs_list, axis=1)
+    higgs = rename_collection(higgs, f'{tag}_higgs')
+    return unzip_records(higgs)

@@ -14,6 +14,7 @@ class SixBFile:
 
         cutflow = self.tfile.get('h_cutflow')
         self.cutflow_labels = cutflow.axis().labels()
+        if self.cutflow_labels is None: self.cutflow_labels = []
         self.cutflow = cutflow.to_numpy()[0]
         self.total_events = self.cutflow[0]
 
@@ -53,9 +54,8 @@ def init_tree(self):
     )
 
     self.raw_events = sum(fn.raw_events for fn in self.filelist)
-    self.cutflow_labels = max(
-        (fn.cutflow_labels for fn in self.filelist if fn.cutflow_labels), key=lambda l: len(l))
-    ncutflow = len(self.cutflow_labels)
+    self.cutflow_labels = max(map(lambda fn : fn.cutflow_labels,self.filelist))
+    ncutflow = len(self.cutflow_labels) if self.cutflow_labels else 0
     self.cutflow = [ak.fill_none(ak.pad_none(
         fn.cutflow, ncutflow, axis=0, clip=True), 0).to_numpy() for fn in self.filelist]
 
@@ -114,9 +114,17 @@ class Tree:
         new_tree = CopyTree(self)
         return new_tree
 
-    def subset(self, nentries, randomize=True):
+    def subset(self, range=None, nentries=None, randomize=True):
         tree = self.copy()
-        mask = [True]*nentries + [False]*(len(self.ttree)-nentries)
+
+        if nentries: range = (0,nentries)
+
+        assert range is not None, "Specify a range (start,stop)"
+        assert range[1] > range[0], "Start needs to be less then stop in range"
+        assert len(self.ttree) >= range[1], "Specify a range within the tree"
+
+        mask = np.full((len(self.ttree)),False)
+        mask[range[0]:range[1]] = True
         if randomize:
             np.random.shuffle(mask)
         tree.ttree = tree.ttree[mask]

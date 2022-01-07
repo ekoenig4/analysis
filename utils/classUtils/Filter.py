@@ -53,7 +53,11 @@ def event_filter(self, tree):
     tree = tree.copy()
 
     collection = tree.ttree
-    mask = True
+    if self.mask is not None:
+        mask = self.mask
+    else:
+        mask = True
+        
     for filter in self.filters:
         mask = mask & filter(collection)
     tree.extend(collection[mask])
@@ -63,8 +67,9 @@ def event_filter(self, tree):
 
 
 class EventFilter:
-    def __init__(self, name, **kwargs):
+    def __init__(self, name, mask=None, **kwargs):
         self.name = name
+        self.mask = mask
         self.filters = [build_event_filter(key, value)
                         for key, value in kwargs.items()]
 
@@ -105,7 +110,7 @@ def collection_filter(self, tree):
     setattr(collection, f"{self.collection}_index", ak.local_index(
         collection[f"{self.collection}_pt"], axis=-1))
 
-    mask = getattr(collection,f'{self.collection}_index') > -1
+    mask = getattr(collection, f'{self.collection}_index') > -1
     for filter in self.filters:
         mask = mask & filter(collection)
 

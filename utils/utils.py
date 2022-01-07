@@ -15,6 +15,14 @@ def ordinal(n): return "%d%s" % (
 def array_min(array, value): return ak.min(ak.concatenate(
     ak.broadcast_arrays(value, array[:, np.newaxis]), axis=-1), axis=-1)
 
+def get_batch_ranges(total, batch_size):
+    batch_ranges = np.arange(0, total, batch_size)
+
+    if total - batch_ranges[-1] > 0.5*batch_size:
+        batch_ranges = np.append(batch_ranges, total)
+    else:
+        batch_ranges[-1] = total
+    return batch_ranges
 
 def init_attr(attr, init, size):
     if attr is None:
@@ -81,6 +89,17 @@ def get_collection(tree, name, named=True):
     branches_unzipped = {field.replace(name+'_', ''): array for field,
                          array in zip(branches.fields, ak.unzip(branches))}
     return ak.zip(branches_unzipped, depth_limit=1)
+
+
+def rename_collection(collection, newname, oldname=None):
+    def rename_field(field):
+        if oldname is not None:
+            return field.replace(f"{oldname}_", f"{newname}_")
+        return f"{newname}_{field}"
+    fields = map(rename_field, collection.fields)
+    collection_unzipped = {field: array for field,
+                           array in zip(fields, ak.unzip(collection))}
+    return ak.zip(collection_unzipped, depth_limit=1)
 
 
 def reorder_collection(collection, order):
