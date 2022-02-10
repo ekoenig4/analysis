@@ -10,3 +10,4 @@ from .studyUtils import *
 from .classUtils import *
 from .orderUtils import *
 from .testUtils import *
+from . import eightbUtils as eightb

@@ -16,7 +16,7 @@ plt.rcParams["figure.figsize"] = (16/3,5)
 plt.rcParams['font.size'] =  15
 
 
-def format_axis(ax, title=None, xlabel=None, ylabel=None, ylim=None, grid=False, **kwargs):
+def format_axis(ax, title=None, xlabel=None, xlim=None, ylabel=None, ylim=None, grid=False, **kwargs):
     ax.set_ylabel(ylabel)
 
     if grid:
@@ -33,6 +33,8 @@ def format_axis(ax, title=None, xlabel=None, ylabel=None, ylim=None, grid=False,
     ax.set_title(title)
     if ylim is not None:
         ax.set_ylim(ylim)
+    if xlim is not None:
+        ax.set_xlim(xlim)
 
 
 def graph_simple(xdata, ydata, xlabel=None, ylabel=None, title=None, label=None, marker='o', ylim=None, xticklabels=None, figax=None):
@@ -124,24 +126,32 @@ def plot_branch(variable, tree, mask=None, selected=None, bins=None, xlabel=None
     return (fig, ax)
 
 
-def ratio_plot(num, dens, denerrs, bins, xlabel, figax, ylim=(0.1, 1.9), grid=True, **kwargs):
+def ratio_plot(num, dens, denerrs, bins, xlabel, figax, ylim=(0.1, 1.9), ylabel='Ratio',size='20%', grid=True, inv=False,**kwargs):
 
     fig, ax = figax
     ax.get_xaxis().set_visible(0)
     divider = make_axes_locatable(ax)
-    ax_ratio = divider.append_axes("bottom", size="20%", pad=0.1, sharex=ax)
+    ax_ratio = divider.append_axes("bottom", size=size, pad=0.1, sharex=ax)
 
-    def calc_ratio(data_hist, hist, error):
-        ratio = safe_divide(data_hist, hist)
-        ratio_error = ratio * safe_divide(error, hist)
+    def _calc_ratio(data_hist, hist, error):
+        ratio = safe_divide(data_hist, hist,0)
+        ratio_error = ratio * safe_divide(error, hist,0)
         return ratio, ratio_error
+    
+    def _calc_ratio_inv(data_hist,hist,error): return _calc_ratio(hist,data_hist,error);
+    
+    calc_ratio = _calc_ratio if not inv else _calc_ratio_inv
 
     xdata = get_bin_centers(bins)
     ratio_info = np.array([calc_ratio(num, den, denerr)
                           for den, denerr in zip(dens, denerrs)])
-    ratio_data, ratio_error = ratio_info[:, 0], ratio_info[:, 1]
+    ratio_data, ratio_error = ratio_info[:, 0], ratio_info[:, 1]    
+    padding = np.zeros((1,len(bins)-1))
+    ratio_data = np.concatenate([padding-99,ratio_data])
+    ratio_error = np.concatenate([padding,ratio_error])
+    
     graph_multi(xdata, ratio_data, yerrs=ratio_error, figax=(
-        fig, ax_ratio), xlabel=xlabel, ylabel="Ratio", ylim=ylim, grid=True, **kwargs)
+        fig, ax_ratio), xlabel=xlabel, ylabel=ylabel, ylim=ylim, grid=grid, **kwargs)
 
 
 def hist_error(ax, data, error=None, **attrs):
@@ -175,9 +185,20 @@ def stack_error(ax, datalist, errors=None, **attrs):
                 fmt='none', color='grey', capsize=1)
     return histo, error
 
+def draw_stats(ax,sample,bins=None):
+    x,w = sample.data,sample.weight 
+    if bins is not None: x,w = restrict_array(x,bins,w)
+    mean = np.average(x,weights=w)
+    stdv = np.sqrt(np.average((x-mean)**2,weights=w))
+    stats = dict(
+        mean=mean,stdv=stdv
+    )
+    sp = max(map(len,stats.keys()))
+    stat_lines = [f"{stat:<{sp}}: {value:0.2f}" for stat,value in stats.items()]
+    ax.text(0.9,0.9,'\n'.join(stat_lines),  transform=ax.transAxes)
 
 def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is_signals=None, density=False, cumulative=False, sumw2=True, scale=True,
-               title=None, xlabel=None, ylabel=None, figax=None, log=0, ratio=False, stacked=False, lumikey=None, **kwargs):
+               title=None, xlabel=None, ylabel=None, figax=None, log=0, ratio=False, stacked=False, lumikey=None, stats=False, stats_restricted=False, **kwargs):
     if figax is None:
         figax = plt.subplots()
     (fig, ax) = figax
@@ -204,6 +225,7 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
 
     def get_extrema(h): return (np.max(h), np.min(h[np.nonzero(h)]))
     ymin, ymax = np.inf, 0
+    
 
     if stacked:
         stack = Stack()
@@ -220,6 +242,7 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
 
         hmax, hmin = get_extrema(histo)
         ymax, ymin = max(ymax, hmax), min(ymin, hmin)
+
 
     num = None
     for sample in samples:
@@ -242,6 +265,7 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
 
             if not samples.has_data or not sample.is_signal:
                 denlist.append(sample)
+                
 
     if ylabel is None:
         ylabel = "Events"
@@ -249,15 +273,19 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
             ylabel = "Cross-Section (pb)"
         if density:
             ylabel = "Fraction of Events"
+        if cumulative or cumulative == 1:
+            ylabel = "Fraction of Events Below (CDF)"
+        if cumulative == -1:
+            ylabel = "Fraction of Events Above (CDF)"
     if lumi != 1:
         title = f"{lumi/1000:0.1f} $fb^{'{-1}'}$ {lumi_tag}"
 
     if kwargs.get('ylim', None) is None:
-        if log:
-            ymin, ymax = 0.1*ymin, 10*ymax
-        else:
-            ymin, ymax = 0.9*ymin, 1.1*ymax
-        kwargs['ylim'] = (ymin, ymax)
+        ymin_scale,ymax_scale = kwargs.get('yscale',(0.1,10) if log else (0,1.5))
+        kwargs['ylim'] = (ymin_scale*ymin, ymax_scale*ymax)
+        
+    if stats_restricted: draw_stats(ax,sample,sample.bins)
+    elif stats: draw_stats(ax,sample)
 
     format_axis(ax, xlabel=xlabel, ylabel=ylabel, title=title, **kwargs)
     ax.legend()
@@ -272,6 +300,39 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
         denlist = [sample.histo for sample in denlist]
         ratio_plot(num, denlist, denerrs, bins, xlabel,
                    figax, colors=colors, **options)
+
+    return (fig, ax)
+
+def boxplot_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is_signals=None, density=False, cumulative=False, sumw2=True, scale=True,
+               title=None, xlabel=None, ylabel=None, figax=None, log=0, ratio=False, stacked=False, lumikey=None, stats=False, stats_restricted=False, **kwargs):
+    if figax is None:
+        figax = plt.subplots()
+    (fig, ax) = figax
+
+    if scale is False:
+        lumikey = None
+
+    lumi, lumi_tag = lumiMap[lumikey]
+    attrs = {key[2:]: value for key,
+             value in kwargs.items() if key.startswith("s_")}
+    samples = Samplelist(datalist, bins, weights=weights, density=density, cumulative=cumulative,lumi=lumi, labels=labels,
+                         is_datas=is_datas, is_signals=is_signals, sumw2=sumw2, scale=scale, **attrs)
+
+    data = [ restrict_array(sample.data,sample.bins) for sample in samples ]    
+    # data = [ sample.data for sample in samples ]
+    
+    ax.boxplot(data,showfliers=False,vert=False)
+
+    if ylabel is None:
+        ylabel = "Events"
+        if scale == "xs":
+            ylabel = "Cross-Section (pb)"
+        if density:
+            ylabel = "Fraction of Events"
+    if lumi != 1:
+        title = f"{lumi/1000:0.1f} $fb^{'{-1}'}$ {lumi_tag}"
+    format_axis(ax, xlabel=xlabel, ylabel=None, title=title, xlim=(samples.bins[0],samples.bins[-1]), **kwargs)
+    ax.set_yticklabels(labels)
 
     return (fig, ax)
 

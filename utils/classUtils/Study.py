@@ -17,10 +17,12 @@ def save_scores(score, saveas):
 
 
 def save_fig(fig, directory, saveas, base=GIT_WD):
-    directory = f"{base}/plots/{date_tag}_plots/{directory}"
+    outfn = f"{base}/plots/{date_tag}_plots/{directory}/{saveas}"
+    directory = '/'.join(outfn.split('/')[:-1])
     if not os.path.isdir(directory):
         os.makedirs(directory)
-    fig.savefig(f"{directory}/{saveas}.pdf", format="pdf")
+    # fig.savefig(f"{directory}/{saveas}.pdf", format="pdf")
+    fig.savefig(f"{outfn}.png", format="png", dpi=400)
 
 
 class Study:
@@ -67,7 +69,11 @@ class Study:
                 items = [item[self.masks(selection)] for item, selection in zip(
                     items, self.selections)]
             else:
-                items = [item[mask] for item, mask in zip(items, self.masks)]
+                def mask_item(item,mask):
+                    if ak.count(item) != ak.count(mask):
+                        item = ak.broadcast_arrays(item,mask)[0]
+                    return item[mask]
+                items = [ mask_item(item,mask) for item, mask in zip(items, self.masks)]
         return items
 
     def get_scale(self, key):
@@ -76,13 +82,12 @@ class Study:
         return [ak.ones_like(hist) * scale for scale, hist in zip(scales, hists)]
 
     def format_var(self, var, bins=None, xlabel=None):
-        if xlabel is None:
-            xlabel = var
         info = varinfo.find(var)
         if bins is None and info:
             bins = info.bins
-        if info:
+        if info and xlabel is None:
             xlabel = info.xlabel
+        if xlabel is None: xlabel = var
         return bins, xlabel
 
     def save_fig(self, fig, directory, base=GIT_WD):

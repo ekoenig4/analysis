@@ -13,14 +13,16 @@ lumiMap = {
 
 tagMap = {
     "QCD": "QCD",
-    "NMSSM": "Signal",
+    "NMSSM_XYH_YToHH_6b": "X$\\rightarrow$ YH$\\rightarrow$3H$\\rightarrow$6b",
+    "NMSSM_XYY_YToHH_8b": "X$\\rightarrow$ YY$\\rightarrow$4H$\\rightarrow$8b",
     "TTJets": "TTJets",
     "Data": "Data",
 }
 
-colorMap = {
+colorMap = {    
     "QCD": "blue",
-    "Signal": "orange",
+    "X$\\rightarrow$ YH$\\rightarrow$3H$\\rightarrow$6b": "orange",
+    "X$\\rightarrow$ YY$\\rightarrow$4H$\\rightarrow$8b": "tomato",
     "TTJets": "green",
     "Data": "black",
     "Bkg": "grey"
@@ -32,7 +34,8 @@ xsecMap = {
     "JetHT_Run2018C": 'N/A',
     "JetHT_Run2018D": 'N/A',
 
-    "NMSSM": 0.3,
+    "NMSSM_XYH_YToHH_6b": 0.3,
+    "NMSSM_XYY_YToHH_8b": 0.3,
 
     "QCD_Pt_15to30": 1246000000.0,
     "QCD_Pt_30to50": 106500000.0,

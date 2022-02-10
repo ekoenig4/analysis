@@ -5,6 +5,7 @@ from ..utils import *
 import uproot as ut
 import awkward as ak
 import numpy as np
+import re
 
 
 class SixBFile:
@@ -32,7 +33,6 @@ def init_sample(self):  # Helper Method For Tree Class
     self.is_signal = all("NMSSM" in fn.fname for fn in self.filelist)
     sample_tag = [next((tag for key, tag in tagMap.items(
     ) if key in fn.sample), None) for fn in self.filelist]
-
     if (sample_tag.count(sample_tag[0]) == len(sample_tag)):
         self.sample = sample_tag[0]
     else:
@@ -40,7 +40,12 @@ def init_sample(self):  # Helper Method For Tree Class
 
     if self.is_data:
         self.sample = "Data"
+        
     self.color = colorMap.get(self.sample, None)
+    if self.is_signal:
+        points = [ re.findall('MX_\d+_MY_\d+',fn.fname)[0] for fn in self.filelist ]
+        if len(set(points)) == 1:
+            self.sample = points[0]
 
 
 def init_tree(self):

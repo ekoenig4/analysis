@@ -15,6 +15,8 @@ def autodim(nvar, dim=None, flip=False):
         nvar += 1
     if dim is not None:
         nrows, ncols = dim
+        nrows = nrows if nrows > 0 else nvar//ncols
+        ncols = ncols if ncols > 0 else nvar//nrows
     elif nvar == 1:
         nrows, ncols = 1, 1
     elif flip:
@@ -26,10 +28,11 @@ def autodim(nvar, dim=None, flip=False):
     return nrows, ncols
 
 
-def cutflow(*args, size=(16, 8), log=1, **kwargs):
-    study = Study(*args, sumw2=False, log=1,  **kwargs)
+def cutflow(*args, size=(16, 8), log=1, s_label_stat=None,scale=False,density=False, **kwargs):
+    study = Study(*args, sumw2=False, log=log,
+                  s_label_stat=s_label_stat,scale=scale, **kwargs)
     def get_scaled_cutflow(tree): return ak.Array(
-        [cutflow*fn.scale for cutflow, fn in zip(tree.cutflow, tree.filelist)])
+        [cutflow*(fn.scale if scale else 1) for cutflow, fn in zip(tree.cutflow, tree.filelist)])
     scaled_cutflows = [get_scaled_cutflow(tree) for tree in study.selections]
     cutflow_bins = [ak.local_index(cutflow, axis=-1)
                     for cutflow in scaled_cutflows]
@@ -37,16 +40,52 @@ def cutflow(*args, size=(16, 8), log=1, **kwargs):
         (selection.cutflow_labels for selection in study.selections), key=lambda a: len(a))
     ncutflow = len(cutflow_labels)+1
     bins = np.arange(ncutflow)-0.5
-    figax = None
-    if size:
-        figax = plt.subplots(figsize=size)
-
-    fig, ax = hist_multi(cutflow_bins, bins=bins, weights=scaled_cutflows, xlabel=cutflow_labels, histtypes=[
-                         "step"]*len(study.selections), **study.attrs, figax=figax)
+    flatten_cutflows = [ ak.sum(ak.fill_none(ak.pad_none(cutflow,len(cutflow_labels),axis=-1),0),axis=0) for cutflow in scaled_cutflows ]
+    
+    if density: 
+        flatten_cutflows = [ cutflow/cutflow[0] for cutflow in flatten_cutflows ]
+    
+    figax = plt.subplots(figsize=size) if size else None
+    fig,ax = graph_multi(cutflow_labels,flatten_cutflows,xlabel=cutflow_labels,**study.attrs,figax=figax)
+    # fig, ax = hist_multi(cutflow_bins, bins=bins, weights=flatten_cutflows, xlabel=cutflow_labels, histtypes=[
+    #                      "step"]*len(study.selections), **study.attrs, figax=figax)
     fig.tight_layout()
     plt.show()
     if study.saveas:
         save_fig(fig, "cutflow", study.saveas)
+
+
+def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False, **kwargs):
+    study = Study(*args, **kwargs)
+    nvar = len(varlist)
+    binlist = init_attr(binlist, None, nvar)
+    xlabels = init_attr(xlabels, None, nvar)
+    varlist = zip(varlist, binlist, xlabels)
+
+    nrows, ncols = autodim(nvar, dim, flip)
+    fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
+                            figsize=(int((16/3)*ncols), 5*nrows))
+
+    for i, (var, bins, xlabel) in enumerate(varlist):
+
+        bins, xlabel = study.format_var(var, bins, xlabel)
+        hists = study.get(var)
+        weights = study.get_scale(var)
+
+        if ncols == 1 and nrows == 1:
+            ax = axs
+        elif bool(ncols > 1) != bool(nrows > 1):
+            ax = axs[i]
+        else:
+            ax = axs[i//ncols, i % ncols]
+
+        boxplot_multi(hists, bins=bins, xlabel=xlabel,
+                      weights=weights, **study.attrs, figax=(fig, ax))
+    fig.suptitle(study.title)
+    fig.tight_layout()
+    plt.show()
+    if study.saveas:
+        save_fig(fig, "", study.saveas)
 
 
 def quick(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False, **kwargs):

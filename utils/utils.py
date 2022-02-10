@@ -1,6 +1,7 @@
 import awkward as ak
 import git
 import numpy as np
+import re
 
 GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
 
@@ -15,6 +16,7 @@ def ordinal(n): return "%d%s" % (
 def array_min(array, value): return ak.min(ak.concatenate(
     ak.broadcast_arrays(value, array[:, np.newaxis]), axis=-1), axis=-1)
 
+
 def get_batch_ranges(total, batch_size):
     batch_ranges = np.arange(0, total, batch_size)
 
@@ -23,6 +25,7 @@ def get_batch_ranges(total, batch_size):
     else:
         batch_ranges[-1] = total
     return batch_ranges
+
 
 def init_attr(attr, init, size):
     if attr is None:
@@ -51,13 +54,50 @@ def safe_divide(a, b, default=None):
     return tmp
 
 
-def autobin(data, nstd=3):
+def reject_outliers(data, m=2.):
+    d = np.abs(data - np.median(data))
+    mdev = np.median(d)
+    s = d/mdev if mdev else 0.
+    return data[s < m]
+
+
+def restrict_array(array, bins, weights=None):
+    x_lo = array >= bins[0]
+    x_hi = array < bins[-1]
+    array = array[x_lo & x_hi]
+    if weights is not None:
+        weights = weights[x_lo & x_hi]
+        return array, weights
+    return array
+
+
+def _autobin_(data, nstd=3):
     ndata = ak.size(data)
     mean = ak.mean(data)
     stdv = ak.std(data)
     minim, maxim = ak.min(data), ak.max(data)
-    xlo, xhi = max([minim, mean-nstd*stdv]), min([maxim, mean+nstd*stdv])
-    nbins = min(int(1+np.sqrt(ndata)), 50)
+    is_int = issubclass(data.dtype.type, np.integer)
+
+    if is_int:
+        xlo, xhi, nbins = 0, maxim+1, maxim-minim
+    else:
+        xlo, xhi = max([minim, mean-nstd*stdv]), min([maxim, mean+nstd*stdv])
+        nbins = 30  # min(int(1+np.sqrt(ndata)), 30)
+    return xlo, xhi, nbins, int(is_int)
+
+
+def autobin(data, nstd=3):
+    if type(data) == list:
+        datalist = list(data)
+        databins = np.array([_autobin_(data, nstd) for data in datalist])
+        xlo = np.min(databins[:, 0])
+        xhi = np.max(databins[:, 1])
+        nbins = int(np.min(databins[:, 2]))
+        is_int = databins[:, 3][0]
+    else:
+        xlo, xhi, nbins, is_int = _autobin_(data, nstd)
+    if is_int == 1:
+        return np.arange(xlo, xhi+1)
     return np.linspace(xlo, xhi, nbins)
 
 
@@ -106,8 +146,33 @@ def reorder_collection(collection, order):
     return collection[order]
 
 
-def get_avg_std(array):
-    array = array[~np.isnan(array)]
-    avg = ak.mean(array)
-    std = ak.std(array)
+def build_collection(tree, pattern, name):
+    fields = list(filter(lambda field: re.match(pattern, field), tree.fields))
+    components = dict.fromkeys([re.search(pattern, field)[0]
+                               for field in fields if re.search(pattern, field)]).keys()
+    shared_fields = list(set.intersection(*[set(map(lambda field: field[len(component)+1:], filter(
+        lambda field: field.startswith(component), fields))) for component in components]))
+
+    components = [get_collection(tree, component, named=False)[
+        shared_fields] for component in components]
+
+    collection = {f'{name}_{field}': ak.concatenate(
+        [component[field][:, None] for component in components], axis=-1) for field in shared_fields}
+    return collection
+
+
+def get_avg_std(array, weights=None, bins=None):
+    mask = ~np.isnan(array)
+    array = ak.flatten(array[mask], axis=None)
+    if weights is None:
+        if bins is not None:
+            array = restrict_array(array, bins)
+        avg = ak.mean(array)
+        std = ak.std(array)
+    else:
+        weights = ak.flatten(weights[mask], axis=None)
+        if bins is not None:
+            array, weights = restrict_array(array, bins, weights)
+        avg = np.average(array, weights=weights)
+        std = np.sqrt(np.average((array-avg)**2, weights=weights))
     return avg, std

@@ -2,7 +2,7 @@ from ..utils import *
 
 
 class Sample:
-    def __init__(self, data, bins=None, weight=None, density=False, cumulative=False, lumi=1, label="", is_data=False, is_signal=False, sumw2=True, scale=True, **attrs):
+    def __init__(self, data, bins=None, weight=None, density=False, cumulative=False, lumi=1, label="",label_stat='events', is_data=False, is_signal=False, sumw2=True, scale=True, **attrs):
         self.data = flatten(data)
         self.nevents = len(self.data)
 
@@ -26,7 +26,17 @@ class Sample:
             self.weight = self.weight / lumi
 
         self.scaled_nevents = ak.sum(self.weight)
-        self.label = f"{label} ({self.scaled_nevents:0.2e})"
+        
+        if label_stat == 'events':
+            self.label_stat = f'{self.scaled_nevents:0.2e}'
+        if label_stat == 'mean':
+            mean,stdv = get_avg_std(self.data,self.weight)
+            self.label_stat = f'{mean:0.2}'
+        if label_stat == 'mean_stdv':
+            mean,stdv = get_avg_std(self.data,self.weight,bins)
+            self.label_stat = f'{mean:0.2} $\pm$ {stdv:0.2}'
+        
+        self.label = label if label_stat is None else f"{label} ({self.label_stat})"
 
         if density or cumulative:
             self.weight = self.weight/self.scaled_nevents
@@ -44,10 +54,13 @@ class Sample:
             self.histo = np.cumsum(self.histo)
             self.error = np.cumsum(self.error)
 
-
 class Samplelist(list):
-    def __init__(self, datalist, bins, weights=None, density=False, cumulative=False, lumi=1, labels="", is_datas=False, is_signals=False, sumw2=True, scale=True, **attrs):
+    def __init__(self, datalist, bins, weights=None, density=False, cumulative=False, lumi=1, labels="",label_stat='events', is_datas=False, is_signals=False, sumw2=True, scale=True, **attrs):
+        datalist = [ flatten(data) for data in datalist ]
         self.bins = bins
+        if bins is None:
+            self.bins = autobin(datalist)
+        
         self.density = density
         self.lumi = lumi
         self.nsample = len(datalist)
@@ -63,7 +76,7 @@ class Samplelist(list):
                 attrs[key], defaults.get(key, None), self.nsample)
 
         for i, data in enumerate(datalist):
-            sample = Sample(data, bins=self.bins, weight=weights[i], lumi=lumi, density=density, cumulative=cumulative, label=labels[i], sumw2=sumw2, scale=scale,
+            sample = Sample(data, bins=self.bins, weight=weights[i], lumi=lumi, density=density, cumulative=cumulative, label=labels[i], label_stat=label_stat, sumw2=sumw2, scale=scale,
                             is_data=is_datas[i], is_signal=is_signals[i], **{key[:-1]: value[i] for key, value in attrs.items()})
             if self.bins is None:
                 self.bins = sample.bins
