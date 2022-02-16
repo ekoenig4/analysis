@@ -4,20 +4,20 @@ import awkward as ak
 from ..selectUtils import *
 
 quarklist = [
-    f'gen_{h}{y}_{b}'
+    f'{h}{y}_{b}'
     for y in ('Y1','Y2')
     for h in ('H1','H2')
     for b in ('b1','b2')
 ]
 
 higgslist = [
-    f'gen_{h}{y}'
+    f'{h}{y}'
     for y in ('Y1','Y2')
     for h in ('H1','H2')
 ]
 
 ylist = [
-    f'gen_{y}'
+    f'{y}'
     for y in ('Y1','Y2')
 ]
 
