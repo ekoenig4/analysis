@@ -16,7 +16,7 @@ functions = {'abs': lambda a: np.abs(a), }
 
 methods = {'min': lambda a, v: a > v, 'max': lambda a, v: a < v,
            'emin': lambda a, v: a >= v, 'emax': lambda a, v: a <= v,
-           'bit': lambda a, v: (1 << v) == a & (1 << v), 'neq': lambda a, v: a != v,
+           'bit': lambda a, v: ((a >> v)&1) == 1, 'neq': lambda a, v: a != v,
            'mask': lambda a, v: a[v]}
 
 
@@ -123,12 +123,13 @@ def collection_filter(self, tree):
 
 
 class CollectionFilter:
-    def __init__(self, collection, newname=None, mask=None, **kwargs):
+    def __init__(self, collection, newname=None, mask=None, filter=None, **kwargs):
         self.collection = collection
         self.newname = newname if newname else collection
         self.mask = mask
         self.filters = [build_collection_filter(collection, key, value)
                         for key, value in kwargs.items()]
+        if filter is not None: self.filters = [filter] + self.filters
 
     def filter(self, tree):
         if type(tree) == list:

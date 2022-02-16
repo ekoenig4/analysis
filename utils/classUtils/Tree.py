@@ -67,17 +67,17 @@ def init_tree(self):
 
 def init_selection(self):
     self.all_events_mask = ak.Array([True]*self.raw_events)
-    njet = self["n_jet"]
-    self.all_jets_mask = ak.unflatten(
-        np.repeat(np.array(self.all_events_mask, dtype=bool), njet), njet)
+    # njet = self["n_jet"]
+    # self.all_jets_mask = ak.unflatten(
+    #     np.repeat(np.array(self.all_events_mask, dtype=bool), njet), njet)
 
-    self.mask = self.all_events_mask
-    self.jets_selected = self.all_jets_mask
+    # self.mask = self.all_events_mask
+    # self.jets_selected = self.all_jets_mask
 
-    self.sixb_jet_mask = self["jet_signalId"] != -1
-    self.bkgs_jet_mask = self.sixb_jet_mask == False
+    # self.sixb_jet_mask = self["jet_signalId"] != -1
+    # self.bkgs_jet_mask = self.sixb_jet_mask == False
 
-    self.sixb_found_mask = self["nfound_presel"] == 6
+    # self.sixb_found_mask = self["nfound_presel"] == 6
 
 
 class Tree:
@@ -85,6 +85,7 @@ class Tree:
         if type(filelist) != list:
             filelist = [filelist]
         self.filelist = [SixBFile(fn) for fn in filelist]
+        self.filelist = list(filter(lambda fn : fn.raw_events > 0,self.filelist))
 
         init_sample(self)
         init_tree(self)
@@ -165,7 +166,10 @@ class TreeMethodIter:
 
         def build_args(t): return list(a)+list(f_args(t))
         def build_kwargs(t): return dict(**f_kwargs(t), **kw)
-        return [call(*build_args(t), **build_kwargs(t)) for t, call in self.calliter]
+        out = [call(*build_args(t), **build_kwargs(t)) for t, call in self.calliter]
+        if not any( attr is None for attr in out ):
+            return out
+        
 
 
 class TreeIter:
@@ -180,8 +184,16 @@ class TreeIter:
         attriter = [getattr(tree, key) for tree in self]
         if callable(attriter[0]):
             attriter = TreeMethodIter(self.trees, attriter)
-        return attriter
-
+        if not any( attr is None for attr in attriter ):
+            return attriter
+        
+    def __add__(self,other):
+        return TreeIter(self.trees+other.trees)
+    
+    def apply(self,tree_function):
+        out = [ tree_function(tree) for tree in self ]
+        if not any( attr is None for attr in out ):
+            return out
 
 def reco_XY(self):
     def bjet_p4(key): return vector.obj(pt=self[f"gen_{key}_recojet_pt"], eta=self[f"gen_{key}_recojet_eta"],

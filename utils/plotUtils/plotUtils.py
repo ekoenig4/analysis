@@ -362,7 +362,8 @@ def plot_mask_stack_comparison(datalist, bins=None, title=None, xlabel=None, fig
     return (fig, ax)
 
 
-def hist2d_simple(xdata, ydata, xbins=None, ybins=None, title=None, xlabel=None, ylabel=None, figax=None, weights=None, lumikey=None, density=0, log=1, grid=False, label=None, cmap="YlOrRd", **kwargs):
+def hist2d_simple(xdata, ydata, xbins=None, ybins=None, title=None, xlabel=None, ylabel=None, figax=None, weights=None, 
+                  lumikey=None, density=0, log=1, grid=False, label=None, cmap="YlOrRd", show_counts=False, **kwargs):
     if figax is None:
         figax = plt.subplots()
     (fig, ax) = figax
@@ -370,21 +371,32 @@ def hist2d_simple(xdata, ydata, xbins=None, ybins=None, title=None, xlabel=None,
     xdata = flatten(xdata)
     ydata = flatten(ydata)
 
+    nevnts = ak.size(xdata)
+        
     lumi, lumi_tag = lumiMap[lumikey]
     if weights is not None:
         weights = lumi*flatten(weights)
+    else:
+        weights = np.ones((nevnts,))
+        
+    nevnts = ak.sum(weights)
+    
+    if density: weights = weights / nevnts
 
     if xbins is None:
         xbins = autobin(xdata)
     if ybins is None:
         ybins = autobin(ydata)
 
-    nevnts = ak.size(xdata)
-    if weights is not None:
-        nevnts = ak.sum(weights)
 
     n, bx, by, im = ax.hist2d(np.array(xdata), np.array(ydata), (xbins, ybins), weights=weights,
-                              density=density, norm=clrs.LogNorm() if log else clrs.Normalize(), cmap=cmap)
+                               norm=clrs.LogNorm() if log else clrs.Normalize(), cmap=cmap)
+    
+    if show_counts:
+        for i,(bx_lo,bx_hi) in enumerate(zip(bx[:-1],bx[1:])):
+            for j,(by_lo,by_hi) in enumerate(zip(by[:-1],by[1:])):
+                ax.text((bx_hi+bx_lo)/2,(by_hi+by_lo)/2,f'{n[i,j]:0.2}',ha="center", va="center", fontweight="bold")
+        
 
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
