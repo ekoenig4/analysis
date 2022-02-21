@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torchmetrics.functional import accuracy
 
 from .gnn import to_tensor, get_uptri
-from .layers import EdgeConv, EdgeOnlyConv, GCNConv, EdgeConCat
+from .cpp_geometric import layers
 
 useGPU = True 
 useGPU = useGPU and torch.cuda.is_available()
@@ -39,10 +39,7 @@ class LightningModel(pl.LightningModule):
             batch.y, useGPU), to_tensor(batch.edge_y, useGPU)
 
         node_loss = F.nll_loss(node_o, node_y, self.node_weights)
-
-        edge_o = get_uptri(batch.edge_index,edge_o)
-        edge_y = get_uptri(batch.edge_index,edge_y)
-
+        
         edge_loss = F.nll_loss(
             edge_o, edge_y, self.edge_weights)
 
@@ -85,14 +82,14 @@ class GCN(LightningModel):
             torch.nn.ELU()
         )
 
-        self.conv1 = EdgeConv(nn1, edge_aggr=None, return_with_edges=True)
+        self.conv1 = layers.EdgeConv(nn1, edge_aggr=None, return_with_edges=True)
 
         nn2 = torch.nn.Sequential(
             Linear(5*nn1_out, nn2_out),
             torch.nn.ELU()
         )
 
-        self.conv2 = EdgeConv(nn2, edge_aggr=None, return_with_edges=True)
+        self.conv2 = layers.EdgeConv(nn2, edge_aggr=None, return_with_edges=True)
 
         self.edge_seq = torch.nn.Sequential(
             Linear(3*nn2_out, 2),
@@ -121,10 +118,10 @@ class GoldenGCN(LightningModel):
         super().__init__(dataset,**kwargs)
         self.save_hyperparameters('nn1_out', 'nn2_out')
         
-        self.node_conv1 = GCNConv(5, 1, nn1_out)
-        self.edge_conv1 = EdgeConCat()
-        self.node_conv2 = GCNConv(nn1_out,2*nn1_out+1,nn2_out)
-        self.edge_conv2 = EdgeConCat()
+        self.node_conv1 = layers.GCNConv(5, 1, nn1_out)
+        self.edge_conv1 = layers.EdgeConCat()
+        self.node_conv2 = layers.GCNConv(nn1_out,2*nn1_out+1,nn2_out)
+        self.edge_conv2 = layers.EdgeConCat()
         
         self.node_linear = Linear(nn2_out,2)
         self.edge_linear = Linear(2*nn2_out+2*nn1_out+1,2)
