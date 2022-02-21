@@ -86,7 +86,7 @@ class Study:
         if bins is None and info:
             bins = info.bins
         if info and xlabel is None:
-            xlabel = info.xlabel
+            xlabel = info.get('xlabel',var)
         if xlabel is None: xlabel = var
         return bins, xlabel
 
