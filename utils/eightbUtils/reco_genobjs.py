@@ -22,7 +22,7 @@ ylist = [
 ]
 
 def reco_genH(tree, higgs, use_regressed=True):
-    get_var = {'pt':'ptRegressed' if use_regressed else 'pt'}
+    get_var = {'pt':'ptRegressed' if use_regressed else 'pt','m':'mRegressed' if use_regressed else 'm'}
     b1_p4 = vector.obj(**{var: tree[f'{higgs}_b1_recojet_{get_var.get(var,var)}']
                        for var in ('pt', 'eta', 'phi', 'm')})
     b2_p4 = vector.obj(**{var: tree[f'{higgs}_b2_recojet_{get_var.get(var,var)}']
