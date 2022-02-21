@@ -178,7 +178,10 @@ class TreeIter:
 
     def __str__(self): return str(self.trees)
     def __iter__(self): return iter(self.trees)
-    def __getitem__(self, key): return self.trees[key]
+    def __getitem__(self, key): 
+        if type(key) == list: return TreeIter([ self.trees[k] for k in key ])
+        if isinstance(key,slice): return TreeIter(self.trees[key])
+        return self.trees[key]
 
     def __getattr__(self, key):
         attriter = [getattr(tree, key) for tree in self]
@@ -188,12 +191,16 @@ class TreeIter:
             return attriter
         
     def __add__(self,other):
+        if type(other) == list: other = TreeIter(other)
         return TreeIter(self.trees+other.trees)
     
     def apply(self,tree_function):
         out = [ tree_function(tree) for tree in self ]
         if not any( attr is None for attr in out ):
             return out
+        
+    def copy(self):
+        return TreeIter([tree.copy() for tree in self])
 
 def reco_XY(self):
     def bjet_p4(key): return vector.obj(pt=self[f"gen_{key}_recojet_pt"], eta=self[f"gen_{key}_recojet_eta"],
