@@ -79,7 +79,7 @@ def _autobin_(data, nstd=3):
     is_int = issubclass(data.dtype.type, np.integer)
 
     if is_int:
-        xlo, xhi, nbins = 0, maxim+1, maxim-minim
+        xlo, xhi, nbins = min(minim,0), maxim+1, maxim-minim
     else:
         xlo, xhi = max([minim, mean-nstd*stdv]), min([maxim, mean+nstd*stdv])
         nbins = 30  # min(int(1+np.sqrt(ndata)), 30)

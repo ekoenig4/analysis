@@ -28,7 +28,7 @@ def autodim(nvar, dim=None, flip=False):
     return nrows, ncols
 
 
-def cutflow(*args, size=(16, 8), log=1, s_label_stat=None,scale=False,density=False, **kwargs):
+def cutflow(*args, size=(16, 8), log=1, s_label_stat=None,scale=False,density=False,lumi=2018, **kwargs):
     study = Study(*args, sumw2=False, log=log,
                   s_label_stat=s_label_stat,scale=scale, **kwargs)
     def get_scaled_cutflow(tree): return ak.Array(
@@ -41,6 +41,10 @@ def cutflow(*args, size=(16, 8), log=1, s_label_stat=None,scale=False,density=Fa
     ncutflow = len(cutflow_labels)+1
     bins = np.arange(ncutflow)-0.5
     flatten_cutflows = [ ak.sum(ak.fill_none(ak.pad_none(cutflow,len(cutflow_labels),axis=-1),0),axis=0) for cutflow in scaled_cutflows ]
+    
+    if scale and lumi:
+        lumi,_ = lumiMap[lumi]
+        flatten_cutflows = [ lumi*cutflow for cutflow in flatten_cutflows ]
     
     if density: 
         flatten_cutflows = [ cutflow/cutflow[0] for cutflow in flatten_cutflows ]

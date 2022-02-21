@@ -405,7 +405,7 @@ def build_all_dijets(tree):
     diff = np.abs(j1_id - j2_id)
     add = j1_id + j2_id
     mod2 = add % 2
-    paired = (diff*mod2 == 1) & ((add == 1) | (add == 5) | (add == 9))
+    paired = (diff*mod2 == 1) & ((add == 1) | (add == 5) | (add == 9) | (add == 13))
 
     j1_m, j2_m = ak.unzip(pairs.m)
     j1_pt, j2_pt = ak.unzip(pairs.pt)
@@ -418,7 +418,10 @@ def build_all_dijets(tree):
     j1_p4 = vector.obj(m=j1_m, pt=j1_pt, eta=j1_eta, phi=j1_phi)
     j2_p4 = vector.obj(m=j2_m, pt=j2_pt, eta=j2_eta, phi=j2_phi)
     dijet = j1_p4 + j2_p4
-
+    
+    signalId = ak.min(ak.concatenate([j1_id[:,:,None],j2_id[:,:,None]],axis=-1),axis=-1)//2
+    signalId = ak.where(paired,signalId,-1)
+    
     return dict(
         dijet_m=dijet.m,
         dijet_dm=np.abs(dijet.m-125),
@@ -427,9 +430,10 @@ def build_all_dijets(tree):
         dijet_phi=dijet.phi,
         dijet_dr=dr,
         dijet_btagsum=j1_btag+j2_btag,
-        dijet_signalId=1*paired,
+        dijet_signalId=signalId,
         dijet_j1Idx=j1_idx,
-        dijet_j2Idx=j2_idx
+        dijet_j2Idx=j2_idx,
+        dijet_localId=ak.local_index(dijet.m,axis=-1)
     )
 
 

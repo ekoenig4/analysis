@@ -260,8 +260,10 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
             data, histo, error, weight, label, attrs = sample.data, sample.histo, sample.error, sample.weight, sample.label, sample.attrs
             attrs["histtype"] = "step" if len(samples) > 1 else "bar"
             attrs["linewidth"] = 2
-            hist_error(ax, data, bins=bins, error=error,
+            histo,error = hist_error(ax, data, bins=bins, error=error,
                        weights=weight, label=label, log=log, **attrs)
+            sample.histo = histo 
+            sample.error = error
 
             if not samples.has_data or not sample.is_signal:
                 denlist.append(sample)
