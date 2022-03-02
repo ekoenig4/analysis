@@ -28,35 +28,38 @@ def autodim(nvar, dim=None, flip=False):
     return nrows, ncols
 
 
-def cutflow(*args, size=(16, 8), log=1, s_label_stat=None,scale=False,density=False,lumi=2018, **kwargs):
+def cutflow(*args, size=(16, 8), log=1, s_label_stat=None,scale=True,density=False,lumi=2018, **kwargs):
     study = Study(*args, sumw2=False, log=log,
                   s_label_stat=s_label_stat,scale=scale, **kwargs)
     def get_scaled_cutflow(tree): return ak.Array(
         [cutflow*(fn.scale if scale else 1) for cutflow, fn in zip(tree.cutflow, tree.filelist)])
+    is_mc = [ not tree.is_data for tree in study.selections ]
+    
     scaled_cutflows = [get_scaled_cutflow(tree) for tree in study.selections]
-    cutflow_bins = [ak.local_index(cutflow, axis=-1)
-                    for cutflow in scaled_cutflows]
     cutflow_labels = max(
         (selection.cutflow_labels for selection in study.selections), key=lambda a: len(a))
     ncutflow = len(cutflow_labels)+1
-    bins = np.arange(ncutflow)-0.5
     flatten_cutflows = [ ak.sum(ak.fill_none(ak.pad_none(cutflow,len(cutflow_labels),axis=-1),0),axis=0) for cutflow in scaled_cutflows ]
     
-    if scale and lumi:
-        lumi,_ = lumiMap[lumi]
-        flatten_cutflows = [ lumi*cutflow for cutflow in flatten_cutflows ]
+    bins = np.arange(ncutflow)-0.5
+    cutflow_bins = [ak.local_index(cutflow, axis=-1)
+                    for cutflow in flatten_cutflows]
     
-    if density: 
-        flatten_cutflows = [ cutflow/cutflow[0] for cutflow in flatten_cutflows ]
     
     figax = plt.subplots(figsize=size) if size else None
-    fig,ax = graph_multi(cutflow_labels,flatten_cutflows,xlabel=cutflow_labels,**study.attrs,figax=figax)
-    # fig, ax = hist_multi(cutflow_bins, bins=bins, weights=flatten_cutflows, xlabel=cutflow_labels, histtypes=[
-    #                      "step"]*len(study.selections), **study.attrs, figax=figax)
+    
+    if scale is False:
+        if density: 
+            flatten_cutflows = [ cutflow/cutflow[0] for cutflow in flatten_cutflows ]
+        fig,ax = graph_multi(cutflow_labels,flatten_cutflows,xlabel=cutflow_labels,**study.attrs,figax=figax)
+    else:
+        fig, ax = hist_multi(cutflow_bins, bins=bins, weights=flatten_cutflows, xlabel=cutflow_labels, histtypes=[
+                        "step"]*len(study.selections), **study.attrs, figax=figax)
     fig.tight_layout()
     plt.show()
     if study.saveas:
         save_fig(fig, "cutflow", study.saveas)
+    return fig,ax
 
 
 def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False, **kwargs):
@@ -71,6 +74,7 @@ def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False,
                             figsize=(int((16/3)*ncols), 5*nrows))
 
     for i, (var, bins, xlabel) in enumerate(varlist):
+        if var is None: continue
 
         bins, xlabel = study.format_var(var, bins, xlabel)
         hists = study.get(var)
@@ -90,6 +94,7 @@ def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False,
     plt.show()
     if study.saveas:
         save_fig(fig, "", study.saveas)
+    return fig,axs
 
 
 def quick(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False, **kwargs):
@@ -105,26 +110,30 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False, *
                             figsize=(int((16/3)*ncols), 5*nrows))
 
     for i, (var, bins, xlabel) in enumerate(varlist):
-
-        bins, xlabel = study.format_var(var, bins, xlabel)
-        hists = study.get(var)
-        weights = study.get_scale(var)
-
         if ncols == 1 and nrows == 1:
             ax = axs
         elif bool(ncols > 1) != bool(nrows > 1):
             ax = axs[i]
         else:
             ax = axs[i//ncols, i % ncols]
+            
+        if var is None: 
+            ax.set_visible(False)
+            continue
+        
+        bins, xlabel = study.format_var(var, bins, xlabel)
+        hists = study.get(var)
+        weights = study.get_scale(var)
 
         hist_multi(hists, bins=bins, xlabel=xlabel,
                    weights=weights, **study.attrs, figax=(fig, ax))
     fig.suptitle(study.title)
     fig.tight_layout()
-    plt.show()
+        
+    # plt.show()
     if study.saveas:
         save_fig(fig, "", study.saveas)
-
+    return fig,axs
 
 def overlay(tree, varlist=[], binlist=None, labels=None, dim=None, xlabels=None, flip=None, s_colors=None, **kwargs):
     if type(varlist[0]) != list:
@@ -141,7 +150,6 @@ def overlay(tree, varlist=[], binlist=None, labels=None, dim=None, xlabels=None,
                             figsize=(int((16/3)*ncols), 5*nrows))
 
     for i, (group, bins, xlabel) in enumerate(varlist):
-
         hists = [study.get(var)[0] for var in group]
         weights = [study.get_scale(var)[0] for var in group]
         if labels is None:
@@ -161,6 +169,7 @@ def overlay(tree, varlist=[], binlist=None, labels=None, dim=None, xlabels=None,
     plt.show()
     if study.saveas:
         save_fig(fig, "", study.saveas)
+    return fig,axs
 
 
 def quick2d(*args, varlist=[], binlist=None, dim=None, flip=False, **kwargs):
@@ -201,9 +210,10 @@ def quick2d(*args, varlist=[], binlist=None, dim=None, flip=False, **kwargs):
                       info, **study.attrs, figax=(fig, ax))
     fig.suptitle(study.title)
     fig.tight_layout()
-    plt.show()
+    # plt.show()
     if study.saveas:
         save_fig(fig, "", study.saveas)
+    return fig,axs
 
 
 def njets(*args, **kwargs):

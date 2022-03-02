@@ -2,7 +2,7 @@ from ..utils import *
 
 
 class Sample:
-    def __init__(self, data, bins=None, weight=None, density=False, cumulative=False, lumi=1, label="",label_stat='events', is_data=False, is_signal=False, sumw2=True, scale=True, **attrs):
+    def __init__(self, data, bins=None, weight=None, density=False, cumulative=False, lumi=1, label="",label_stat='events', is_data=False, is_signal=False, sumw2=True, scale=True, xsec_scale=1, **attrs):
         self.data = flatten(data)
         self.nevents = len(self.data)
 
@@ -12,11 +12,17 @@ class Sample:
         self.color = attrs.get("color", None)
 
         self.attrs = attrs
-        self.attrs["cumulative"] = cumulative
 
         self.bins = autobin(self.data) if bins is None else bins
         self.weight = np.array(
             [1.0]*self.nevents) if (weight is None or not scale) else flatten(weight)
+        
+        if weight is not None and scale and xsec_scale is not None:
+            self.weight = xsec_scale*self.weight
+            
+            if not is_iter(xsec_scale) and xsec_scale != 1:
+                label = f"{label} x {xsec_scale}"
+        
         # scale by luminosity is a weight is given and sample is not data
         if weight is not None and not self.is_data and scale:
             self.weight = lumi * self.weight
@@ -31,10 +37,14 @@ class Sample:
             self.label_stat = f'{self.scaled_nevents:0.2e}'
         if label_stat == 'mean':
             mean,stdv = get_avg_std(self.data,self.weight)
-            self.label_stat = f'{mean:0.2}'
+            exponent = int(np.log10(mean))
+            exp_str = "" if exponent == 0 else "\\times 10^{"+str(exponent)+"}"
+            self.label_stat = f'$\mu={mean/(10**exponent):0.2f} {exp_str}$'
         if label_stat == 'mean_stdv':
             mean,stdv = get_avg_std(self.data,self.weight,bins)
-            self.label_stat = f'{mean:0.2} $\pm$ {stdv:0.2}'
+            exponent = int(np.log10(mean))
+            exp_str = "" if exponent == 0 else "\\times 10^{"+str(exponent)+"}"
+            self.label_stat = f'$\mu={mean/(10**exponent):0.2f} \pm {stdv/(10**exponent):0.2f} {exp_str}$'
         
         self.label = label if label_stat is None else f"{label} ({self.label_stat})"
 
@@ -49,10 +59,13 @@ class Sample:
             self.error = np.sqrt(sumw2)
         else:
             self.error = np.sqrt(self.histo)
-
-        if cumulative:
+            
+        if cumulative == 1:
             self.histo = np.cumsum(self.histo)
             self.error = np.cumsum(self.error)
+        if cumulative == -1:
+            self.histo = np.cumsum(self.histo[::-1])[::-1]
+            self.error = np.cumsum(self.error[::-1])[::-1]
 
 class Samplelist(list):
     def __init__(self, datalist, bins, weights=None, density=False, cumulative=False, lumi=1, labels="",label_stat='events', is_datas=False, is_signals=False, sumw2=True, scale=True, **attrs):
@@ -80,7 +93,9 @@ class Samplelist(list):
                             is_data=is_datas[i], is_signal=is_signals[i], **{key[:-1]: value[i] for key, value in attrs.items()})
             if self.bins is None:
                 self.bins = sample.bins
-            self.append(sample)
+                
+            if sample.nevents > 0:
+                self.append(sample)
 
         self.has_data = any(sample.is_data for sample in self)
         self.nmc = sum(not(sample.is_data or sample.is_signal)

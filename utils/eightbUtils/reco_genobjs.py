@@ -3,6 +3,17 @@ import awkward as ak
 
 from ..selectUtils import *
 
+mass_list = [
+    "MX_700_MY_300",
+    "MX_800_MY_300",
+    "MX_800_MY_350",
+    "MX_900_MY_300",
+    "MX_900_MY_400",
+    "MX_1000_MY_300",
+    "MX_1000_MY_450",
+    "MX_1200_MY_500"
+]
+
 quarklist = [
     f'{h}{y}_{b}'
     for y in ('Y1','Y2')

@@ -16,6 +16,12 @@ def ordinal(n): return "%d%s" % (
 def array_min(array, value): return ak.min(ak.concatenate(
     ak.broadcast_arrays(value, array[:, np.newaxis]), axis=-1), axis=-1)
 
+def is_iter(array):
+    try:
+        it = iter(array)
+    except TypeError:
+        return False
+    return True
 
 def get_batch_ranges(total, batch_size):
     batch_ranges = np.arange(0, total, batch_size)
@@ -40,11 +46,11 @@ def copy_fields(obj, copy):
 
 
 def get_bin_centers(bins):
-    return [(lo+hi)/2 for lo, hi in zip(bins[:-1], bins[1:])]
+    return np.array([(lo+hi)/2 for lo, hi in zip(bins[:-1], bins[1:])])
 
 
 def get_bin_widths(bins):
-    return [(hi-lo)/2 for lo, hi in zip(bins[:-1], bins[1:])]
+    return np.array([(hi-lo)/2 for lo, hi in zip(bins[:-1], bins[1:])])
 
 
 def safe_divide(a, b, default=None):
@@ -146,7 +152,7 @@ def reorder_collection(collection, order):
     return collection[order]
 
 
-def build_collection(tree, pattern, name):
+def build_collection(tree, pattern, name, ptordered=False):
     fields = list(filter(lambda field: re.match(pattern, field), tree.fields))
     components = dict.fromkeys([re.search(pattern, field)[0]
                                for field in fields if re.search(pattern, field)]).keys()
@@ -158,6 +164,12 @@ def build_collection(tree, pattern, name):
 
     collection = {f'{name}_{field}': ak.concatenate(
         [component[field][:, None] for component in components], axis=-1) for field in shared_fields}
+    
+    if ptordered:
+        order = ak.argsort(-collection[f'{name}_pt'],axis=-1)
+        collection = { key:array[order] for key,array in collection.items()}
+        
+        
     return collection
 
 

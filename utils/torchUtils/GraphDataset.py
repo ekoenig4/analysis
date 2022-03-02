@@ -3,6 +3,7 @@ import awkward as ak
 import numpy as np
 import torch
 from torch_geometric.data import Data, InMemoryDataset
+from torch.utils.data import ConcatDataset
 
 from ..selectUtils import *
 from ..utils import get_collection
@@ -134,10 +135,16 @@ def to_numpy(graph):
 def to_long(graph,precision=1e6):
     return Data(x=(precision*graph.x).long(),y=graph.y.long(),edge_index=graph.edge_index.long(),edge_attr=(precision*graph.edge_attr).long(),edge_y=graph.edge_y.long())
 
-class Dataset(InMemoryDataset):
-    def __init__(self, root, tree=None, template=None, transform=None):
-        self.tree = tree
 
+def concat_dataset(array,**dataset_kwargs):
+    if type(array[0]) == str:
+        array = [Dataset(fn,**dataset_kwargs) for fn in array]
+    return ConcatDataset(array)
+
+class Dataset(InMemoryDataset):
+    def __init__(self, root, tree=None, template=None, transform=None, make_template=False):
+        self.tree = tree
+        self.make_template = make_template
         self.node_scaler = template.node_scaler if template is not None else None
         self.edge_scaler = template.edge_scaler if template is not None else None
         self.node_class_weights = template.node_class_weights if template is not None else None
@@ -147,20 +154,26 @@ class Dataset(InMemoryDataset):
         self.edge_attr_names = template.edge_attr_names if template is not None else None
 
         super().__init__(root, transform)
-        self.data, self.slices = torch.load(self.processed_paths[0])
         self.node_attr_names, self.edge_attr_names = torch.load(
-            self.processed_paths[1])
+            self.processed_paths[0])
         self.node_class_weights, self.edge_class_weights, self.type_class_weights = torch.load(
-            self.processed_paths[2])
-        self.filelist = torch.load(self.processed_paths[3])
+            self.processed_paths[1])
+        self.filelist = torch.load(self.processed_paths[2])
         self.node_scaler, self.edge_scaler = torch.load(
-            self.processed_paths[4])
+            self.processed_paths[3])
+        
+        if not make_template:
+            self.data, self.slices = torch.load(self.processed_paths[4])
 
     @property
     def processed_file_names(self):
-        return ['graphs.pt', 'attr_names.pt', 'class_weights.pt', 'filelist.pt', 'scalers.pt']
+        if self.make_template:
+            return ['attr_names.pt', 'class_weights.pt', 'filelist.pt', 'scalers.pt']
+        return ['attr_names.pt', 'class_weights.pt', 'filelist.pt', 'scalers.pt','graphs.pt']
 
     def process(self):
+        if self.make_template:
+            print("Building Template Dataset...")
         # Read data into huge `Data` list.
         filelist = list(map(lambda f: f.fname, self.tree.filelist))
 
@@ -206,21 +219,23 @@ class Dataset(InMemoryDataset):
         assert edge_slices.type(
         ) == 'torch.LongTensor', f"Expected edge_slices of type torch.LongTensor, but got {edge_slices.type()}"
 
-        print("Building Dataset...")
-        data_list = build_dataset(
-            node_attrs, node_targs, node_slices, edge_attrs, edge_targs, edge_slices)
+        if not self.make_template:
+            print("Building Dataset...")
+            data_list = build_dataset(
+                node_attrs, node_targs, node_slices, edge_attrs, edge_targs, edge_slices)
 
-        data_list = [graph_to_torch(graph) for graph in data_list]
+            data_list = [graph_to_torch(graph) for graph in data_list]
 
-        data, slices = self.collate(data_list)
+            data, slices = self.collate(data_list)
 
         print("Saving Dataset...")
-        torch.save((data, slices), self.processed_paths[0])
-        torch.save((node_attr_names, edge_attr_names), self.processed_paths[1])
+        torch.save((node_attr_names, edge_attr_names), self.processed_paths[0])
         torch.save((node_class_weights, edge_class_weights, type_class_weights),
-                   self.processed_paths[2])
-        torch.save(filelist, self.processed_paths[3])
-        torch.save((node_scaler, edge_scaler), self.processed_paths[4])
+                   self.processed_paths[1])
+        torch.save(filelist, self.processed_paths[2])
+        torch.save((node_scaler, edge_scaler), self.processed_paths[3])
+        if not self.make_template:
+            torch.save((data, slices), self.processed_paths[4])
 
     def build_graphs(self, tree):
         (node_attrs, node_targs, node_attr_names), (edge_attrs,

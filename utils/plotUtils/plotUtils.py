@@ -152,7 +152,16 @@ def ratio_plot(num, dens, denerrs, bins, xlabel, figax, ylim=(0.1, 1.9), ylabel=
     
     graph_multi(xdata, ratio_data, yerrs=ratio_error, figax=(
         fig, ax_ratio), xlabel=xlabel, ylabel=ylabel, ylim=ylim, grid=grid, **kwargs)
+    
+def build_ratio(num,denlist,bins=None,xlabel=None,figax=None,**kwargs):
+    if num is None:
+        num = denlist.pop(0).histo
 
+    denerrs = [sample.error for sample in denlist]
+    colors = [sample.color for sample in denlist]
+    denlist = [sample.histo for sample in denlist]
+    ratio_plot(num, denlist, denerrs, bins, xlabel,
+                figax, colors=colors, **kwargs)
 
 def hist_error(ax, data, error=None, **attrs):
     histo, bins, container = ax.hist(data, **attrs)
@@ -172,18 +181,34 @@ def hist_error(ax, data, error=None, **attrs):
     return histo, error
 
 
-def stack_error(ax, datalist, errors=None, **attrs):
-    histos, bins, container = ax.hist(datalist, stacked=True, **attrs)
-    histo = histos[-1]
-
-    if errors is None:
+def stack_error(ax, stack, bins=None, log=False):
+    bin_centers = get_bin_centers(bins)
+    bin_widths = 2*get_bin_widths(bins)
+    bar = ax.bar(bin_centers, stack[0].histo,bin_widths, label=stack[0].label,log=log,**stack[0].attrs)
+    histo = stack[0].histo
+    errors = [stack[0].error]
+    for i,sample in enumerate(stack[1:]):
+        bar = ax.bar(bin_centers, sample.histo,bin_widths,label=sample.label, bottom=stack[i].histo,log=log,**sample.attrs)
+        histo += sample.histo
+        errors.append(sample.error)
+        
+    if errors[0] is None:
         return histo, None
 
-    bin_centers, bin_widths = get_bin_centers(bins), get_bin_widths(bins)
-    error = np.sqrt(np.sum(errors**2, axis=0))
+    error = np.sqrt(np.sum(np.array(errors)**2, axis=0))
     ax.errorbar(bin_centers, histo, yerr=error,
                 fmt='none', color='grey', capsize=1)
     return histo, error
+
+def build_stack(samples,bins=None,log=False,ax=None):
+    stack = Stack()
+    stack.add(*samples)
+    stack.sort(key=lambda sample: sample.scaled_nevents, reverse=not log)
+    histo, error = stack_error(ax, stack, bins=bins, log=log)
+    stack.histo = histo
+    stack.error = error
+    stack.color = 'black'
+    return stack
 
 def draw_stats(ax,sample,bins=None):
     x,w = sample.data,sample.weight 
@@ -228,19 +253,10 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
     
 
     if stacked:
-        stack = Stack()
-        stack.add(*[sample for sample in samples if sample.is_bkg])
-        stack.sort(key=lambda sample: sample.scaled_nevents, reverse=not log)
-        datalist, errors, weights, labels, attrs = stack.datalist(
-        ), stack.errors(), stack.weights(), stack.labels(), stack.attrs()
-        histo, error = stack_error(
-            ax, datalist, bins=bins, errors=errors, weights=weights, label=labels, log=log, **attrs)
-        stack.histo = histo
-        stack.error = error
-        stack.color = 'black'
+        stack = build_stack([sample for sample in samples if sample.is_bkg],bins,log,ax)
         denlist.append(stack)
 
-        hmax, hmin = get_extrema(histo)
+        hmax, hmin = get_extrema(stack.histo)
         ymax, ymin = max(ymax, hmax), min(ymin, hmin)
 
 
@@ -261,7 +277,7 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
             attrs["histtype"] = "step" if len(samples) > 1 else "bar"
             attrs["linewidth"] = 2
             histo,error = hist_error(ax, data, bins=bins, error=error,
-                       weights=weight, label=label, log=log, **attrs)
+                       weights=weight, label=label, log=log, cumulative=cumulative, **attrs)
             sample.histo = histo 
             sample.error = error
 
@@ -291,17 +307,9 @@ def hist_multi(datalist, bins=None, weights=None, labels=None, is_datas=None, is
 
     format_axis(ax, xlabel=xlabel, ylabel=ylabel, title=title, **kwargs)
     ax.legend()
-    if ratio:
-        if num is None:
-            num = denlist.pop(0).histo
-
-        options = {key[2:]: value for key,
-                   value in kwargs.items() if key.startswith("r_")}
-        denerrs = [sample.error for sample in denlist]
-        colors = [sample.color for sample in denlist]
-        denlist = [sample.histo for sample in denlist]
-        ratio_plot(num, denlist, denerrs, bins, xlabel,
-                   figax, colors=colors, **options)
+    if ratio: 
+        build_ratio(num,denlist,bins,xlabel,figax=figax,
+    **{key[2:]: value for key,value in kwargs.items() if key.startswith("r_")})
 
     return (fig, ax)
 

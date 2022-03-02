@@ -1,5 +1,5 @@
 from ..utils import *
-from ..classUtils import TreeIter
+from ..classUtils import TreeIter, ObjIter
 
 
 def get_operation(tags, operation, default):
@@ -16,7 +16,7 @@ functions = {'abs': lambda a: np.abs(a), }
 
 methods = {'min': lambda a, v: a > v, 'max': lambda a, v: a < v,
            'emin': lambda a, v: a >= v, 'emax': lambda a, v: a <= v,
-           'bit': lambda a, v: ((a >> v)&1) == 1, 'neq': lambda a, v: a != v,
+           'bit': lambda a, v: ((a >> v) & 1) == 1, 'neq': lambda a, v: a != v,
            'mask': lambda a, v: a[v]}
 
 
@@ -57,7 +57,7 @@ def event_filter(self, tree):
         mask = self.mask
     else:
         mask = True
-        
+
     for filter in self.filters:
         mask = mask & filter(collection)
     tree.extend(collection[mask])
@@ -67,19 +67,23 @@ def event_filter(self, tree):
 
 
 class EventFilter:
-    def __init__(self, name, mask=None, **kwargs):
+    def __init__(self, name, mask=None, filter=None,**kwargs):
         self.name = name
         self.mask = mask
         self.filters = [build_event_filter(key, value)
                         for key, value in kwargs.items()]
-
+        if filter is not None:
+            self.filters = [filter] + self.filters
+            
     def filter(self, tree, filter=None):
         if filter:
             tree = filter.filter(tree)
-        if type(tree) == list:
+        if isinstance(tree,list):
             return [event_filter(self, t) for t in tree]
-        if str(type(tree)) == str(TreeIter):
+        if isinstance(tree,TreeIter):
             return TreeIter([event_filter(self, t) for t in tree])
+        # if isinstance(tree,ObjIter):
+        #     return tree.apply(lambda t : event_filter(self,t))
         return event_filter(self, tree)
 
 
@@ -129,13 +133,16 @@ class CollectionFilter:
         self.mask = mask
         self.filters = [build_collection_filter(collection, key, value)
                         for key, value in kwargs.items()]
-        if filter is not None: self.filters = [filter] + self.filters
+        if filter is not None:
+            self.filters = [filter] + self.filters
 
     def filter(self, tree):
-        if type(tree) == list:
+        if isinstance(tree,list):
             return [collection_filter(self, t) for t in tree]
-        if str(type(tree)) == str(TreeIter):
+        if isinstance(tree,TreeIter):
             return TreeIter([collection_filter(self, t) for t in tree])
+        if isinstance(tree,ObjIter):
+            return tree.apply(lambda t : collection_filter(self,t))
         return collection_filter(self, tree)
 
 

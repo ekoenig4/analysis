@@ -79,13 +79,13 @@ def init_selection(self):
 
     # self.sixb_found_mask = self["nfound_presel"] == 6
 
-
 class Tree:
-    def __init__(self, filelist):
-        if type(filelist) != list:
+    def __init__(self, filelist,allow_empty=False):
+        if type(filelist) == str:
             filelist = [filelist]
         self.filelist = [SixBFile(fn) for fn in filelist]
-        self.filelist = list(filter(lambda fn : fn.raw_events > 0,self.filelist))
+        if not allow_empty:
+            self.filelist = list(filter(lambda fn : fn.raw_events > 0,self.filelist))
 
         init_sample(self)
         init_tree(self)
@@ -110,7 +110,7 @@ class Tree:
 
     def expected_events(self, lumikey=2018):
         lumi, _ = lumiMap[lumikey]
-        return ak.sum(self["scale"])*lumi
+        return ak.sum(self["scale"])*(1 if self.is_data else lumi)
 
     def extend(self, *args, **kwargs):
         self.ttree = join_fields(self.ttree, *args, **kwargs)

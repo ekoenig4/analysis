@@ -1,18 +1,10 @@
 import awkward as ak
 
 from .plotUtils import lumiMap
-
+from .utils import is_iter
 
 def print_nice(array): return [(int(elem) if type(
     elem) is bool else elem) for elem in array]
-
-
-def is_iter(array):
-    try:
-        it = iter(array)
-    except TypeError:
-        return False
-    return True
 
 
 def check(selections, fields, ie=5):

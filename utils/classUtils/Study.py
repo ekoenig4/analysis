@@ -4,7 +4,7 @@ import os
 from ..utils import *
 from ..testUtils import is_iter
 from ..varConfig import varinfo
-from ..classUtils import TreeIter
+from ..classUtils import TreeIter,ObjIter
 
 date_tag = date.today().strftime("%Y%m%d")
 
@@ -29,6 +29,8 @@ class Study:
     def __init__(self, selections, labels=None, density=0, log=0, ratio=0, stacked=0, lumikey=2018, sumw2=True, title=None, saveas=None, masks=None, **kwargs):
         if str(type(selections)) == str(TreeIter):
             selections = selections.trees
+        elif str(type(selections)) == str(ObjIter):
+            selections = selections.objs
         elif is_iter(selections):
             selections = list(selections)
         elif type(selections) != list:

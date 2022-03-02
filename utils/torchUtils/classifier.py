@@ -7,21 +7,22 @@ from torchmetrics.functional import accuracy
 from .gnn import to_tensor, get_uptri
 from .cpp_geometric import layers
 
-useGPU = True 
+useGPU = True
 useGPU = useGPU and torch.cuda.is_available()
 
+
 class LightningModel(pl.LightningModule):
-    def __init__(self,dataset, lr=1e-3):
+    def __init__(self, dataset, lr=1e-3):
         super().__init__()
         self.lr = lr
         self.node_weights = to_tensor(dataset.node_class_weights, useGPU)
         self.edge_weights = to_tensor(dataset.edge_class_weights, useGPU)
         self.type_weights = to_tensor(dataset.type_class_weights, useGPU)
-        
-    def predict(self, data):    
+
+    def predict(self, data):
         with torch.no_grad():
             node_pred, edge_pred = self(data)
-        return torch.exp(node_pred)[:,1],torch.exp(edge_pred)[:,1]
+        return torch.exp(node_pred)[:, 1], torch.exp(edge_pred)[:, 1]
 
     def predict_nodes(self, data):
         node_pred, edge_pred = self.predict(data)
@@ -39,7 +40,7 @@ class LightningModel(pl.LightningModule):
             batch.y, useGPU), to_tensor(batch.edge_y, useGPU)
 
         node_loss = F.nll_loss(node_o, node_y, self.node_weights)
-        
+
         edge_loss = F.nll_loss(
             edge_o, edge_y, self.edge_weights)
 
@@ -65,15 +66,15 @@ class LightningModel(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
-        return [optimizer],dict(
+        return [optimizer], dict(
             scheduler=scheduler,
             monitor='val_loss'
         )
-        
+
 
 class GCN(LightningModel):
     def __init__(self, dataset, nn1_out=32, nn2_out=128, **kwargs):
-        super().__init__(dataset,**kwargs)
+        super().__init__(dataset, **kwargs)
         self.save_hyperparameters('nn1_out', 'nn2_out')
 
         nn1 = torch.nn.Sequential(
@@ -82,14 +83,16 @@ class GCN(LightningModel):
             torch.nn.ELU()
         )
 
-        self.conv1 = layers.EdgeConv(nn1, edge_aggr=None, return_with_edges=True)
+        self.conv1 = layers.EdgeConv(
+            nn1, edge_aggr=None, return_with_edges=True)
 
         nn2 = torch.nn.Sequential(
             Linear(5*nn1_out, nn2_out),
             torch.nn.ELU()
         )
 
-        self.conv2 = layers.EdgeConv(nn2, edge_aggr=None, return_with_edges=True)
+        self.conv2 = layers.EdgeConv(
+            nn2, edge_aggr=None, return_with_edges=True)
 
         self.edge_seq = torch.nn.Sequential(
             Linear(3*nn2_out, 2),
@@ -115,17 +118,18 @@ class GCN(LightningModel):
 
 class GoldenGCN(LightningModel):
     def __init__(self, dataset, nn1_out=32, nn2_out=128, **kwargs):
-        super().__init__(dataset,**kwargs)
+        super().__init__(dataset, **kwargs)
         self.save_hyperparameters('nn1_out', 'nn2_out')
-        
-        self.node_conv1 = layers.GCNConv(5, 1, nn1_out)
-        self.edge_conv1 = layers.EdgeConCat()
-        self.node_conv2 = layers.GCNConv(nn1_out,2*nn1_out+1,nn2_out)
-        self.edge_conv2 = layers.EdgeConCat()
-        
-        self.node_linear = Linear(nn2_out,2)
-        self.edge_linear = Linear(2*nn2_out+2*nn1_out+1,2)
-        
+
+        self.conv1 = layers.GCNConvMSG(n_in_node=5, n_in_edge=1, n_out=nn1_out)
+        self.relu1 = layers.GCNRelu()
+        self.conv2 = layers.GCNConvMSG(
+            n_in_node=nn1_out, n_in_edge=3*nn1_out, n_out=nn2_out)
+        self.relu2 = layers.GCNRelu()
+
+        self.node_linear = layers.NodeLinear(nn2_out, 2)
+        self.edge_linear = layers.EdgeLinear(3*nn2_out, 2)
+        self.log_softmax = layers.GCNLogSoftmax()
 
     def forward(self, data):
         if type(data) is list:
@@ -134,14 +138,15 @@ class GoldenGCN(LightningModel):
             data = (data.x, data.edge_index, data.edge_attr)
         x, edge_index, edge_attr = data
 
-        x = self.node_conv1(x, edge_index, edge_attr)
-        edge_attr = self.edge_conv1(x,edge_index,edge_attr)
-        x,edge_attr = torch.relu(x),torch.relu(edge_attr)
-        
-        x = self.node_conv2(x, edge_index, edge_attr)
-        edge_attr = self.edge_conv2(x,edge_index,edge_attr)
-        x,edge_attr = torch.relu(x),torch.relu(edge_attr)
-        
-        x = self.node_linear(x)
-        edge_attr = self.edge_linear(edge_attr)
-        return F.log_softmax(x, dim=1), F.log_softmax(edge_attr,dim=1)
+        x, edge_attr = self.conv1(x, edge_index, edge_attr)
+        x, edge_attr = self.relu1(x, edge_index, edge_attr)
+
+        x, edge_attr = self.conv2(x, edge_index, edge_attr)
+        x, edge_attr = self.relu2(x, edge_index, edge_attr)
+
+        x, edge_attr = self.node_linear(x, edge_index, edge_attr)
+        x, edge_attr = self.edge_linear(x, edge_index, edge_attr)
+
+        x, edge_attr = self.log_softmax(x, edge_index, edge_attr)
+
+        return x, edge_attr
