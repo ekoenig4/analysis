@@ -6,7 +6,6 @@ import numpy as np
 import vector
 import scipy
 
-from .plotUtils import *
 from .utils import *
 
 
@@ -356,6 +355,7 @@ def calc_asymmetry(jet_pt, jet_eta, jet_phi, jet_m, njet=-1):
 
 
 def optimize_var_cut(selections, variable, varmin=None, varmax=None, method=min, plot=False):
+    from .plotUtils import graph_simple
     varmin = min([ak.min(selection[variable])
                  for selection in selections]) if varmin == None else varmin
     varmax = max([ak.max(selection[variable])

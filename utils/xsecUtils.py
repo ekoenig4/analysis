@@ -25,7 +25,7 @@ colorMap = {
     "X$\\rightarrow$ YY$\\rightarrow$4H$\\rightarrow$8b": "tomato",
     "TTJets": "green",
     "Data": "black",
-    "Bkg": "grey"
+    "MC-Bkg": "grey"
 }
 
 xsecMap = {

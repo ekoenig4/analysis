@@ -1,6 +1,6 @@
 import awkward as ak
 
-from .plotUtils import lumiMap
+from .xsecUtils import lumiMap
 from .utils import is_iter
 
 def print_nice(array): return [(int(elem) if type(

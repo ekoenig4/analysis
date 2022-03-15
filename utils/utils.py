@@ -6,7 +6,9 @@ import re
 GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
 
 
-def flatten(array): return ak.to_numpy(ak.flatten(array, axis=None))
+def flatten(array): 
+    flat_array = ak.flatten(array,axis=None)
+    return ak.to_numpy(flat_array)
 
 
 def ordinal(n): return "%d%s" % (
