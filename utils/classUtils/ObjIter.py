@@ -21,8 +21,7 @@ class MethodIter:
         def build_args(t): return list(a)+list(f_args(t))
         def build_kwargs(t): return dict(**f_kwargs(t), **kw)
         out = [call(*build_args(t), **build_kwargs(t)) for t, call in self.calliter]
-        if not any( attr is None for attr in out ):
-            return ObjIter(out)
+        return ObjIter(out)
     
 def get_slice(obj,slices):
     if len(slices) == 1:
@@ -36,6 +35,7 @@ class ObjIter:
     def __init__(self,objs):
         self.objs = list(objs)
 
+    def __len__(self): return len(self.objs)
     def __str__(self): return str(self.objs)
     def __iter__(self): return iter(self.objs)
     def __repr__(self): return repr(self.objs)
@@ -55,8 +55,7 @@ class ObjIter:
             attriter = MethodIter(self.objs, attriter)
         else:
             attriter = ObjIter(attriter)
-        if not any( attr is None for attr in attriter ):
-            return attriter
+        return attriter
         
     def __add__(self,other):
         if type(other) == list: other = ObjIter(other)
@@ -71,11 +70,17 @@ class ObjIter:
     @property
     def awk(self): return ak.from_regular(self.objs)
     
+    def filter(self,obj_filter):
+        return ObjIter(list(filter(obj_filter,self)))
+    
+    def split(self,obj_filter):
+        split_t = self.filter(obj_filter)
+        split_f = self.filter(lambda obj : obj not in split_t)
+        return split_t,split_f
     
     def apply(self,obj_function):
         out = ObjIter([ obj_function(obj) for obj in self ])
-        if not any( attr is None for attr in out ):
-            return out
+        return out
         
     def copy(self):
         return ObjIter([obj.copy() for obj in self])

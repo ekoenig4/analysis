@@ -70,6 +70,7 @@ class EventFilter:
     def __init__(self, name, mask=None, filter=None,**kwargs):
         self.name = name
         self.mask = mask
+        self.kwargs = kwargs
         self.filters = [build_event_filter(key, value)
                         for key, value in kwargs.items()]
         if filter is not None:
@@ -85,6 +86,9 @@ class EventFilter:
         # if isinstance(tree,ObjIter):
         #     return tree.apply(lambda t : event_filter(self,t))
         return event_filter(self, tree)
+    
+    def __str__(self): return f"<EventFilter: {self.name}>"
+    def __repr__(self): return f"<EventFilter: {self.name} {self.kwargs}>"
 
 
 def build_collection_filter(name, key, value, functions=functions, methods=methods):

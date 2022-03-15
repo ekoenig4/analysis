@@ -36,7 +36,7 @@ def init_sample(self):  # Helper Method For Tree Class
     if (sample_tag.count(sample_tag[0]) == len(sample_tag)):
         self.sample = sample_tag[0]
     else:
-        self.sample = "Bkg"
+        self.sample = "MC-Bkg"
 
     if self.is_data:
         self.sample = "Data"
