@@ -26,7 +26,7 @@ def save_fig(fig, directory, saveas, base=GIT_WD):
 
 
 class Study:
-    def __init__(self, selections, labels=None, density=0, log=0, ratio=0, stacked=0, lumikey=2018, sumw2=True, title=None, saveas=None, masks=None, **kwargs):
+    def __init__(self, selections, label=None, density=0, log=0, ratio=0, stacked=0, lumi=2018, sumw2=True, title=None, saveas=None, masks=None, **kwargs):
         if str(type(selections)) == str(TreeIter):
             selections = selections.trees
         elif str(type(selections)) == str(ObjIter):
@@ -38,21 +38,20 @@ class Study:
 
         self.selections = selections
         self.masks = masks
-
-        kwargs['s_colors'] = kwargs.get(
-            's_colors', [selection.color for selection in selections])
+        
+        kwargs['h_color'] = kwargs.get(
+            'h_color', [selection.color for selection in selections])
         self.attrs = dict(
-            labels=labels if labels else [
+            h_label=label if label else [
                 selection.sample for selection in selections],
-            is_datas=[selection.is_data for selection in selections],
-            is_signals=[selection.is_signal for selection in selections],
-
+            is_data=[selection.is_data for selection in selections],
+            is_signal=[selection.is_signal for selection in selections],
             density=density,
             log=log,
             ratio=ratio,
             stacked=stacked,
-            lumikey=lumikey,
-            sumw2=sumw2,
+            lumi=lumi,
+            h_sumw2=sumw2,
             **kwargs,
         )
 
