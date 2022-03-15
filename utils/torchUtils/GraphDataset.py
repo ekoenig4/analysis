@@ -56,10 +56,17 @@ def get_node_targs(jets):
     return targets
 
 
-def get_edge_attrs(jets, attrs=["dr"]):
-    dr = calc_dr(jets.eta[:, :, None], jets.phi[:, :, None],
-                 jets.eta[:, None], jets.phi[:, None])[:, :, :, None]
-    return ak.flatten(dr, axis=2)
+def get_edge_attrs(jets, attrs=["dpt","dr","deta","dphi"]):
+    dpt = ak.flatten(jets.pt[:,:,None] - jets.pt[:,None],axis=2)
+    deta = ak.flatten(calc_deta(jets.eta[:,:,None],jets.eta[:,None]),axis=2)
+    dphi = ak.flatten(calc_dphi(jets.phi[:,:,None],jets.phi[:,None]),axis=2)
+    dr = np.sqrt(deta**2 + dphi**2)
+    
+    edges = ak.zip(dict(dpt=dpt,deta=deta,dphi=dphi,dr=dr),depth_limit=1)
+    
+    features = ak.concatenate([attr[:, :, None]
+                              for attr in ak.unzip(edges[attrs])], axis=-1)
+    return features
 
 
 def get_edge_targs(jets):
@@ -77,7 +84,7 @@ def build_node_features(jets, node_attr_names=["m", "pt", "eta", "phi", "btag"])
     return node_attrs, node_targs, node_attr_names
 
 
-def build_edge_features(jets, edge_attr_names=["dr"]):
+def build_edge_features(jets, edge_attr_names=["dpt","dr","deta","dphi"]):
     edge_attrs = get_edge_attrs(jets, edge_attr_names)
     edge_targs = get_edge_targs(jets)
     return edge_attrs, edge_targs, edge_attr_names

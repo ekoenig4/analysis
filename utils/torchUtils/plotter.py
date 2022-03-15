@@ -155,8 +155,8 @@ def plot_aucroc(roc_metrics,tag="",figax=None):
     if figax is None: figax = plt.subplots()
 
     fpr, tpr, auc = roc_metrics.get_values()
-    graph_simple(fpr, tpr, xlabel=f"{tag} False Positive", ylabel=f"{tag} True Positive",
-                 title=f"AUC: {auc:.3}", marker=None, figax=figax)
+    graph_arrays([fpr], [tpr], xlabel=f"{tag} False Positive", ylabel=f"{tag} True Positive",
+                 title=f"AUC: {auc:.3}", ylim=(-0.05,1.05), figax=figax)
     return figax
 
 

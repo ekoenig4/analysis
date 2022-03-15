@@ -1,85 +1,18 @@
 from torch_geometric.nn import Linear
-import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from torchmetrics.functional import accuracy
 
-from .gnn import to_tensor, get_uptri
 from .cpp_geometric import layers
-
-useGPU = True
-useGPU = useGPU and torch.cuda.is_available()
-
-
-class LightningModel(pl.LightningModule):
-    def __init__(self, dataset, lr=1e-3):
-        super().__init__()
-        self.lr = lr
-        self.node_weights = to_tensor(dataset.node_class_weights, useGPU)
-        self.edge_weights = to_tensor(dataset.edge_class_weights, useGPU)
-        self.type_weights = to_tensor(dataset.type_class_weights, useGPU)
-
-    def predict(self, data):
-        with torch.no_grad():
-            node_pred, edge_pred = self(data)
-        return torch.exp(node_pred)[:, 1], torch.exp(edge_pred)[:, 1]
-
-    def predict_nodes(self, data):
-        node_pred, edge_pred = self.predict(data)
-        return node_pred
-
-    def predict_edges(self, data):
-        node_pred, edge_pred = self.predict(data)
-        return edge_pred
-
-    def shared_step(self, batch, batch_idx, tag=None):
-        node_o, edge_o = self(batch)
-        node_o, edge_o = to_tensor(
-            node_o, useGPU), to_tensor(edge_o, useGPU)
-        node_y, edge_y = to_tensor(
-            batch.y, useGPU), to_tensor(batch.edge_y, useGPU)
-
-        node_loss = F.nll_loss(node_o, node_y, self.node_weights)
-
-        edge_loss = F.nll_loss(
-            edge_o, edge_y, self.edge_weights)
-
-        loss = self.type_weights[0]*node_loss + self.type_weights[1]*edge_loss
-        acc = accuracy(torch.cat([node_o, edge_o]).argmax(
-            dim=1), torch.cat([node_y, edge_y]))
-        metrics = dict(loss=loss, acc=acc)
-        if tag is not None:
-            metrics = {f'{tag}_{key}': value for key, value in metrics.items()}
-
-        self.log_dict(metrics)
-        return metrics
-
-    def training_step(self, batch, batch_idx):
-        return self.shared_step(batch, batch_idx)
-
-    def validation_step(self, batch, batch_idx):
-        return self.shared_step(batch, batch_idx, tag='val')
-
-    def test_step(self, batch, batch_idx):
-        return self.shared_step(batch, batch_idx, tag='test')
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
-        return [optimizer], dict(
-            scheduler=scheduler,
-            monitor='val_loss'
-        )
+from .LightningModel import LightningModel
 
 
 class GCN(LightningModel):
     def __init__(self, dataset, nn1_out=32, nn2_out=128, **kwargs):
         super().__init__(dataset, **kwargs)
-        self.save_hyperparameters('nn1_out', 'nn2_out')
 
         nn1 = torch.nn.Sequential(
-            Linear(2*dataset.num_node_features +
-                   dataset.num_edge_features, nn1_out),
+            Linear(2*len(dataset.node_attr_names) +
+                   len(dataset.edge_attr_names), nn1_out),
             torch.nn.ELU()
         )
 
@@ -121,7 +54,10 @@ class GoldenGCN(LightningModel):
         super().__init__(dataset, **kwargs)
         self.save_hyperparameters('nn1_out', 'nn2_out')
 
-        self.conv1 = layers.GCNConvMSG(n_in_node=5, n_in_edge=1, n_out=nn1_out)
+        n_in_node = len(dataset.node_attr_names)
+        n_in_edge = len(dataset.edge_attr_names)
+        
+        self.conv1 = layers.GCNConvMSG(n_in_node=n_in_node, n_in_edge=n_in_edge, n_out=nn1_out)
         self.relu1 = layers.GCNRelu()
         self.conv2 = layers.GCNConvMSG(
             n_in_node=nn1_out, n_in_edge=3*nn1_out, n_out=nn2_out)

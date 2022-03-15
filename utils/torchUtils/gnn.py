@@ -7,8 +7,10 @@ import sklearn.metrics as metrics
 from ..selectUtils import *
 from ..utils import *
 
+useGPU = True
+useGPU = useGPU and torch.cuda.is_available()
 
-def to_tensor(tensor, gpu=False):
+def to_tensor(tensor, gpu=useGPU):
     if not torch.is_tensor(tensor):
         tensor = torch.Tensor(tensor)
     if gpu:
