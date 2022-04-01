@@ -145,8 +145,8 @@ class CollectionFilter:
             return [collection_filter(self, t) for t in tree]
         if isinstance(tree,TreeIter):
             return TreeIter([collection_filter(self, t) for t in tree])
-        if isinstance(tree,ObjIter):
-            return tree.apply(lambda t : collection_filter(self,t))
+        # if isinstance(tree,ObjIter):
+        #     return tree.apply(lambda t : collection_filter(self,t))
         return collection_filter(self, tree)
 
 

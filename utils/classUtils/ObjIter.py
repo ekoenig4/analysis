@@ -69,6 +69,8 @@ class ObjIter:
     def awkward(self): return ak.from_regular(self.objs)
     @property
     def awk(self): return ak.from_regular(self.objs)
+    @property
+    def list(self): return self.objs
     
     def filter(self,obj_filter):
         return ObjIter(list(filter(obj_filter,self)))

@@ -24,9 +24,28 @@ def save_fig(fig, directory, saveas, base=GIT_WD):
     # fig.savefig(f"{directory}/{saveas}.pdf", format="pdf")
     fig.savefig(f"{outfn}.png", format="png", dpi=400)
 
+def _mask_items(self,items):
+    if callable(self.masks):
+        items = [item[self.masks(selection)] for item, selection in zip(
+            items, self.selections)]
+    else:
+        def mask_item(item,selection,mask):
+            if mask is None: return item 
+            return item[mask(selection)]
+        items = [ mask_item(item,selection,mask) for item, selection, mask in zip(items, self.selections,self.masks)]
+    return items
+
+def _transform_items(self,items):
+    if callable(self.transforms):
+        items = [ self.transforms(item) for item, selection in zip(
+            items, self.selections)]
+    else:
+        items = [ transform(item) for item, transform in zip(items, self.transforms)]
+    return items
+    
 
 class Study:
-    def __init__(self, selections, label=None, density=0, log=0, ratio=0, stacked=0, lumi=2018, sumw2=True, title=None, saveas=None, masks=None, **kwargs):
+    def __init__(self, selections, label=None, density=0, log=0, ratio=0, stacked=0, lumi=2018, sumw2=True, title=None, saveas=None, masks=None, transforms=None, **kwargs):
         if str(type(selections)) == str(TreeIter):
             selections = selections.trees
         elif str(type(selections)) == str(ObjIter):
@@ -38,6 +57,7 @@ class Study:
 
         self.selections = selections
         self.masks = masks
+        self.transforms = transforms
         
         kwargs['h_color'] = kwargs.get(
             'h_color', [selection.color for selection in selections])
@@ -54,7 +74,7 @@ class Study:
             h_sumw2=sumw2,
             **kwargs,
         )
-
+        
         self.title = title
         self.saveas = saveas
 
@@ -63,18 +83,12 @@ class Study:
         if ":" in key:
             key, ie = key.split(":")
         items = [selection[key] for selection in self.selections]
+        if self.masks is not None:
+            items = _mask_items(self, items)
+        if self.transforms is not None:
+            items = _transform_items(self, items)
         if ie is not None:
             items = [item[:, int(ie)] for item in items]
-        if self.masks is not None:
-            if type(self.masks) is type(lambda: None):
-                items = [item[self.masks(selection)] for item, selection in zip(
-                    items, self.selections)]
-            else:
-                def mask_item(item,mask):
-                    if ak.count(item) != ak.count(mask):
-                        item = ak.broadcast_arrays(item,mask)[0]
-                    return item[mask]
-                items = [ mask_item(item,mask) for item, mask in zip(items, self.masks)]
         return items
 
     def get_scale(self, key):
