@@ -21,7 +21,7 @@ def default_coloring(g, node_attr=None):
         dict: Dictionary attrs for coloring in networkx
     """
     node_color = [g.nodes[n]['x'][node_attr]
-                  for n in g.nodes] if node_attr is not None else 'tab:purple'
+                  for n in g.nodes] if node_attr is not None else 'tab:grey'
     width = [g.get_edge_data(ni, nj)['edge_y'] for ni, nj in g.edges]
     return dict(node_color=node_color, width=np.array(width))
 
@@ -39,34 +39,42 @@ def paired_coloring(g):
         dict: Dictionary attrs for coloring in networkx
     """
     node_pairs = {n: -1 for n in g.nodes}
-    node_color = {n: 'tab:purple' for n in g.nodes}
+    node_truth = nx.get_node_attributes(g,'y')
+    node_color = {n: 'tab:blue' if node_truth[n] else 'tab:grey'  for n in g.nodes}
     pair_score = {n: 0 for n in g.nodes}
-    edge_color = {e: 'black' for e, _ in enumerate(g.edges)}
-    width = {e: 0 for e, _ in enumerate(g.edges)}
-
-    scores = {(e, (ni, nj)): g.get_edge_data(ni, nj)[
-        'edge_y'] for e, (ni, nj) in enumerate(g.edges)}
+    
+    edge_truth = nx.get_edge_attributes(g,'edge_y')
+    edge_color = {e: 'tab:blue' if edge_truth[e] else 'black' for e in g.edges}
+    width = {e: 0 for e in g.edges}
+    
+    true_var = 'edge_y'
+    pred_var = 'edge_pred' if 'edge_pred' in g.get_edge_data(0,1) else 'edge_y'
+    
+    scores = {(ni, nj): g.get_edge_data(ni, nj)[pred_var] for (ni, nj) in g.edges}
     sorted_scores = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
-    for e, (ni, nj) in map(lambda kv: kv[0], sorted_scores):
-        paired = g.get_edge_data(ni, nj)['edge_y']
-        width[e] = paired
+    for (ni, nj) in map(lambda kv: kv[0], sorted_scores):
+        paired = g.get_edge_data(ni, nj)[pred_var]
+        
+        width[(ni,nj)] = paired
 
         if pair_score[ni] < paired and pair_score[nj] < paired:
-            node_pairs[ni] = e
-            node_pairs[nj] = e
+            node_pairs[ni] = (ni,nj)
+            node_pairs[nj] = (ni,nj)
+            
             pair_score[ni] = paired
             pair_score[nj] = paired
 
     npairs = 0
-    for e, (ni, nj) in map(lambda kv: kv[0], sorted_scores):
+    for (ni, nj) in map(lambda kv: kv[0], sorted_scores):
         if npairs == 4: break
         if node_pairs[ni] == -1 or node_pairs[nj] == -1:
             continue
         if node_pairs[ni] == node_pairs[nj]:
             npairs += 1
-            node_color[ni] = 'tab:blue'
-            node_color[nj] = 'tab:blue'
-            edge_color[e] = 'tab:orange'
+            node_color[ni] = 'tab:orange' if node_truth[ni] else 'tab:red'
+            node_color[nj] = 'tab:orange' if node_truth[nj] else 'tab:red'
+            
+            edge_color[(ni, nj)] = 'tab:orange' if edge_truth[(ni, nj)] else 'tab:red'
 
     node_color = list(node_color.values())
     edge_color = list(edge_color.values())
@@ -98,9 +106,12 @@ def display_graph(g, pos='xy', sizing=1, coloring='paired', show_detector=False,
     )
 
     colorings = dict(paired=paired_coloring, default=default_coloring)
+    
+    edge_attrs = ['edge_attr', 'edge_y']
+    if hasattr(g,'edge_pred'): edge_attrs += ['edge_pred']
 
-    g = nx.Graph(to_networkx(g, node_attrs=['x', 'y'], edge_attrs=[
-                    'edge_attr', 'edge_y'], remove_self_loops=True))
+    g = nx.Graph(to_networkx(g, node_attrs=['x', 'y'], 
+                             edge_attrs=edge_attrs, remove_self_loops=True))
 
     node_pos = np.array([[posmap[p](g.nodes[n]['x'])
                         for p in pos] for n in g.nodes])
@@ -119,7 +130,7 @@ def display_graph(g, pos='xy', sizing=1, coloring='paired', show_detector=False,
         (np.max(node_size)-np.min(node_size))
     node_size = np.where(node_size > 100, node_size, 100)
 
-    coloring = colorings.get(coloring, lambda g: {'node_color':'tab:purple'})(g)
+    coloring = colorings.get(coloring, lambda g: {'node_color':'tab:grey'})(g)
 
     nx.draw(g, node_pos, node_size=node_size, **coloring, alpha=0.8)
 

@@ -2,6 +2,7 @@ import awkward as ak
 import git
 import numpy as np
 import re
+import itertools
 
 GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
 
@@ -24,6 +25,10 @@ def is_iter(array):
     except TypeError:
         return False
     return True
+
+def loop_iter(iterable):
+    return itertools.cycle(iterable)
+    
 
 def get_batch_ranges(total, batch_size):
     batch_ranges = np.arange(0, total, batch_size)
@@ -154,10 +159,11 @@ def reorder_collection(collection, order):
     return collection[order]
 
 
-def build_collection(tree, pattern, name, ptordered=False):
+def build_collection(tree, pattern, name, ptordered=False, replace=False):
     fields = list(filter(lambda field: re.match(pattern, field), tree.fields))
     components = dict.fromkeys([re.search(pattern, field)[0]
                                for field in fields if re.search(pattern, field)]).keys()
+    
     shared_fields = list(set.intersection(*[set(map(lambda field: field[len(component)+1:], filter(
         lambda field: field.startswith(component), fields))) for component in components]))
 
@@ -171,7 +177,7 @@ def build_collection(tree, pattern, name, ptordered=False):
         order = ak.argsort(-collection[f'{name}_pt'],axis=-1)
         collection = { key:array[order] for key,array in collection.items()}
         
-        
+    tree.extend(**collection)
     return collection
 
 

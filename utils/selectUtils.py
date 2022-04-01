@@ -422,7 +422,7 @@ def build_all_dijets(tree):
     signalId = ak.min(ak.concatenate([j1_id[:,:,None],j2_id[:,:,None]],axis=-1),axis=-1)//2
     signalId = ak.where(paired,signalId,-1)
     
-    return dict(
+    tree.extend(
         dijet_m=dijet.m,
         dijet_dm=np.abs(dijet.m-125),
         dijet_pt=dijet.pt,
@@ -466,4 +466,7 @@ def select_higgs(tree, field='score', tag='gnn', nhiggs=3):
         higgs_list.append(higgs)
     higgs = ak.concatenate(higgs_list, axis=1)
     higgs = rename_collection(higgs, f'{tag}_higgs')
-    return unzip_records(higgs)
+    
+    tree.extend(
+        **unzip_records(higgs)
+    )

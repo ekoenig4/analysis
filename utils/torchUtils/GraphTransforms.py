@@ -1,13 +1,17 @@
 import torch
 import torch_geometric 
 from torch_geometric.data import Data
-from .gnn import useGPU
+from .gnn import config
+
+debug = dict(transform=0)
 
 class Transform:
     def __init__(self,*args):
-        self.transforms = args
+        self.transforms = list(args)
     def append(self, transform):
         self.transforms.append(transform)
+    def insert(self, transform):
+        self.transforms.insert(0, transform)
     def __call__(self,graph):
         for transform in self.transforms: 
             graph = transform(graph)
@@ -36,8 +40,44 @@ class to_gpu:
     def __init__(self):
         self._to_gpu = torch_geometric.transforms.ToDevice('cuda:0')
     def __call__(self,graph):
-        if useGPU: return self._to_gpu(graph)
+        if config.useGPU: return self._to_gpu(graph)
         return graph
+    
+class remove_self_loops:
+    def __call__(self, graph):
+        row,col = graph.edge_index 
+        
+        self_loop_mask = row != col
+        
+        graph.edge_index = graph.edge_index[:,self_loop_mask]
+        graph.edge_attr = graph.edge_attr[self_loop_mask]
+        graph.edge_y = graph.edge_y[self_loop_mask]
+        return graph
+    
+class scale_graph:
+    def __init__(self, node_scaler, edge_scaler, type='normalize'):
+        self.node_scaler = node_scaler
+        self.edge_scaler = edge_scaler
+        self.type = type
+    def __call__(self,graph):
+        x = self.node_scaler.transform(graph.x, self.type)
+        edge_attr = self.edge_scaler.transform(graph.edge_attr, self.type)
+        return Data(x=x,y=graph.y,edge_index=graph.edge_index,edge_attr=edge_attr,edge_y=graph.edge_y)
+    
+class mask_graph:
+    def __init__(self,node_features, node_mask, edge_features, edge_mask):
+        if not any(node_mask): node_mask = node_features
+        if not any(edge_mask): edge_mask = edge_features
+        
+        self.node_features = [ feature for feature in node_features if feature in node_mask ]
+        self.edge_features = [ feature for feature in edge_features if feature in edge_mask ]
+        
+        self.node_mask = torch.LongTensor(list(map(node_features.index,self.node_features)))
+        self.edge_mask = torch.LongTensor(list(map(edge_features.index,self.edge_features)))
+    def __call__(self, graph):
+        x = graph.x[:,self.node_mask]
+        edge_attr = graph.edge_attr[:,self.edge_mask]
+        return Data(x=x,y=graph.y,edge_index=graph.edge_index,edge_attr=edge_attr,edge_y=graph.edge_y)
 
 class use_features:
     def __init__(self, node_mask=[], edge_mask=[]):

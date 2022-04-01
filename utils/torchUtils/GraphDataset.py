@@ -9,29 +9,78 @@ from ..selectUtils import *
 from ..utils import get_collection
 from .torchscript import build_dataset
 from .gnn import *
+from .GraphTransforms import *
 
 
 class ScaleAttrs:
+    def __init__(self):
+        self.functions = dict(
+            normalize=self.normalize,
+            standardize=self.standardize
+        )
+        self.inv_functions = dict(
+            normalize=self.inv_normalize,
+            standardize=self.inv_standardize,
+        )
+        
     def fit(self, x):
         self.nfeatures = x[0].to_numpy().shape[-1]
         self.minims = np.array([ak.min(x[:, :, i])
                                for i in range(self.nfeatures)])
         self.maxims = np.array([ak.max(x[:, :, i])
                                for i in range(self.nfeatures)])
+        self.means = np.array([ak.mean(x[:, :, i])
+                               for i in range(self.nfeatures)])
+        self.stds = np.array([ak.std(x[:, :, i])
+                               for i in range(self.nfeatures)])
+        
         return self
-
-    def transform(self, x):
+    
+    def to_torch(self):
+        self.minims = torch.Tensor(self.minims).float()
+        self.maxims = torch.Tensor(self.maxims).float()
+        self.means = torch.Tensor(self.means).float()
+        self.stds = torch.Tensor(self.stds).float()
+        
+    def to_numpy(self): pass
+        
+    
+    def _process_awk(self,x, operation):
         n_nodes = ak.num(x, axis=1)
         x = ak.flatten(x, axis=1).to_numpy()
-        x = (x - self.minims)/(self.maxims - self.minims)
+        x = operation(x)
         return ak.unflatten(x, n_nodes)
+    
+    def _process_torch(self, x, operation):
+        return operation(x).float()
 
-    def inverse(self, x):
-        n_nodes = ak.num(x, axis=1)
-        x = ak.flatten(x, axis=1).to_numpy()
-        x = (self.maxims-self.minims)*x + self.minims
-        return ak.unflatten(x, n_nodes)
+    def _process(self, x, operation):
+        if isinstance(x, ak.Array): return self._process_awk(x, operation)
+        if isinstance(x, torch.Tensor): return self._process_torch(x, operation)
+        return operation(x)
+        
+    def normalize(self, x):
+        operation = lambda x : (x - self.minims)/(self.maxims - self.minims)
+        return self._process(x, operation)
+    
+    def standardize(self, x):
+        operation = lambda x : (x - self.means)/self.stds
+        return self._process(x, operation)
+    
+    def inv_normalize(self,x):
+        operation = lambda x : (self.maxims-self.minims)*x + self.minims
+        return self._process(x, operation)
 
+    def inv_standardize(self,x):
+        operation = lambda x : self.stds*x + self.means
+        return self._process(x, operation)
+
+    def transform(self, x, type='normalize'):
+        return self.functions[type](x)        
+        
+    def inverse(self, x, type='normalize'):
+        return self.inv_functions[type](x)        
+        
 
 def graph_to_torch(graph):
     return Data(x=graph.x, y=graph.y, edge_index=graph.edge_index, edge_attr=graph.edge_attr, edge_y=graph.edge_y)
@@ -120,38 +169,33 @@ def get_class_weights(node_targs, edge_targs):
 
     return node_class_weights, edge_class_weights, type_class_weights
 
-class Transform:
-    def __init__(self,*args):
-        self.transforms = args
-    def __call__(self,graph):
-        for transform in self.transforms: 
-            graph = transform(graph)
-        return graph
-
-def to_uptri_graph(graph):
-    edge_index, edge_attr, edge_y = graph.edge_index, graph.edge_attr, graph.edge_y
-    uptri = edge_index[0] < edge_index[1]
-    edge_index = torch.stack([edge_index[0][uptri], edge_index[1][uptri]])
-    edge_attr = edge_attr[uptri]
-    edge_y = edge_y[uptri]
-    return Data(x=graph.x, y=graph.y, edge_index=edge_index, edge_attr=edge_attr, edge_y=edge_y)
-
-def to_numpy(graph):
-    return Data(x=graph.x.numpy(),y=graph.y.numpy(),edge_index=graph.edge_index.numpy(),edge_attr=graph.edge_attr.numpy(),edge_y=graph.edge_y.numpy())
-
-def to_long(graph,precision=1e6):
-    return Data(x=(precision*graph.x).long(),y=graph.y.long(),edge_index=graph.edge_index.long(),edge_attr=(precision*graph.edge_attr).long(),edge_y=graph.edge_y.long())
-
-
 def concat_dataset(array,**dataset_kwargs):
     if type(array[0]) == str:
         array = [Dataset(fn,**dataset_kwargs) for fn in array]
     return ConcatDataset(array)
 
+def _insert_transform(self, transform):
+    if self.transform is None:
+        self.transform = Transform(transform)
+    elif isinstance(self.transform, Transform):
+        self.transform.insert(transform)
+    else:
+        self.transform = Transform(transform, self.transform)
+        
+def _append_transform(self, transform):
+    if self.transform is None:
+        self.transform = Transform(transform)
+    elif isinstance(self.transform, Transform):
+        self.transform.append(transform)
+    else:
+        self.transform = Transform(transform, self.transform)
+    
+
 class Dataset(InMemoryDataset):
-    def __init__(self, root, tree=None, template=None, transform=None, make_template=False):
+    def __init__(self, root, tree=None, template=None, transform=None, scale='standardize', node_mask=[], edge_mask=[], make_template=False):
         self.tree = tree
         self.make_template = make_template
+        self.scale = scale
         self.node_scaler = template.node_scaler if template is not None else None
         self.edge_scaler = template.edge_scaler if template is not None else None
         self.node_class_weights = template.node_class_weights if template is not None else None
@@ -161,6 +205,7 @@ class Dataset(InMemoryDataset):
         self.edge_attr_names = template.edge_attr_names if template is not None else None
 
         super().__init__(root, transform)
+        
         self.node_attr_names, self.edge_attr_names = torch.load(
             self.processed_paths[0])
         self.node_class_weights, self.edge_class_weights, self.type_class_weights = torch.load(
@@ -169,7 +214,18 @@ class Dataset(InMemoryDataset):
         self.node_scaler, self.edge_scaler = torch.load(
             self.processed_paths[3])
         
-        if not make_template:
+        if make_template:
+            if scale not in (None,'raw'):
+                scale = scale_graph(self.node_scaler, self.edge_scaler, scale)
+                _insert_transform(self, scale)
+                    
+            if any(node_mask+edge_mask):
+                mask = mask_graph(self.node_attr_names, node_mask, self.edge_attr_names, edge_mask)
+                self.node_attr_names = mask.node_features
+                self.edge_attr_names = mask.edge_features
+                _append_transform(self,mask)
+        
+        else:
             self.data, self.slices = torch.load(self.processed_paths[4])
 
     @property
@@ -198,8 +254,8 @@ class Dataset(InMemoryDataset):
             jets, **node_kwargs)
         edge_attrs, edge_targs, edge_attr_names = build_edge_features(
             jets, **edge_kwargs)
-        node_attrs, node_scaler = scale_attrs(node_attrs, self.node_scaler)
-        edge_attrs, edge_scaler = scale_attrs(edge_attrs, self.edge_scaler)
+        _, node_scaler = scale_attrs(node_attrs, self.node_scaler)
+        _, edge_scaler = scale_attrs(edge_attrs, self.edge_scaler)
 
         if self.node_class_weights is None or self.edge_class_weights is None or self.type_class_weights is None:
             node_class_weights, edge_class_weights, type_class_weights = get_class_weights(
@@ -247,8 +303,8 @@ class Dataset(InMemoryDataset):
     def build_graphs(self, tree):
         (node_attrs, node_targs, node_attr_names), (edge_attrs,
                                                     edge_targs, edge_attr_names) = build_features(tree, self.node_attr_names, self.edge_attr_names)
-        node_attrs = self.node_scaler.transform(node_attrs)
-        edge_attrs = self.edge_scaler.transform(edge_attrs)
+        # node_attrs = self.node_scaler.transform(node_attrs)
+        # edge_attrs = self.edge_scaler.transform(edge_attrs)
 
         node_attrs, node_targs, node_slices = prepare_features(
             node_attrs, node_targs)
