@@ -177,7 +177,7 @@ def array_ratio(arrays, bins=None, weights=None, density = False,
     
     return fig,ax
 
-def plot_histo2d(x_histo, y_histo, figax=None, cmap="YlOrRd", show_counts=False, log=False, **kwargs):
+def plot_histo2d(x_histo, y_histo, figax=None, cmap="YlOrRd", show_counts=False, log=False, alpha=None, cmin=None, **kwargs):
     """Plot 2D histogram
 
     Args:
@@ -195,7 +195,7 @@ def plot_histo2d(x_histo, y_histo, figax=None, cmap="YlOrRd", show_counts=False,
     fig,ax = figax
 
     n, bx, by, im = ax.hist2d(x_histo.array, y_histo.array, (x_histo.bins, y_histo.bins), weights=x_histo.weights,
-                                        norm=clrs.LogNorm() if log else clrs.Normalize(), cmap=cmap)
+                                        norm=clrs.LogNorm() if log else clrs.Normalize(), cmap=cmap, alpha=alpha, cmin=cmin)
 
     if show_counts:
         for i,(bx_lo,bx_hi) in enumerate(zip(bx[:-1],bx[1:])):

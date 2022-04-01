@@ -6,7 +6,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.colors as mcolors
 import itertools 
 
-def _add_histo(figax, plotobjs, size='20%', **kwargs):
+def _add_histo(figax, plotobjs, size='20%', store=[], **kwargs):
     fig, ax = figax
 
     if not hasattr(ax, '__first__'): 
@@ -21,9 +21,12 @@ def _add_histo(figax, plotobjs, size='20%', **kwargs):
         if isinstance(plotobj,DataList): graph_histos(plotobj,figax=(fig, sub_ax))
         elif isinstance(plotobj, Stack): plot_stack(plotobj,figax=(fig, sub_ax))
         elif isinstance(plotobj, HistoList): plot_histos(plotobj,figax=(fig, sub_ax))
+        
     format_axes(sub_ax, **kwargs)
+    for plotobj in plotobjs: store.append(plotobj)
+    
 
-def _add_ratio(figax, plotobjs, ylim=(0.1, 1.9), ylabel='Ratio',size='20%', grid=True, inv=False, **kwargs):
+def _add_ratio(figax, plotobjs, ylim=(0.1, 1.9), ylabel='Ratio',size='20%', grid=True, inv=False, store=[], **kwargs):
     fig, ax = figax
     
     if not hasattr(ax, '__first__'): 
@@ -59,8 +62,9 @@ def _add_ratio(figax, plotobjs, ylim=(0.1, 1.9), ylabel='Ratio',size='20%', grid
                 if num is den: continue
                 ratios.append( Ratio(num,den,inv=inv,marker='o'))
     plot_graphs(ratios, figax=(fig,sub_ax), **kwargs)
+    for obj in ratios: store.append(ratios)
     
-def _add_correlation(figax,plotobjs,size='20%', ylabel = "", grid=True, **kwargs):
+def _add_correlation(figax,plotobjs,size='20%', ylabel = "", grid=True, store=[], **kwargs):
     fig, ax = figax
     
     if not hasattr(ax, '__first__'): 
@@ -95,6 +99,7 @@ def _add_correlation(figax,plotobjs,size='20%', ylabel = "", grid=True, **kwargs
                 if num is den: continue
                 correlations.append( Graph(num.histo,den.histo,marker='o'))
     plot_graphs(correlations, figax=(fig,sub_ax), **kwargs)
+    for obj in correlations: store.append(obj)
 
 def hist_multi(arrays, bins=None, weights=None, density = False, 
                 cumulative=False, scale=None, lumi=None,
@@ -141,11 +146,12 @@ def hist_multi(arrays, bins=None, weights=None, density = False,
         bins = histos[0].bins
         plotobjs.append(histos)
         
-    if (histo): _add_histo((fig,ax),plotobjs,**kwargs)
-    if (ratio): _add_ratio((fig,ax), plotobjs, **ratio_kwargs)
-    if (correlation): _add_correlation((fig,ax), plotobjs, **correlation_kwargs)
+    store = []
+    if (histo): _add_histo((fig,ax),plotobjs, store=store, **kwargs)
+    if (ratio): _add_ratio((fig,ax), plotobjs, store=store, **ratio_kwargs)
+    if (correlation): _add_correlation((fig,ax), plotobjs, store=store, **correlation_kwargs)
         
-    return fig,ax
+    return fig,ax,store
 
 def hist2d_simple(x_array, y_array, 
                 is_data=False, is_signal=False,

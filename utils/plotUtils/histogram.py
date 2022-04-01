@@ -8,8 +8,11 @@ import awkward as ak
 class Stats:
     def __init__(self,histo):
         self.nevents = np.sum(histo.weights)
-        self.mean, self.stdv = get_avg_std(histo.array,histo.weights,histo.bins)
-        self.minim, self.maxim = np.min(histo.array), np.max(histo.array)
+        if self.nevents > 0:
+            self.mean, self.stdv = get_avg_std(histo.array,histo.weights,histo.bins)
+            self.minim, self.maxim = np.min(histo.array), np.max(histo.array)
+        else:
+            self.mean = self.stdv = self.minim = self.maxim = 0
         
     def __str__(self):
         return '\n'.join([ f'{key}={float(value):0.3e}' for key,value in vars(self).items() ])
@@ -100,8 +103,10 @@ class Histo:
             exponent = int(np.log10(mean))
             exp_str = "" if exponent == 0 else "\\times 10^{"+str(exponent)+"}"
             label_stat = f'$\mu={mean/(10**exponent):0.2f} \pm {stdv/(10**exponent):0.2f} {exp_str}$'
-        
-        self.kwargs['label'] = f'{self.label} ({label_stat})'
+        if label_stat is None:
+            self.kwargs['label'] = f'{self.label}'
+        else:
+            self.kwargs['label'] = f'{self.label} ({label_stat})'
         
 class HistoList(ObjIter):
     def __init__(self, arrays, bins=None, **kwargs):
