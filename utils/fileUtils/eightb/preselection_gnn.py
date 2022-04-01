@@ -1,4 +1,4 @@
-base = "/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection-gnn/NMSSM_XYY_YToHH_8b/"
+base = "/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection/gnn/NMSSM_XYY_YToHH_8b/"
 
 NMSSM_XYY_YToHH_8b_MX_1200_MY_500 = base + \
     "NMSSM_XYY_YToHH_8b_MX_1200_MY_500_accstudies.root"
@@ -28,7 +28,7 @@ signal_list = [
     NMSSM_XYY_YToHH_8b_MX_1200_MY_500
 ]
 
-base = "/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection-gnn/"
+base = "/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection/gnn/"
 
 QCD_bEn_Ht_100to200 = f"{base}/QCD/QCD_bEnriched_HT100to200_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
 QCD_bEn_Ht_200to300 = f"{base}/QCD/QCD_bEnriched_HT200to300_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"

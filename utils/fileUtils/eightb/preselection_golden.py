@@ -1,4 +1,4 @@
-base = "/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection/passthrough/NMSSM_XYY_YToHH_8b/"
+base = "/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection/golden_gcn/NMSSM_XYY_YToHH_8b/"
 
 NMSSM_XYY_YToHH_8b_MX_1200_MY_500 = base + \
     "NMSSM_XYY_YToHH_8b_MX_1200_MY_500_accstudies.root"
@@ -28,7 +28,7 @@ signal_list = [
     NMSSM_XYY_YToHH_8b_MX_1200_MY_500
 ]
 
-base = "/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection/passthrough/"
+base = "/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection/golden_gcn/"
 
 QCD_bEn_Ht_100to200 = f"{base}/QCD/QCD_bEnriched_HT100to200_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
 QCD_bEn_Ht_200to300 = f"{base}/QCD/QCD_bEnriched_HT200to300_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
@@ -59,12 +59,3 @@ QCD_B_List = QCD_bEn_List + QCD_bGf_List
 TTJets = f"{base}/TTJets/TTJets/ntuple.root"
 
 Bkg_MC_List = QCD_B_List + [TTJets]
-
-
-JetHT_Run2018A_UL = f"{base}/JetHT_Data/JetHT_Run2018A/ntuple.root"
-JetHT_Run2018B_UL = f"{base}/JetHT_Data/JetHT_Run2018B/ntuple.root"
-JetHT_Run2018C_UL = f"{base}/JetHT_Data/JetHT_Run2018C/ntuple.root"
-JetHT_Run2018D_UL = f"{base}/JetHT_Data/JetHT_Run2018D/ntuple.root"
-
-JetHT_Data_UL_List = [JetHT_Run2018A_UL,
-                      JetHT_Run2018B_UL, JetHT_Run2018C_UL, JetHT_Run2018D_UL]
