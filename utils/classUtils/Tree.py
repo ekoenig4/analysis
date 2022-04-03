@@ -102,7 +102,21 @@ class Tree:
         return "\n".join(sample_string)
 
     def __getitem__(self, key):
+        if isinstance(key, str): # Process possible regex
+            matched_fields = list(filter(lambda field : re.match(f"^{key}$", field), self.ttree.fields))
+            if key not in matched_fields: key = matched_fields  
         item = self.ttree[key]
+        
+        if isinstance(key, list): 
+            item = ak.from_regular(
+                ak.unflatten(
+                    ak.flatten(
+                        ak.zip(ak.unzip(item)),
+                        axis=None,
+                    ),
+                    len(key)
+                )
+            )
         return item
 
     def __getattr__(self, key): return self[key]

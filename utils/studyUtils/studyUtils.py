@@ -91,7 +91,7 @@ def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False,
 
         bins, xlabel = study.format_var(var, bins, xlabel)
         hists = study.get(var)
-        weights = study.get_scale(var)
+        weights = study.get_scale(hists)
 
         if ncols == 1 and nrows == 1:
             ax = axs
@@ -122,7 +122,8 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-
     xsize, ysize = autosize(size,(nrows,ncols))
     
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
-                            figsize=(int(xsize*ncols), ysize*nrows))
+                            figsize=(int(xsize*ncols), ysize*nrows),
+                            dpi=80)
 
     storage = []
     for i, (var, bins, xlabel) in enumerate(varlist):
@@ -139,7 +140,7 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-
         
         bins, xlabel = study.format_var(var, bins, xlabel)
         hists = study.get(var)
-        weights = study.get_scale(var)
+        weights = study.get_scale(hists)
         _,_,store = hist_multi(hists, bins=bins, xlabel=xlabel,
                    weights=weights, **study.attrs, figax=(fig, ax))
         storage.append(store)
@@ -173,7 +174,7 @@ def overlay(tree, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1), xlabels=N
     storage = []
     for i, (group, bins, xlabel) in enumerate(varlist):
         hists = [study.get(var)[0] for var in group]
-        weights = [study.get_scale(var)[0] for var in group]
+        weights = [study.get_scale(hists)[0] for var in group]
         # if labels is None:
         #     study.attrs['labels'] = group
 
