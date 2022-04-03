@@ -54,14 +54,16 @@ def graph_histos(histos, figax=None, **kwargs):
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
     
+    
 def plot_histo(histo, figax=None, **kwargs):
     if figax is None: figax = plt.subplots()
     fig,ax = figax
 
-    _,_,container = ax.hist(histo.array, bins=histo.bins, weights=histo.weights, cumulative=histo.cumulative, **histo.kwargs)
+    bin_centers = get_bin_centers(histo.bins)
+    
+    _,_,container = ax.hist(bin_centers, bins=histo.bins, weights=histo.histo, **histo.kwargs)
     histo.kwargs['color'] = container[0].get_ec()
     color = histo.kwargs['color'] if histo.kwargs.get('histtype',False) else 'black'
-    bin_centers = get_bin_centers(histo.bins)
     ax.errorbar(bin_centers, histo.histo, yerr=histo.error,fmt='none', color=color, capsize=1)
     
     if any(kwargs): format_axes(ax,**kwargs)

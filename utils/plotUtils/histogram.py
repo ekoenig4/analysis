@@ -18,14 +18,40 @@ class Stats:
         return '\n'.join([ f'{key}={float(value):0.3e}' for key,value in vars(self).items() ])
 
 
-def histogram(array, bins, weights):
-    # steps = bins[1:]-bins[:-1]
-    # if steps.max()-steps.min() < 1e10:
-    #     step = steps.mean()
-    #     range_mask = (array >= bins[0]) & (array < bins[-1])
-    #     array,weights = array[range_mask],weights[range_mask]
-    #     return np.bincount((array/step).astype(int),weights=weights)
-    return np.histogram(array,bins,(bins[0],bins[-1]),None,weights)[0]
+@numba.jit(nopython=True, parallel=True, fastmath=True)
+def numba_weighted_histo(array : np.array, bins : np.array, weights : np.array) -> np.array:
+    counts = np.zeros( bins.shape[0]-1 )
+    for i,(lo, hi) in enumerate(zip(bins[:-1],bins[1:])):
+        mask = (array >= lo) & (array < hi)
+        counts[i] = np.sum(weights[mask])
+    errors = np.sqrt(counts)
+    return counts,errors
+
+@numba.jit(nopython=True, parallel=True, fastmath=True)
+def numba_weighted_histo_sumw2(array : np.array, bins : np.array, weights : np.array) -> np.array:
+    counts = np.zeros( bins.shape[0]-1 )
+    errors = np.zeros( bins.shape[0]-1 )
+    weights2 = weights**2
+    for i,(lo, hi) in enumerate(zip(bins[:-1],bins[1:])):
+        mask = (array >= lo) & (array < hi)
+        counts[i] = np.sum(weights[mask])
+        errors[i] = np.sum(weights2[mask])
+    errors = np.sqrt(errors)
+    return counts,errors
+
+@numba.jit(nopython=True, parallel=True, fastmath=True)
+def numba_unweighted_histo(array : np.array, bins : np.array) -> np.array:
+    counts = np.zeros( bins.shape[0]-1 )
+    for i,(lo, hi) in enumerate(zip(bins[:-1],bins[1:])):
+        mask = (array >= lo) & (array < hi)
+        counts[i] = np.sum(mask)
+    errors = np.sqrt(counts)
+    return counts,errors
+
+def histogram(array, bins, weights, sumw2=False):
+    if weights is None: return numba_unweighted_histo(array, bins)
+    elif not sumw2: return numba_weighted_histo(array,bins,weights)
+    return numba_weighted_histo_sumw2(array, bins, weights)
 
 class Histo:
     def __init__(self, array, bins=None, weights=None, density=False, cumulative=False, lumi=None, 
@@ -69,14 +95,9 @@ class Histo:
             if scale != 1 and not is_iter(scale) and isinstance(scale,int):
                 self.label = f'{self.label} x {scale}'
                 
-        self.histo = histogram(self.array, self.bins, self.weights)
+        self.histo, self.error = histogram(self.array, self.bins, self.weights, sumw2=self.sumw2)
         
-        if self.sumw2: 
-            self.error = histogram(self.array,self.bins,self.weights**2)
-            self.error = np.sqrt(self.error)
-        else:
-            self.error = np.sqrt(self.histo)
-        
+        # self.histo, _ = histogram(self.array, self.bins, self.weights)
         # self.error = np.sqrt(self.histo) if not self.sumw2 else np.sqrt(histogram(self.array,bins=self.bins,weights=self.weights**2))
                 
     def cdf(self, cumulative):
