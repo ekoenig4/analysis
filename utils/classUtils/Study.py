@@ -79,22 +79,23 @@ class Study:
         self.saveas = saveas
 
     def get(self, key):
-        ie = None
-        if ":" in key:
-            key, ie = key.split(":")
-        items = [selection[key] for selection in self.selections]
+        def _get_item(selection,key, ie=None):
+            if callable(key): return key(selection)
+            if ":" in key: key,ie = key.split(":")
+            item = selection[key]
+            if ie is not None: item = item[:,int(ie)]
+            return item
+        items = [_get_item(selection,key) for selection in self.selections]
         if self.masks is not None:
             items = _mask_items(self, items)
         if self.transforms is not None:
             items = _transform_items(self, items)
-        if ie is not None:
-            items = [item[:, int(ie)] for item in items]
         return items
 
-    def get_scale(self, key):
-        hists = self.get(key)
+    def get_scale(self, hists):
         scales = self.get('scale')
-        return [ak.ones_like(hist) * scale for scale, hist in zip(scales, hists)]
+        scales =  [ak.ones_like(hist) * scale for scale, hist in zip(scales, hists)]
+        return scales
 
     def format_var(self, var, bins=None, xlabel=None):
         info = varinfo.find(var)

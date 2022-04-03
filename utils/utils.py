@@ -103,8 +103,8 @@ def autobin(data, nstd=3):
     if type(data) == list:
         datalist = list(data)
         databins = np.array([_autobin_(data, nstd) for data in datalist])
-        xlo = np.min(databins[:, 0])
-        xhi = np.max(databins[:, 1])
+        xlo = np.nanmin(databins[:, 0])
+        xhi = np.nanmax(databins[:, 1])
         nbins = int(np.min(databins[:, 2]))
         is_int = databins[:, 3][0]
     else:

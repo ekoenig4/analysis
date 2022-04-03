@@ -4,6 +4,7 @@ import numpy as np
 
 class VarInfo(AttrDict):
     def find(self, var):
+        if callable(var): var = str(var)
         if var in self:
             return AttrDict(self[var])
         end_pattern = next((self[name]
