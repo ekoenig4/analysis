@@ -1,17 +1,17 @@
 import torch
 from typing import List
 
-from .classifier import GCN
-
 
 @torch.jit.script
 class GraphDataBase:
-    def __init__(self, x, y, edge_index, edge_attr, edge_y):
+    def __init__(self, x, node_id, edge_index, edge_attr, edge_id):
         self.x = x
-        self.y = y
+        self.y = 1*(node_id > 0)
+        self.node_id = node_id
         self.edge_index = edge_index
         self.edge_attr = edge_attr
-        self.edge_y = edge_y
+        self.edge_y = 1*(edge_id > 0)
+        self.edge_id = edge_id
 
 
 @torch.jit.script

@@ -132,9 +132,9 @@ def display_graph(g, pos='xy', sizing=1, coloring='paired', show_detector=False,
 
     coloring = colorings.get(coloring, lambda g: {'node_color':'tab:grey'})(g)
 
-    nx.draw(g, node_pos, node_size=node_size, **coloring, alpha=0.8)
+    nx.draw(g,  node_size=node_size, **coloring, alpha=0.8)
 
-    plt.gca().set(xlim=(-0.2, 1.2), ylim=(-0.2, 1.2))
+    # plt.gca().set(xlim=(-0.2, 1.2), ylim=(-0.2, 1.2))
     plt.gca().set_aspect('equal')
 
     if show_detector and all(r in 'xye' for r in pos):

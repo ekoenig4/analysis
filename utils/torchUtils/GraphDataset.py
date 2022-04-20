@@ -83,7 +83,7 @@ class ScaleAttrs:
         
 
 def graph_to_torch(graph):
-    return Data(x=graph.x, y=graph.y, edge_index=graph.edge_index, edge_attr=graph.edge_attr, edge_y=graph.edge_y)
+    return Data(x=graph.x, y=graph.y, edge_index=graph.edge_index, edge_attr=graph.edge_attr, edge_y=graph.edge_y, node_id=graph.node_id, edge_id=graph.edge_id)
 
 
 def prepare_features(attrs, targs):
@@ -101,7 +101,7 @@ def get_node_attrs(jets, attrs=["m", "pt", "eta", "phi", "btag"]):
 
 
 def get_node_targs(jets):
-    targets = 1*(jets.signalId > -1)
+    targets = jets.signalId + 1
     return targets
 
 
@@ -124,7 +124,10 @@ def get_edge_targs(jets):
     mod2 = add % 2
 
     paired = (diff*mod2 == 1) & ((add == 1) | (add == 5) | (add == 9) | (add == 13))
-    return ak.flatten(1*paired, axis=2)
+
+    ids = 1*(add == 1) + 2*(add == 5) + 3*(add == 9) + 4*(add == 13)
+    target = ak.where(paired, ids, 0)
+    return ak.flatten(target, axis=2)
 
 
 def build_node_features(jets, node_attr_names=["m", "pt", "eta", "phi", "btag"]):
