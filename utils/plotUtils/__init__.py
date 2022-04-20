@@ -1,3 +1,3 @@
 # from .plotUtils import *
 from .better_plotter import *
-from .multi_plotter import hist_multi
+from .multi_plotter import hist_multi, hist2d_simple

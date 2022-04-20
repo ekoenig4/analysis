@@ -134,8 +134,7 @@ class HistoList(ObjIter):
         attrs = AttrArray(arrays=arrays,**kwargs)
         kwargs = attrs[attrs.fields[1:]]
         
-        if bins is not None: bins = np.array(bins)
-        multi_binned = False if bins is None else len(bins.shape) > 1
+        multi_binned = isinstance(bins, list)
     
         histolist = []
         for i,array in enumerate(arrays):

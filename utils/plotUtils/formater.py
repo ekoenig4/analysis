@@ -14,11 +14,11 @@ def _get_ylabel(density=False, cumulative=False, scale=None):
     if scale == "xs":
         ylabel = "Cross-Section (pb)"
     if density:
-        ylabel = "Fraction of Events"
+        ylabel = "PDF"
     if cumulative or cumulative == 1:
-        ylabel = "Fraction of Events Below (CDF)"
+        ylabel = "CDF Below"
     if cumulative == -1:
-        ylabel = "Fraction of Events Above (CDF)"
+        ylabel = "CDF Above"
     return ylabel
 
 def _set_ylabel(ax, density=False, cumulative=False, scale=None, **kwargs):
@@ -62,7 +62,7 @@ def _set_lumi(ax, lumi=None, is_2d=False, **kwargs):
     if label is None: return kwargs 
     
     text = f"{lumi/1000:0.1f} $fb^{'{-1}'}$ {label}"
-    ax.text(0.75,1.04, text,ha="center", va="center", fontweight="bold", transform=ax.transAxes)
+    ax.text(0.75,1.04, text,ha="center", va="center", transform=ax.transAxes)
     
     return kwargs
 
@@ -72,6 +72,5 @@ def format_axes(ax,is_2d=False, **kwargs):
     for set_func in _set_axs: 
         kwargs = set_func(ax, is_2d=is_2d, **kwargs)
         if 'is_2d' in kwargs: kwargs.pop('is_2d')
-        
     
     if any(kwargs): ax.set(**kwargs)

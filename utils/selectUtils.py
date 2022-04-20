@@ -344,7 +344,7 @@ def calc_asymmetry(jet_pt, jet_eta, jet_phi, jet_m, njet=-1):
 
     boost = com_boost_vector(jet_pt, jet_eta, jet_phi, jet_m, njet)
     boosted_jets = vector.obj(pt=jet_pt, eta=jet_eta,
-                              phi=jet_phi, m=jet_m)  # .boost_p4(-boost)
+                              phi=jet_phi, m=jet_m) #   .boost_p4(-boost)
     jet_px, jet_py, jet_pz = boosted_jets.px, boosted_jets.py, boosted_jets.pz
 
     jet_p = np.sqrt(jet_px**2+jet_py**2+jet_pz**2)

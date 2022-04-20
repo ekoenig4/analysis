@@ -31,7 +31,8 @@ def _mask_items(self,items):
     else:
         def mask_item(item,selection,mask):
             if mask is None: return item 
-            return item[mask(selection)]
+            if callable(mask): return item[mask(selection)]
+            return item[mask]
         items = [ mask_item(item,selection,mask) for item, selection, mask in zip(items, self.selections,self.masks)]
     return items
 
@@ -40,12 +41,12 @@ def _transform_items(self,items):
         items = [ self.transforms(item) for item, selection in zip(
             items, self.selections)]
     else:
-        items = [ transform(item) for item, transform in zip(items, self.transforms)]
+        items = [ transform(item) if transform is not None else item for item, transform in zip(items, self.transforms)]
     return items
     
 
 class Study:
-    def __init__(self, selections, label=None, density=0, log=0, ratio=0, stacked=0, lumi=2018, sumw2=True, title=None, saveas=None, masks=None, transforms=None, **kwargs):
+    def __init__(self, selections, label=None, density=0, log=0, ratio=0, stacked=0, lumi=2018, sumw2=True, title=None, saveas=None, masks=None, transforms=None, return_figax=False, **kwargs):
         if str(type(selections)) == str(TreeIter):
             selections = selections.trees
         elif str(type(selections)) == str(ObjIter):
@@ -77,6 +78,7 @@ class Study:
         
         self.title = title
         self.saveas = saveas
+        self.return_figax = return_figax
 
     def get(self, key):
         def _get_item(selection,key, ie=None):

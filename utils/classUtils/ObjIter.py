@@ -1,6 +1,12 @@
 import numpy as np
 import awkward as ak
 
+class ObjTransform:
+    def __init__(self,**kwargs):
+        for key,value in kwargs.items(): setattr(self, key, value)
+    def __call__(self, obj):
+        pass 
+
 class MethodIter:
     def __init__(self, objs, calls):
         self.objs = objs

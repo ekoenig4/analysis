@@ -178,7 +178,7 @@ def build_collection(tree, pattern, name, ptordered=False, replace=False):
         collection = { key:array[order] for key,array in collection.items()}
         
     tree.extend(**collection)
-    return collection
+    # return collection
 
 
 def get_avg_std(array, weights=None, bins=None):

@@ -78,6 +78,20 @@ def init_selection(self):
     # self.bkgs_jet_mask = self.sixb_jet_mask == False
 
     # self.sixb_found_mask = self["nfound_presel"] == 6
+    
+def _regex_field(self, regex):
+    matched_fields = list(filter(lambda field : re.match(f"^{regex}$", field), self.ttree.fields))
+    if regex not in matched_fields: return   
+    item = ak.from_regular(
+        ak.unflatten(
+            ak.flatten(
+                ak.zip(ak.unzip(self.ttree[matched_fields])),
+                axis=None,
+            ),
+            len(matched_fields)
+        )
+    )
+    return item
 
 class Tree:
     def __init__(self, filelist,allow_empty=False):
@@ -101,23 +115,11 @@ class Tree:
         ]
         return "\n".join(sample_string)
 
-    def __getitem__(self, key):
-        if isinstance(key, str): # Process possible regex
-            matched_fields = list(filter(lambda field : re.match(f"^{key}$", field), self.ttree.fields))
-            if key not in matched_fields: key = matched_fields  
-        item = self.ttree[key]
-        
-        if isinstance(key, list): 
-            item = ak.from_regular(
-                ak.unflatten(
-                    ak.flatten(
-                        ak.zip(ak.unzip(item)),
-                        axis=None,
-                    ),
-                    len(key)
-                )
-            )
-        return item
+    def __getitem__(self, key): return self.ttree[key]
+    #     item = None
+    #     if isinstance(key, str): item = _regex_field(self, key)
+    #     if item is None: item = self.ttree[key]
+    #     return item
 
     def __getattr__(self, key): return self[key]
     def get(self, key): return self[key]

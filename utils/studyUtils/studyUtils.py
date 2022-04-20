@@ -66,13 +66,15 @@ def cutflow(*args, size=(16, 8), log=1, h_label_stat=None,scale=True,density=Fal
             flatten_cutflows = [ cutflow/cutflow[0] for cutflow in flatten_cutflows ]
         fig,ax = graph_multi(cutflow_labels,flatten_cutflows,xlabel=cutflow_labels,**study.attrs,figax=figax)
     else:
-        fig, ax,_ = hist_multi(cutflow_bins, bins=bins, weights=flatten_cutflows, xlabel=cutflow_labels, h_histtype=[
+        fig, ax = hist_multi(cutflow_bins, bins=bins, weights=flatten_cutflows, xlabel=cutflow_labels, h_histtype=[
                         "step"]*len(study.selections), **study.attrs, figax=figax)
     fig.tight_layout()
     plt.show()
     if study.saveas:
         save_fig(fig, "cutflow", study.saveas)
-    return fig,ax
+    
+    if study.return_figax:
+        return fig,ax
 
 
 def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False, **kwargs):
@@ -107,10 +109,12 @@ def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False,
     plt.show()
     if study.saveas:
         save_fig(fig, "", study.saveas)
-    return fig,axs
+    
+    if study.return_figax:
+        return fig,axs
 
 
-def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-1), flip=False, return_storage=False, **kwargs):
+def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-1), flip=False, **kwargs):
     study = Study(*args, **kwargs)
 
     nvar = len(varlist)
@@ -141,9 +145,8 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-
         bins, xlabel = study.format_var(var, bins, xlabel)
         hists = study.get(var)
         weights = study.get_scale(hists)
-        _,_,store = hist_multi(hists, bins=bins, xlabel=xlabel,
+        hist_multi(hists, bins=bins, xlabel=xlabel,
                    weights=weights, **study.attrs, figax=(fig, ax))
-        storage.append(store)
     fig.suptitle(study.title)
     fig.tight_layout()
         
@@ -151,10 +154,8 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-
     if study.saveas:
         save_fig(fig, "", study.saveas)
         
-    if return_storage:
-        return fig,axs,storage
-        
-    return fig,axs
+    if study.return_figax:
+        return fig,axs
 
 def overlay(tree, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1), xlabels=None, flip=None, **kwargs):
     if type(varlist[0]) != list:
@@ -184,16 +185,17 @@ def overlay(tree, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1), xlabels=N
             ax = axs[i]
         else:
             ax = axs[i//ncols, i % ncols]
-        _,_,store = hist_multi(hists, bins=bins, weights=weights,
+        hist_multi(hists, bins=bins, weights=weights,
                    xlabel=xlabel, **study.attrs, figax=(fig, ax))
-        storage.append(store)
 
     fig.suptitle(study.title)
     fig.tight_layout()
     plt.show()
     if study.saveas:
         save_fig(fig, "", study.saveas)
-    return fig,axs,storage
+    
+    if study.return_figax:
+        return fig,axs
 
 
 def quick2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=False, **kwargs):
@@ -204,7 +206,6 @@ def quick2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=Fa
     binlist = init_attr(binlist, None, 2)
     xvar, yvar = varlist
     xbins, ybins = binlist
-
     nrows, ncols = autodim(nvar, dim, flip)
     xsize, ysize = autosize(size,(nrows,ncols))
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
@@ -217,7 +218,7 @@ def quick2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=Fa
     xhists = study.get(xvar)
     yhists = study.get(yvar)
 
-    weights = study.get_scale(xvar)
+    weights = study.get_scale(xhists)
 
     labels = study.attrs.pop("h_label")
     
@@ -238,7 +239,9 @@ def quick2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=Fa
     # plt.show()
     if study.saveas:
         save_fig(fig, "", study.saveas)
-    return fig,axs
+    
+    if study.return_figax:
+        return fig,axs
 
 def overlay2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=False, alpha=0.8, cmin=100, **kwargs):
     study = Study(*args, h_label_stat=None, alpha=alpha,cmin=cmin, **kwargs)
@@ -260,7 +263,7 @@ def overlay2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=
     xhists = study.get(xvar)
     yhists = study.get(yvar)
 
-    weights = study.get_scale(xvar)
+    weights = study.get_scale(xhists)
 
     labels = study.attrs.pop("h_label")
     
@@ -274,7 +277,9 @@ def overlay2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=
     # plt.show()
     if study.saveas:
         save_fig(fig, "", study.saveas)
-    return fig,axs
+    
+    if study.return_figax:
+        return fig,axs
 
 
 def njets(*args, **kwargs):
