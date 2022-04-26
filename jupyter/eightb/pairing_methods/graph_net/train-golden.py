@@ -34,6 +34,7 @@ parser.add_argument('--edge-mask',help='Specify what edge features to use',nargs
 parser.add_argument('--uptri',help='Use upper triangular adjacency matrix',default=False,action='store_true')
 parser.add_argument('--cluster-y',help='Calculate Cluster Y',default=False,action='store_true')
 parser.add_argument('--hyper-edge',help='Construct all possible 4 node hyper edges',default=False,action='store_true')
+parser.add_argument('--min-knn',help='Construct minimum knn graph',type=int, default=0)
 parser.add_argument('--remove-self',help='Remove self loop from convolutions',default=False,action='store_true')
 
 # parser.add_argument('--train-size',help='Number of graphs to train with',type=int,default=-1) #! not implemented
@@ -51,11 +52,16 @@ gnn.config.set_gpu(args.no_gpu)
 print('Loading Training and Testing Data...')
 print('N CPU:',ncpu)
 
+hparams = dict()
 transform = gnn.Transform()
 if args.uptri: transform.append(gnn.to_uptri_graph())
 if args.cluster_y: transform.append(gnn.cluster_y())
 if args.hyper_edge: transform.append(gnn.HyperEdgeY())
 if args.remove_self: transform.append(gnn.remove_self_loops())
+if args.min_knn > 0: 
+    hparam = dict(n_neighbor=args.min_knn)
+    transform.append(gnn.min_edge_neighbor(**hparam))
+    hparams.update(hparam)
 
 template = gnn.Dataset('data/template',make_template=True, transform=transform, scale=args.scale, node_mask=args.node_mask, edge_mask=args.edge_mask)
 
@@ -77,7 +83,7 @@ testloader = DataLoader(testsample,batch_size=args.batch_size,num_workers=ncpu)
 
 print('Loading GCN Model...')
 
-model = gnn.modelMap[args.model](*args.model_args,dataset=template,loss=args.loss,lr=args.lr,batch_size=args.batch_size)
+model = gnn.modelMap[args.model](*args.model_args,dataset=template,loss=args.loss,lr=args.lr,batch_size=args.batch_size, hparams=hparams)
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
