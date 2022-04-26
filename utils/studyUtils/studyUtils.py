@@ -114,7 +114,7 @@ def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False,
         return fig,axs
 
 
-def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-1), flip=False, **kwargs):
+def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-1), flip=False, figax=None, **kwargs):
     study = Study(*args, **kwargs)
 
     nvar = len(varlist)
@@ -125,11 +125,12 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-
     nrows, ncols = autodim(nvar, dim, flip)
     xsize, ysize = autosize(size,(nrows,ncols))
     
-    fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
-                            figsize=(int(xsize*ncols), ysize*nrows),
-                            dpi=80)
+    if figax is None:
+        figax = plt.subplots(nrows=nrows, ncols=ncols,
+                                figsize=(int(xsize*ncols), ysize*nrows),
+                                dpi=80)
+    fig, axs = figax
 
-    storage = []
     for i, (var, bins, xlabel) in enumerate(varlist):
         if ncols == 1 and nrows == 1:
             ax = axs

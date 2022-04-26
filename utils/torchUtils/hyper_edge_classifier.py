@@ -25,6 +25,8 @@ class HyperEdgeClassifier(LightningModel):
     def shared_step(self, batch, batch_idx, tag):
         node_o, edge_o, hyper_edge_o = self(batch)
         loss = self.node_loss(self, node_o, batch) + self.edge_loss(self, edge_o, batch) + self.hyper_edge_loss(self, hyper_edge_o, batch)
+        # loss = self.edge_loss(self, edge_o, batch) + self.hyper_edge_loss(self, hyper_edge_o, batch)
+        # loss = self.hyper_edge_loss(self, hyper_edge_o, batch)
 
         node_score = torch.exp(node_o[:,1])
         node_auroc = f_metrics.auroc(node_score, batch.y)
@@ -63,20 +65,24 @@ class HyperEdgeClassifier(LightningModel):
 
 class GoldenHyperEdge(HyperEdgeClassifier):
     name = 'golden_hyper_edge'
-    def __init__(self, nn_conv1_out=64, nn_conv2_out=256, nn_linear_out=128, nn_hyper_out=128, **kwargs):
+    def __init__(self, nn_conv1_out=32, nn_conv2_out=64, nn_linear1_out=128, nn_linear2_out=96, **kwargs):
         super().__init__(**kwargs)
         self.conv1 = layers.GCNConvMSG(n_in_node=self.n_in_node, n_in_edge=self.n_in_edge, n_out=nn_conv1_out)
         self.relu1 = layers.GCNRelu()
         self.conv2 = layers.GCNConvMSG(n_in_node=nn_conv1_out, n_in_edge=nn_conv1_out, n_out=nn_conv2_out)
         self.relu2 = layers.GCNRelu()
 
-        self.linear1 = layers.GCNLinear(nn_conv2_out, nn_conv2_out, nn_linear_out)
-        self.relu3 = layers.GCNRelu()
+        self.hyper_linear_1 = layers.HyperEdgeLinear(nn_conv2_out, nn_linear1_out)
+        self.hyper_linear_2 = torch.nn.Linear(nn_linear1_out, nn_linear2_out)
+        self.hyper_linear_o = torch.nn.Linear(nn_linear2_out, 2)
+        
+        self.edge_linear_1 = torch.nn.Linear(nn_conv2_out, nn_linear1_out)
+        self.edge_linear_2 = torch.nn.Linear(nn_linear1_out, nn_linear2_out)
+        self.edge_linear_o = torch.nn.Linear(nn_linear2_out, 2)
 
-        self.hyper_linear1 = layers.HyperEdgeLinear(nn_linear_out, nn_hyper_out)
-
-        self.linear_o = layers.GCNLinear(nn_linear_out, nn_linear_out, 2)
-        self.hyper_linear_o = torch.nn.Linear(nn_hyper_out, 2)
+        self.node_linear_1 = torch.nn.Linear(nn_conv2_out, nn_linear1_out)
+        self.node_linear_2 = torch.nn.Linear(nn_linear1_out, nn_linear2_out)
+        self.node_linear_o = torch.nn.Linear(nn_linear2_out, 2)
 
     def forward(self, data : Data) -> Tensor:
         x, edge_index, edge_attr, hyper_edge_index = data.x, data.edge_index, data.edge_attr, data.hyper_edge_index
@@ -87,18 +93,34 @@ class GoldenHyperEdge(HyperEdgeClassifier):
         x, edge_attr = self.conv2(x, edge_index, edge_attr)
         x, edge_attr = self.relu2(x, edge_index, edge_attr)
 
-        x, edge_attr = self.linear1(x, edge_index, edge_attr)
-        x, edge_attr = self.relu3(x, edge_index, edge_attr)
-
-        hyper_edge_attr = self.hyper_linear1(x, hyper_edge_index)
+        hyper_edge_attr = self.hyper_linear_1(x, hyper_edge_index)
+        hyper_edge_attr = F.relu(hyper_edge_attr)
+        
+        hyper_edge_attr = self.hyper_linear_2(hyper_edge_attr)
         hyper_edge_attr = F.relu(hyper_edge_attr)
 
-        (node_o, edge_o), hyper_edge_o = self.linear_o(x, edge_index, edge_attr), self.hyper_linear_o(hyper_edge_attr)
-        node_o, edge_o, hyper_edge_o = F.log_softmax(node_o, dim=-1), \
-                                       F.log_softmax(edge_o, dim=-1), \
-                                       F.log_softmax(hyper_edge_o, dim=-1)
+        hyper_edge_attr = self.hyper_linear_o(hyper_edge_attr)
+        hyper_edge_attr = F.log_softmax(hyper_edge_attr, dim=-1)
 
-        return node_o, edge_o, hyper_edge_o
+        edge_attr = self.edge_linear_1(edge_attr)
+        edge_attr = F.relu(edge_attr)
+        
+        edge_attr = self.edge_linear_2(edge_attr)
+        edge_attr = F.relu(edge_attr)
+
+        edge_attr = self.edge_linear_o(edge_attr)
+        edge_attr = F.log_softmax(edge_attr, dim=-1)
+
+        x = self.node_linear_1(x)
+        x = F.relu(x)
+        
+        x = self.node_linear_2(x)
+        x = F.relu(x)
+        
+        x = self.node_linear_o(x)
+        x = F.log_softmax(x, dim=-1)
+
+        return x, edge_attr, hyper_edge_attr
  
 
 class GraphRelu(Module):

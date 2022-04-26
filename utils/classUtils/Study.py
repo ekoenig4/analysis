@@ -25,14 +25,18 @@ def save_fig(fig, directory, saveas, base=GIT_WD):
     fig.savefig(f"{outfn}.png", format="png", dpi=400)
 
 def _mask_items(self,items):
+    def mask_item(item,selection,mask):
+        if mask is None: return item 
+        if callable(mask): mask = mask(selection)
+
+        if ak.count(item) == ak.count(mask):
+            return item[mask]
+        return item
+
     if callable(self.masks):
-        items = [item[self.masks(selection)] for item, selection in zip(
+        items = [ mask_item(item, selection, self.masks) for item, selection in zip(
             items, self.selections)]
     else:
-        def mask_item(item,selection,mask):
-            if mask is None: return item 
-            if callable(mask): return item[mask(selection)]
-            return item[mask]
         items = [ mask_item(item,selection,mask) for item, selection, mask in zip(items, self.selections,self.masks)]
     return items
 

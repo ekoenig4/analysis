@@ -145,7 +145,6 @@ def _add_difference(figax, plotobjs, ylim=(-2, 2), ylabel='$\Delta/\sigma$',size
             difference = _plotobj_difference(den, num)
             if difference is None: continue
             differences.append(difference)
-        
     plot_graphs(differences, figax=(fig,sub_ax), **kwargs)
     
 def _add_correlation(figax,plotobjs,size='75%', ylabel = "", grid=True, inv=False, label_stat='area', group=None, legend=True, **kwargs):

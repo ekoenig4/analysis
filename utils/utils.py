@@ -1,4 +1,5 @@
 import awkward as ak
+import torch 
 import git
 import numpy as np
 import re
@@ -8,8 +9,13 @@ GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
 
 
 def flatten(array): 
-    flat_array = ak.flatten(array,axis=None)
-    return ak.to_numpy(flat_array)
+    if isinstance(array, ak.Array):
+        array = ak.flatten(array, axis=None)
+        return ak.to_numpy(array)
+    if isinstance(array, torch.Tensor):
+        array = torch.flatten(array)
+        return array.cpu().numpy()
+    return np.array(array).reshape(-1)
 
 
 def ordinal(n): return "%d%s" % (

@@ -8,21 +8,36 @@ import torchmetrics.functional as f_metrics
 from . import edge_losses, node_losses
 from .cpp_geometric import *
 from .LightningModel import LightningModel
+from .GraphTransforms import k_max_neighbors
 
 __all__ = [ 
-    "GoldenEdge", "GoldenEdgeV2", "GoldenGCN"
+    "GoldenEdge", "GoldenEdgeV2", "GoldenGCN", "GoldenKNN"
 ]
+
+def k_max_accuracy(edge_o, graph, k=1):
+    edge_mask = k_max_neighbors(edge_o, graph.edge_index, k, remove_self=True)
+
+    n_higgs = (graph.edge_id.unique(return_counts=True)[1][1:]).sum()
+    n_edges = (graph.edge_id[edge_mask].unique(return_counts=True)[1][1:]).sum()
+    return n_edges/n_higgs
 
 class EdgeClassifier(LightningModel):
     def __init__(self, loss='std_loss', **kwargs):
         super().__init__(**kwargs)
         self.save_hyperparameters('loss')
         self.node_loss = getattr(node_losses, loss)
+        # self.edge_loss = getattr(edge_losses, "mismatched_bjet_loss")
         self.edge_loss = getattr(edge_losses, loss)
+
+    def predict(self, data : Data):
+        with torch.no_grad():
+            node_o, edge_o = self(data)
+        return torch.exp(node_o[:,1]), torch.exp(edge_o[:,1])
 
     def shared_step(self, batch, batch_idx, tag):
         node_o, edge_o = self(batch)
-        loss = self.node_loss(self, node_o, batch) + self.edge_loss(self, edge_o, batch)
+        # loss = self.node_loss(self, node_o, batch) + self.edge_loss(self, edge_o, batch)
+        loss = self.edge_loss(self, edge_o, batch)
 
         node_score = torch.exp(node_o[:,1])
         node_acc   = f_metrics.accuracy(node_score, batch.y)
@@ -30,12 +45,14 @@ class EdgeClassifier(LightningModel):
 
         edge_score = torch.exp(edge_o[:,1])
         edge_acc   = f_metrics.accuracy(edge_score, batch.edge_y)
+        kmax_acc   = k_max_accuracy(edge_score, batch)
         edge_auroc = f_metrics.auroc(edge_score, batch.edge_y)
 
         metrics = dict(
             loss=loss, 
             node_acc=node_acc, node_auroc=node_auroc,
             edge_acc=edge_acc, edge_auroc=edge_auroc,
+            kmax_acc=kmax_acc,
         )
         self.log_scalar(metrics, tag)
 
@@ -161,3 +178,53 @@ class GoldenGCN(EdgeClassifier):
         x, edge_attr = self.log_softmax(x, edge_index, edge_attr)
 
         return x, edge_attr
+
+class GoldenKNN(EdgeClassifier):
+    name = "golden_knn"
+    def __init__(self, nn_embed_1=64, nn_embed_2=128, nn_out_1=96, nn_out_2=32, **kwargs):
+        super().__init__(**kwargs)
+        self.embed_1 = layers.GCNLinear(self.n_in_node, self.n_in_edge, nn_embed_1)
+        self.conv_1 = layers.GCNConvMSG(n_in_node=nn_embed_1, n_in_edge=nn_embed_1, n_out=nn_embed_1)
+        self.relu_1 = layers.GCNRelu()
+        
+        self.embed_2 = layers.GCNLinear(nn_embed_1, nn_embed_1, nn_embed_2)
+        self.conv_2 = layers.GCNConvMSG(n_in_node=nn_embed_2, n_in_edge=nn_embed_2, n_out=nn_embed_2)
+        self.relu_2 = layers.GCNRelu()
+
+        self.node_readout = torch.nn.Sequential(
+            torch.nn.Linear(nn_embed_2, nn_out_1),
+            torch.nn.ReLU(),
+            torch.nn.Linear(nn_out_1, nn_out_2),
+            torch.nn.ReLU(),
+            torch.nn.Linear(nn_out_2, 2),
+        )
+        
+        self.edge_readout = torch.nn.Sequential(
+            torch.nn.Linear(nn_embed_2, nn_out_1),
+            torch.nn.ReLU(),
+            torch.nn.Linear(nn_out_1, nn_out_2),
+            torch.nn.ReLU(),
+            torch.nn.Linear(nn_out_2, 2),
+        )
+
+        self.log_softmax = layers.GCNLogSoftmax()
+
+    def forward(self, data : Data):
+        x, edge_index, edge_attr, edge_mask = data.x, data.edge_index, data.edge_attr, data.edge_mask
+
+        x, edge_attr = self.embed_1(x, edge_index, edge_attr)
+        x, _edge_attr = self.conv_1(x, edge_index[:,edge_mask], edge_attr[edge_mask])
+        edge_attr[edge_mask] = _edge_attr
+        x, edge_attr = self.relu_1(x, edge_index, edge_attr)
+        
+        x, edge_attr = self.embed_2(x, edge_index, edge_attr)
+        x, _edge_attr = self.conv_2(x, edge_index[:,edge_mask], edge_attr[edge_mask])
+        edge_attr[edge_mask] = _edge_attr
+        x, edge_attr = self.relu_2(x, edge_index, edge_attr)
+
+        x, edge_attr = self.node_readout(x), self.edge_readout(edge_attr)
+        x, edge_attr = self.log_softmax(x, edge_index, edge_attr)
+
+        return x, edge_attr
+
+

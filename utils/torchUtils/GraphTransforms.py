@@ -89,11 +89,14 @@ class cluster_y(BaseTransform):
         data.cluster_y = (data.node_id + 3) // 4
         return data
 class HyperEdgeY(BaseTransform):
-    def __init__(self, n_nodes=4):
-        self.n_nodes=n_nodes
+    def __init__(self, permutations=False):
+        self.permutations = permutations
     def __call__(self, data : Data) -> Data:
-        combs = torch.combinations(torch.arange(data.num_nodes),self.n_nodes)
-        data.hyper_edge_index = torch.cat([combs, combs[:,[1,0,2,3]],combs[:,[2,0,1,3]],combs[:,[3,0,1,2]]]).T
+        combs = torch.combinations(torch.arange(data.num_nodes), 4)
+        if self.permutations:
+            combs = torch.cat([combs, combs[:,[1,0,2,3]],combs[:,[2,0,1,3]],combs[:,[3,0,1,2]]])
+        
+        data.hyper_edge_index = combs.T
         data.hyper_edge_attr = torch.zeros(data.hyper_edge_index.shape[1],1)
 
         cluster_y = (data.node_id + 3) // 4
@@ -190,4 +193,62 @@ class MotherNode(BaseTransform):
         if 'num_nodes' in data:
             data.num_nodes = data.num_nodes + 1
 
+        return data
+
+from torch_scatter import scatter_max , scatter_min
+
+def k_min_neighbors(d, edge_index, n_neighbor=1, remove_self=False):
+    d = d.clone()
+    fill_value = d.max()+1
+    used_edges = edge_index[0] == edge_index[1]
+    d[used_edges] = fill_value
+
+    for n in range(n_neighbor):
+        edge_n = scatter_min(d, edge_index[0], dim=0)[1]
+        edge_n = edge_n[~used_edges[edge_n]]
+        used_edges[edge_n] = True
+        d[edge_n] = fill_value
+
+    if remove_self: used_edges[edge_index[0] == edge_index[1]] = False
+    return used_edges
+
+def k_max_neighbors(d, edge_index, n_neighbor=1, remove_self=False):
+    d = d.clone()
+    fill_value = d.min()-1
+    used_edges = edge_index[0] == edge_index[1]
+    d[used_edges] = fill_value
+
+    for n in range(n_neighbor):
+        edge_n = scatter_max(d, edge_index[0], dim=0)[1]
+        edge_n = edge_n[~used_edges[edge_n]]
+        used_edges[edge_n] = True
+        d[edge_n] = fill_value
+
+    if remove_self: used_edges[edge_index[0] == edge_index[1]] = False
+    return used_edges
+class min_edge_neighbor(BaseTransform):
+    def __init__(self, n_neighbor=4, features=0, function=lambda f : f**2):
+        self.n_neighbor = n_neighbor
+        self.features = features
+        self.function = function
+
+    def __call__(self, data : Data) -> Data:
+        features = data.edge_attr[:,self.features].clone()
+        if self.function is not None: features = self.function(features)
+        data.edge_d = features
+        data.edge_mask = k_min_neighbors(features, data.edge_index, self.n_neighbor)
+        return data
+
+
+class max_edge_neighbor(BaseTransform):
+    def __init__(self, n_neighbor=4, features=2, function=None):
+        self.n_neighbor = n_neighbor
+        self.features = features
+        self.function = function
+
+    def __call__(self, data : Data) -> Data:
+        features = data.edge_attr[:,self.features].clone()
+        if self.function is not None: features = self.function(features)
+        data.edge_d = features
+        data.edge_mask = k_max_neighbors(features, data.edge_index, self.n_neighbor)
         return data

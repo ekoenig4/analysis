@@ -2,7 +2,6 @@ from ..utils import safe_divide, get_bin_centers, get_bin_widths, init_attr
 from ..classUtils import ObjIter
 import numpy as np
 
-
 class Stats:
     def __init__(self,graph):
         self.x_mean, self.x_std = np.mean(graph.x_array), np.std(graph.x_array)

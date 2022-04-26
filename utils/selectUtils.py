@@ -7,6 +7,7 @@ import vector
 import scipy
 
 from .utils import *
+from .classUtils import ObjIter
 
 
 def get_jet_index_mask(jets, index):
@@ -387,7 +388,7 @@ def optimize_var_cut(selections, variable, varmin=None, varmax=None, method=min,
     return f_min
 
 
-def build_all_dijets(tree):
+def build_all_dijets(tree, pairs=None):
     """Build all possible dijet pairings with the jet collection
 
     Args:
@@ -399,20 +400,23 @@ def build_all_dijets(tree):
     jets = get_collection(tree, 'jet', False)[
         ['m', 'pt', 'eta', 'phi', 'signalId', 'btag']]
     jets = join_fields(jets, idx=ak.local_index(jets.pt, axis=-1))
-    pairs = ak.combinations(jets, 2)
 
-    j1_id, j2_id = ak.unzip(pairs.signalId)
+    if pairs is None: pairs = ak.unzip(ak.combinations(jets.idx, 2))
+    else: pairs = pairs[:,:,0], pairs[:,:,1]
+    pairs = ObjIter([jets[pairs[0]], jets[pairs[1]]]) 
+
+    j1_id, j2_id = pairs.signalId
     diff = np.abs(j1_id - j2_id)
     add = j1_id + j2_id
     mod2 = add % 2
     paired = (diff*mod2 == 1) & ((add == 1) | (add == 5) | (add == 9) | (add == 13))
 
-    j1_m, j2_m = ak.unzip(pairs.m)
-    j1_pt, j2_pt = ak.unzip(pairs.pt)
-    j1_eta, j2_eta = ak.unzip(pairs.eta)
-    j1_phi, j2_phi = ak.unzip(pairs.phi)
-    j1_idx, j2_idx = ak.unzip(pairs.idx)
-    j1_btag, j2_btag = ak.unzip(pairs.btag)
+    j1_m, j2_m = pairs.m
+    j1_pt, j2_pt = pairs.pt
+    j1_eta, j2_eta = pairs.eta
+    j1_phi, j2_phi = pairs.phi
+    j1_idx, j2_idx = pairs.idx
+    j1_btag, j2_btag = pairs.btag   
     dr = np.sqrt((j1_eta-j2_eta)**2 + (j1_phi-j2_phi)**2)
 
     j1_p4 = vector.obj(m=j1_m, pt=j1_pt, eta=j1_eta, phi=j1_phi)

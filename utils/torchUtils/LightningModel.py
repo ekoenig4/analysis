@@ -4,7 +4,7 @@ import torch
 from .gnn import to_tensor
 
 class LightningModel(pl.LightningModule):
-    def __init__(self, dataset=None, lr=1e-3, batch_size=None, node_attr_names=None, edge_attr_names=None, scale=None, **kwargs):
+    def __init__(self, dataset=None, lr=1e-3, batch_size=None, node_attr_names=None, edge_attr_names=None, scale=None, hparams=dict(), **kwargs):
         super().__init__(**kwargs)
         self.lr = lr
         self.save_hyperparameters('lr', 'batch_size')
@@ -17,6 +17,8 @@ class LightningModel(pl.LightningModule):
         self.hparams['scale'] = scale
         self.hparams['node_attr_names'] = node_attr_names
         self.hparams['edge_attr_names'] = edge_attr_names
+
+        if any(hparams): self.hparams.update(hparams)
 
         self.n_in_node = len(node_attr_names)
         self.n_in_edge = len(edge_attr_names)
