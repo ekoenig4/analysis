@@ -42,7 +42,7 @@ parser.add_argument('--random-pair',help='Random positive and negative pairs to 
 # parser.add_argument('--train-size',help='Number of graphs to train with',type=int,default=-1) #! not implemented
 parser.add_argument('--valid-size',help='Fraction of training graphs to use as validation',type=float,default=0.2)
 parser.add_argument('--test-size',help='Fraction of testing graphs to use to test with',type=float,default=0.8)
-parser.add_argument('--batch-size',help='Specify batch size',type=int, default=1000)
+parser.add_argument('--batch-size',help='Specify batch size',type=int, default=100)
 
 parser.add_argument('--no-gpu',help='Dont use GPU',default=True,action='store_false')
 args = parser.parse_args()
