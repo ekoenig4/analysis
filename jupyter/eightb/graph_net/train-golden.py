@@ -36,6 +36,8 @@ parser.add_argument('--cluster-y',help='Calculate Cluster Y',default=False,actio
 parser.add_argument('--hyper-edge',help='Construct all possible 4 node hyper edges',default=False,action='store_true')
 parser.add_argument('--min-knn',help='Construct minimum knn graph',type=int, default=0)
 parser.add_argument('--remove-self',help='Remove self loop from convolutions',default=False,action='store_true')
+parser.add_argument('--random-sample',help='Random sample a positive node to train on', default=False, action='store_true')
+parser.add_argument('--random-pair',help='Random positive and negative pairs to train on', default=False, action='store_true')
 
 # parser.add_argument('--train-size',help='Number of graphs to train with',type=int,default=-1) #! not implemented
 parser.add_argument('--valid-size',help='Fraction of training graphs to use as validation',type=float,default=0.2)
@@ -58,10 +60,9 @@ if args.uptri: transform.append(gnn.to_uptri_graph())
 if args.cluster_y: transform.append(gnn.cluster_y())
 if args.hyper_edge: transform.append(gnn.HyperEdgeY())
 if args.remove_self: transform.append(gnn.remove_self_loops())
-if args.min_knn > 0: 
-    hparam = dict(n_neighbor=args.min_knn)
-    transform.append(gnn.min_edge_neighbor(**hparam))
-    hparams.update(hparam)
+if args.min_knn > 0: transform.append(gnn.min_edge_neighbor(n_neighbor=args.min_knn, undirected=True))
+if args.random_sample: transform.append(gnn.RandomSample())
+if args.random_pair: transform.append(gnn.SamplePair())
 
 template = gnn.Dataset('data/template',make_template=True, transform=transform, scale=args.scale, node_mask=args.node_mask, edge_mask=args.edge_mask)
 
@@ -71,19 +72,19 @@ testing = gnn.concat_dataset([f'data/{mass}-testing' for mass in mass_list],tran
 
 from torch_geometric.loader import DataLoader
 
-training,validation = gnn.train_test_split(dataset,args.valid_size)
+training, validation = gnn.train_test_split(dataset,args.valid_size)
 
 trainloader = DataLoader(training,batch_size=args.batch_size,shuffle=True,num_workers=ncpu)
 validloader = DataLoader(validation,batch_size=args.batch_size,num_workers=ncpu)
 
-testsample,_ = gnn.train_test_split(testing,1-args.test_size)
+testsample, _ = gnn.train_test_split(testing,1-args.test_size)
 testloader = DataLoader(testsample,batch_size=args.batch_size,num_workers=ncpu)
 
 # --- Loading Model --- #
 
 print('Loading GCN Model...')
 
-model = gnn.modelMap[args.model](*args.model_args,dataset=template,loss=args.loss,lr=args.lr,batch_size=args.batch_size, hparams=hparams)
+model = gnn.modelMap[args.model](*args.model_args,dataset=template,loss=args.loss,lr=args.lr,batch_size=args.batch_size, **template.transform.hparams)
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
