@@ -5,8 +5,8 @@ import torch.nn.functional as F
 from torch_geometric.data import Data
 import torchmetrics.functional as f_metrics
 
-from . import edge_losses, node_losses, cluster_losses
-from .cpp_geometric import *
+from ..losses import *
+from ..cpp_geometric import *
 from .LightningModel import LightningModel
 
 __all__ = [ 

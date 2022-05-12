@@ -7,7 +7,7 @@ import vector
 import scipy
 
 from .utils import *
-from .classUtils import ObjIter
+from .classUtils.ObjIter import ObjIter
 
 
 def get_jet_index_mask(jets, index):

@@ -5,8 +5,8 @@ import torch.nn.functional as F
 from torch_geometric.data import Data
 import torchmetrics.functional as f_metrics
 
-from . import node_losses as losses
-from .cpp_geometric import *
+from ..losses import *
+from ..cpp_geometric import *
 from .LightningModel import LightningModel
 
 __all__ = [ 
@@ -17,7 +17,7 @@ class NodeClassifier(LightningModel):
     def __init__(self, loss='std_loss', **kwargs):
         super().__init__(**kwargs)
         self.save_hyperparameters('loss')
-        self.loss = getattr(losses, loss)
+        self.loss = getattr(node_losses, loss)
     def shared_step(self, batch, batch_idx, tag):
         node_o = self(batch)
         loss = self.loss(self, node_o, batch)

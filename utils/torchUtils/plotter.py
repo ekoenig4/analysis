@@ -5,7 +5,7 @@ from torch_geometric.utils import to_networkx
 from ..selectUtils import *
 from ..utils import *
 from ..plotUtils import *
-from .gnn import graph_pred
+from .gnn import graph_pred, mask_graph_edges
 
 # Default Coloring
 
@@ -178,3 +178,46 @@ def plot_graph_auroc(node_metrics, edge_metrics):
     plot_aucroc(edge_metrics,'Edge',figax=(fig,axs[1]))
 
     return fig, axs
+
+def draw_data(data, edge_mask=None, width=None, figax=None, edge_labels=None, undirected=False, **kwargs):
+    if figax is None: figax = plt.subplots()
+    fig, ax = figax
+    plt.sca(ax)
+
+    # if width is not None:
+    #     width = gnn.attr_undirected(data.edge_index, width)
+
+    self_edges = data.edge_index[0] == data.edge_index[1]
+
+    if edge_mask is None: edge_mask = ~self_edges
+    edge_mask = edge_mask & (~self_edges)
+    uptri = data.edge_index[0] < data.edge_index[1]
+    
+    # edge_mask = mask_undirected(data, edge_mask)
+    data = mask_graph_edges(data.clone(), edge_mask)
+
+    if undirected:
+        edge_mask = edge_mask & uptri
+    if width is not None:
+        width = width[edge_mask]
+    
+    # if width is not None:
+    #     width = width[data.edge_index[0]<data.edge_index[1]]
+
+    for key, value in kwargs.items():
+        if value.shape[0] == edge_mask.shape[0]:
+            kwargs[key] = value[edge_mask].numpy()
+
+
+    graph = to_networkx(data, remove_self_loops=True, to_undirected=undirected)
+
+    pos = nx.circular_layout(graph)
+
+    nx.draw(graph, pos, node_color=(data.node_id+1)//2, width=width, **kwargs)
+
+    if edge_labels is not None:
+        edge_labels = edge_labels[edge_mask]
+        edge_labels = dict([( ( int(n1), int(n2)), int(label)) for (n1,n2),label in zip(data.edge_index.T, edge_labels)])
+        nx.draw_networkx_edge_labels(graph, pos, edge_labels)
+
+    return fig, ax

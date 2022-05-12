@@ -1,32 +1,43 @@
 import torch
 import torch_geometric 
 from torch_geometric.data import Data
-from .gnn import config
-from torch_geometric.transforms import BaseTransform
+from .gnn import config, k_max_neighbors, k_min_neighbors, sample_center, mask_graph_edges
 from torch import Tensor
+from torch_scatter import scatter_max
 
 debug = dict(transform=0)
 
+class BaseTransform(torch_geometric.transforms.BaseTransform):
+    def __init__(self, **kwargs):
+        self.hparams = kwargs
+
 class Transform(BaseTransform):
     def __init__(self,*args):
+        super().__init__()
         self.transforms = list(args)
+        for transform in self: self.hparams.update(transform.hparams)
     def append(self, transform):
         self.transforms.append(transform)
+        self.hparams.update(transform.hparams)
     def insert(self, transform):
         self.transforms.insert(0, transform)
+        self.hparams.update(transform.hparams)
+    def __iter__(self): return iter(self.transforms)
     def __call__(self,graph):
-        for transform in self.transforms: 
+        for transform in self: 
             graph = transform(graph)
         return graph
+    def __add__(self, other):
+        return Transform(*self.transforms, other)
 
 class to_uptri_graph(BaseTransform):
     def __call__(self,graph):
-        edge_index, edge_attr, edge_y, edge_id = graph.edge_index, graph.edge_attr, graph.edge_y, graph.edge_id
+        edge_index = graph.edge_index
         uptri = edge_index[0] < edge_index[1]
-        graph.edge_index = torch.stack([edge_index[0][uptri], edge_index[1][uptri]])
-        graph.edge_attr = edge_attr[uptri]
-        graph.edge_y = edge_y[uptri]
-        graph.edge_id = edge_id[uptri]
+        graph.edge_index = edge_index[:, uptri]
+        for key, value in graph.items():
+            if value.shape[0] == uptri.shape[0]:
+                graph[key] = value[uptri]
         return graph
 
 class to_numpy(BaseTransform):
@@ -37,12 +48,14 @@ class to_numpy(BaseTransform):
 
 class to_long(BaseTransform):
     def __init__(self,precision=1e6):
+        super().__init__(precision=precision)
         self.precision = precision
     def __call__(self,graph):
         return Data(x=(self.precision*graph.x).long(),y=graph.y.long(),edge_index=graph.edge_index.long(),edge_attr=(self.precision*graph.edge_attr).long(),edge_y=graph.edge_y.long())
 
 class to_gpu(BaseTransform):
     def __init__(self):
+        super().__init__()
         self._to_gpu = torch_geometric.transforms.ToDevice('cuda:0')
     def __call__(self,graph):
         if config.useGPU: return self._to_gpu(graph)
@@ -61,6 +74,7 @@ class remove_self_loops(BaseTransform):
     
 class scale_graph(BaseTransform):
     def __init__(self, node_scaler, edge_scaler, type='normalize'):
+        super().__init__()
         self.node_scaler = node_scaler
         self.edge_scaler = edge_scaler
         self.type = type
@@ -71,6 +85,7 @@ class scale_graph(BaseTransform):
     
 class mask_graph(BaseTransform):
     def __init__(self,node_features, node_mask, edge_features, edge_mask):
+        super().__init__()
         if not any(node_mask): node_mask = node_features
         if not any(edge_mask): edge_mask = edge_features
         
@@ -88,8 +103,10 @@ class cluster_y(BaseTransform):
     def __call__(self, data : Data) -> Data:
         data.cluster_y = (data.node_id + 3) // 4
         return data
+
 class HyperEdgeY(BaseTransform):
     def __init__(self, permutations=False):
+        super().__init__(permutations=permutations)
         self.permutations = permutations
     def __call__(self, data : Data) -> Data:
         combs = torch.combinations(torch.arange(data.num_nodes), 4)
@@ -107,6 +124,7 @@ class HyperEdgeY(BaseTransform):
 
 class use_features(BaseTransform):
     def __init__(self, node_mask=[], edge_mask=[]):
+        super().__init__()
         self.node_mask = torch.LongTensor(node_mask)
         self.edge_mask = torch.LongTensor(edge_mask)
     def __call__(self,graph):
@@ -121,6 +139,7 @@ class use_features(BaseTransform):
 
 class mask_features(BaseTransform):
     def __init__(self, node_mask=[], edge_mask=[]):
+        super().__init__()
         self.node_mask = torch.LongTensor(node_mask)
         self.edge_mask = torch.LongTensor(edge_mask)
     def __call__(self,graph):
@@ -132,103 +151,11 @@ class mask_features(BaseTransform):
             e_mask = ~(torch.arange(edge_attr.shape[1])[...,None] == self.edge_mask).any(-1)
             graph.edge_attr = edge_attr[:,e_mask]
         return graph
-        
-class MotherNode(BaseTransform):
-    def __init__(self, level, id=-1, pairs=[], connects=-1):
-        self.level = level
-        self.id = id
-        self.id1, self.id2 = pairs
-        self.connects = connects
-        
-    def __call__(self, data: Data) -> Data:
-        num_nodes, (row, col) = data.num_nodes, data.edge_index
-        edge_type = data.get('edge_type', torch.zeros_like(row))
-        node_type = data.get('node_type', torch.zeros(num_nodes))
-
-        connected_nodes = node_type == self.connects
-        arange = torch.arange(num_nodes, device=row.device)[connected_nodes]
-        num_connected = len(arange)
-        
-        full = row.new_full((num_connected, ), num_nodes)
-        row = torch.cat([row, arange, full], dim=0)
-        col = torch.cat([col, full, arange], dim=0)
-        edge_index = torch.stack([row, col], dim=0)
-
-        new_type = edge_type.new_full((num_connected, ), self.level)
-        edge_type = torch.cat([edge_type, new_type, new_type], dim=0)
-        
-        new_type = node_type.new_full((1, ), self.level)
-        node_type = torch.cat([node_type, new_type], dim=0)
-
-        for key, value in data.items():
-            if key == 'edge_index' or key == 'edge_type':
-                continue
-
-            if isinstance(value, Tensor):
-                dim = data.__cat_dim__(key, value)
-                size = list(value.size())
-
-                fill_value = None
-                if data.is_edge_attr(key):
-                    size[dim] = 2 * num_connected
-                    fill_value = 0.
-                elif data.is_node_attr(key):
-                    size[dim] = 1
-                    fill_value = 0.
-                elif key == 'node_id':
-                    size[dim] = 1
-                    fill_value = self.id
-
-                if fill_value is not None:
-                    new_value = value.new_full(size, fill_value)
-                    data[key] = torch.cat([value, new_value], dim=dim)
-        
-
-        # decays = (((data.node_id[row] == self.id) & (data.node_id[col] == self.id1)) | ((data.node_id[row] == self.id1) & (data.node_id[col] == self.id)) |
-        #           ((data.node_id[row] == self.id) & (data.node_id[col] == self.id2)) | ((data.node_id[row] == self.id2) & (data.node_id[col] == self.id)))
-        # data.edge_y = torch.where(decays, 1, data.edge_y)
-        data.edge_index = edge_index
-        data.edge_type = edge_type
-        data.node_type = node_type
-        if 'num_nodes' in data:
-            data.num_nodes = data.num_nodes + 1
-
-        return data
-
-from torch_scatter import scatter_max , scatter_min
-
-def k_min_neighbors(d, edge_index, n_neighbor=1, remove_self=False):
-    d = d.clone()
-    fill_value = d.max()+1
-    used_edges = edge_index[0] == edge_index[1]
-    d[used_edges] = fill_value
-
-    for n in range(n_neighbor):
-        edge_n = scatter_min(d, edge_index[0], dim=0)[1]
-        edge_n = edge_n[~used_edges[edge_n]]
-        used_edges[edge_n] = True
-        d[edge_n] = fill_value
-
-    if remove_self: used_edges[edge_index[0] == edge_index[1]] = False
-    return used_edges
-
-def k_max_neighbors(d, edge_index, n_neighbor=1, remove_self=False):
-    d = d.clone()
-    fill_value = d.min()-1
-    used_edges = edge_index[0] == edge_index[1]
-    d[used_edges] = fill_value
-
-    for n in range(n_neighbor):
-        edge_n = scatter_max(d, edge_index[0], dim=0)[1]
-        edge_n = edge_n[~used_edges[edge_n]]
-        used_edges[edge_n] = True
-        d[edge_n] = fill_value
-
-    if remove_self: used_edges[edge_index[0] == edge_index[1]] = False
-    return used_edges
 class min_edge_neighbor(BaseTransform):
-    def __init__(self, n_neighbor=4, features=0, function=lambda f : f**2):
+    def __init__(self, n_neighbor=4, features=0, function=lambda f : (f+0.265)**2, undirected=False):
+        super().__init__(n_neighbor=n_neighbor, undirected=undirected)
         self.n_neighbor = n_neighbor
+        self.undirected = undirected
         self.features = features
         self.function = function
 
@@ -236,13 +163,15 @@ class min_edge_neighbor(BaseTransform):
         features = data.edge_attr[:,self.features].clone()
         if self.function is not None: features = self.function(features)
         data.edge_d = features
-        data.edge_mask = k_min_neighbors(features, data.edge_index, self.n_neighbor)
+        data.edge_mask = k_min_neighbors(features, data.edge_index, self.n_neighbor, undirected=self.undirected)
         return data
 
 
 class max_edge_neighbor(BaseTransform):
-    def __init__(self, n_neighbor=4, features=2, function=None):
+    def __init__(self, n_neighbor=4, features=2, function=None, undirected=False):
+        super().__init__(n_neighbor=n_neighbor, undirected=undirected)
         self.n_neighbor = n_neighbor
+        self.undirected = undirected
         self.features = features
         self.function = function
 
@@ -250,5 +179,46 @@ class max_edge_neighbor(BaseTransform):
         features = data.edge_attr[:,self.features].clone()
         if self.function is not None: features = self.function(features)
         data.edge_d = features
-        data.edge_mask = k_max_neighbors(features, data.edge_index, self.n_neighbor)
+        data.edge_mask = k_max_neighbors(features, data.edge_index, self.n_neighbor, undirected=self.undirected)
+        return data
+
+
+class RandomSample(BaseTransform):
+    def __init__(self):
+        super().__init__(random_sampled=True)
+    def __call__(self, data : Data) -> Data:
+        paired = scatter_max(data.edge_y, data.edge_index[0], dim=0)[0]
+        if not torch.any(paired == 1): return data
+
+        pos_nodes = torch.where(paired==1)[0]
+        center = pos_nodes[torch.randint(pos_nodes.shape[0], (1,))]
+
+        edge_mask = sample_center(data, center)
+        return mask_graph_edges(data, edge_mask)
+
+class SamplePair(BaseTransform):
+    def __init__(self, n_pos=4, n_neg=24):
+        super().__init__(n_pos=n_pos, n_neg=n_neg)
+        self.n_pos = n_pos
+        self.n_neg = n_neg
+    def __call__(self, data : Data) -> Data:
+        uptri = data.edge_index[0] < data.edge_index[1]
+        pos_edges = torch.where(uptri & (data.edge_y == 1))[0]
+        neg_edges = torch.where(uptri & (data.edge_y == 0))[0]
+        if pos_edges.shape[0] == 0: pos_edges = neg_edges   
+
+        n_pos = pos_edges.shape[0]
+        if n_pos < self.n_pos:
+            while pos_edges.shape[0] < self.n_pos:
+                pos_edges = torch.cat((pos_edges,pos_edges[torch.randint(n_pos, (1,))]))
+
+
+
+        pos_edge = pos_edges[ torch.randperm(pos_edges.shape[0])[:self.n_pos] ]
+        neg_edge = neg_edges[ torch.randperm(neg_edges.shape[0])[:self.n_neg] ]
+        pos_edge = data.edge_index[:, pos_edge]
+        neg_edge = data.edge_index[:, neg_edge]
+
+        data.pos_index = pos_edge.T.reshape(self.n_pos,2,-1)
+        data.neg_index = neg_edge.T.reshape(self.n_neg,2,-1)
         return data

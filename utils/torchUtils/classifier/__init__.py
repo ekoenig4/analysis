@@ -5,6 +5,7 @@ from .node_classifier import *
 from .edge_classifier import *
 from .cluster_classifier import *
 from .hyper_edge_classifier import *
+from .pair_classifier import *
 
 __all__ = ["modelMap"]
 

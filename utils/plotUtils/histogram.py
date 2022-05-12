@@ -117,11 +117,11 @@ class Histo:
         if label_stat == 'events':
             label_stat = f'{nevents:0.2e}'
         if label_stat == 'mean':
-            exponent = int(np.log10(mean))
+            exponent = int(np.log10(np.abs(mean)))
             exp_str = "" if exponent == 0 else "\\times 10^{"+str(exponent)+"}"
             label_stat = f'$\mu={mean/(10**exponent):0.2f} {exp_str}$'
         if label_stat == 'mean_stdv':
-            exponent = int(np.log10(mean))
+            exponent = int(np.log10(np.abs(mean)))
             exp_str = "" if exponent == 0 else "\\times 10^{"+str(exponent)+"}"
             label_stat = f'$\mu={mean/(10**exponent):0.2f} \pm {stdv/(10**exponent):0.2f} {exp_str}$'
         if label_stat is None:

@@ -188,7 +188,7 @@ def build_collection(tree, pattern, name, ptordered=False, replace=False):
 
 
 def get_avg_std(array, weights=None, bins=None):
-    mask = ~np.isnan(array)
+    mask = ~np.isnan(array) & ~( np.abs(array) == np.inf )
     array = ak.flatten(array[mask], axis=None)
     if weights is None:
         if bins is not None:
