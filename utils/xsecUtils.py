@@ -35,6 +35,7 @@ xsecMap = {
     "JetHT_Run2018D": 'N/A',
 
     "NMSSM_XYH_YToHH_6b": 0.3,
+    # "NMSSM_XYY_YToHH_8b": 0.0016,
     "NMSSM_XYY_YToHH_8b": 0.3,
 
     "QCD_Pt_15to30": 1246000000.0,

@@ -22,13 +22,13 @@ class Graph:
         self.x_array = x_array[order]
         self.y_array = y_array[order]
         self.kwargs = kwargs
-        
+
         self.stats = Stats(self)    
         self.set_label(label_stat)
     
     def set_label(self, label_stat='area'):
-        if label_stat is None: return
-        if label_stat == 'area':
+        if label_stat is None: pass
+        elif label_stat == 'area':
             label_stat = f'$A={self.stats.area:0.2f}$'
         elif label_stat.endswith('_std'):
             z = label_stat.split('_')[0]
@@ -39,7 +39,11 @@ class Graph:
         elif label_stat == 'chi2':
             label_stat = f'$\chi^2/$ndf={self.stats.chi2:0.2}/{self.stats.ndf}'
         else: label_stat = f'{getattr(self.stats,label_stat):0.2f}'
-        self.kwargs['label'] = f'{label_stat}'
+        
+        if label_stat is not None:
+            if 'label' in self.kwargs:
+                label_stat = f'{self.kwargs["label"]} ({label_stat})'
+            self.kwargs['label'] = f'{label_stat}'
         
 class GraphList(ObjIter):
     def __init__(self, x_arrays, y_arrays,  **kwargs):

@@ -6,7 +6,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.colors as mcolors
 import itertools 
 
-def _add_histo(figax, plotobjs, size='20%', **kwargs):
+def _add_histo(figax, plotobjs, size='20%', errors=True, **kwargs):
     fig, ax = figax
 
     if not hasattr(ax, '__first__'): 
@@ -20,7 +20,7 @@ def _add_histo(figax, plotobjs, size='20%', **kwargs):
     for plotobj in plotobjs: 
         if isinstance(plotobj,DataList): graph_histos(plotobj,figax=(fig, sub_ax))
         elif isinstance(plotobj, Stack): plot_stack(plotobj,figax=(fig, sub_ax))
-        elif isinstance(plotobj, HistoList): plot_histos(plotobj,figax=(fig, sub_ax))
+        elif isinstance(plotobj, HistoList): plot_histos(plotobj,errors=errors,figax=(fig, sub_ax))
         
     format_axes(sub_ax, **kwargs)
     

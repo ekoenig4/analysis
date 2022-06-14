@@ -28,6 +28,7 @@ def _mask_items(self,items):
     def mask_item(item,selection,mask):
         if mask is None: return item 
         if callable(mask): mask = mask(selection)
+        if item is 'n_mask': item = ak.sum(mask, axis=-1)
 
         if ak.count(item) == ak.count(mask):
             return item[mask]
@@ -84,8 +85,9 @@ class Study:
         self.saveas = saveas
         self.return_figax = return_figax
 
-    def get(self, key):
+    def get(self, key, transform=True):
         def _get_item(selection,key, ie=None):
+            if key == 'n_mask': return 'n_mask'
             if callable(key): return key(selection)
             if ":" in key: key,ie = key.split(":")
             item = selection[key]
@@ -94,12 +96,12 @@ class Study:
         items = [_get_item(selection,key) for selection in self.selections]
         if self.masks is not None:
             items = _mask_items(self, items)
-        if self.transforms is not None:
+        if transform and self.transforms is not None:
             items = _transform_items(self, items)
         return items
 
     def get_scale(self, hists):
-        scales = self.get('scale')
+        scales = self.get('scale', transform=False)
         scales =  [ak.ones_like(hist) * scale for scale, hist in zip(scales, hists)]
         return scales
 

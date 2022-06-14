@@ -89,6 +89,7 @@ class EventFilter:
     
     def __str__(self): return f"<EventFilter: {self.name}>"
     def __repr__(self): return f"<EventFilter: {self.name} {self.kwargs}>"
+    def __call__(self, tree, filter=None): return self.filter(tree, filter)
 
 
 def build_collection_filter(name, key, value, functions=functions, methods=methods):
@@ -149,6 +150,8 @@ class CollectionFilter:
         #     return tree.apply(lambda t : collection_filter(self,t))
         return collection_filter(self, tree)
 
+    def __call__(self, tree): return self.filter(tree)
+
 
 class FilterSequence:
     def __init__(self, *filters):
@@ -158,3 +161,5 @@ class FilterSequence:
         for filter in self.filters:
             tree = filter.filter(tree)
         return tree
+
+    def __call__(self, tree): return self.filter(tree)

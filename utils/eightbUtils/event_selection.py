@@ -17,10 +17,15 @@ def calc_m_asym(tree):
     hm24_asym = (higgs_m[:,2]-higgs_m[:,0])/(higgs_m[:,2]+higgs_m[:,0])
     
     hm34_asym = (higgs_m[:,1]-higgs_m[:,0])/(higgs_m[:,1]+higgs_m[:,0])
+
+    y_m = ak.concatenate([ array[:,None] for array in ak.unzip(tree[["Y1_m","Y2_m"]])],axis=-1).to_numpy()
+    y_m.sort(axis=-1)
+    ym_asym = (y_m[:,1]-y_m[:,0])/(y_m[:,1]+y_m[:,0])
+
     tree.extend(
         hm12_asym=hm12_asym,hm13_asym=hm13_asym,hm14_asym=hm14_asym,
         hm23_asym=hm23_asym,hm24_asym=hm24_asym,hm34_asym=hm34_asym,
-        hm1234_asym=(hm12_asym+hm34_asym)/2
+        hm1234_asym=(hm12_asym+hm34_asym)/2, ym_asym=ym_asym
     )
     
 def set_asym(tree):

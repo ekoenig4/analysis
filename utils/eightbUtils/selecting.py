@@ -8,13 +8,13 @@ def select_topbtag(tree,njet=8):
     jets = get_collection(tree,'jet')
     jets = reorder_collection(jets,ak.argsort(-jets.jet_btag,axis=-1)[:,:njet])
     tree.extend(reorder_collection(jets,ak.argsort(-jets.jet_pt,axis=-1)))
-    tree.extend(**build_all_dijets(tree))
+    build_all_dijets(tree)
     
 def select_toppt(tree,njet=8):
     jets = get_collection(tree,'jet')
     jets = reorder_collection(jets,ak.argsort(-jets.jet_pt,axis=-1)[:,:njet])
     tree.extend(reorder_collection(jets,ak.argsort(-jets.jet_pt,axis=-1)))
-    tree.extend(**build_all_dijets(tree))
+    build_all_dijets(tree)
         
 def select_topbias(tree,njet=8):
     jets = get_collection(tree,'jet')
@@ -26,4 +26,4 @@ def select_topbias(tree,njet=8):
     jets = ak.zip({ field:ak.concatenate([jet_wp[field] for jet_wp in jet_wps],axis=-1) for field in jets.fields })    
     jets = jets[:,:njet]
     tree.extend(reorder_collection(jets,ak.argsort(-jets.jet_pt,axis=-1)))
-    tree.extend(**build_all_dijets(tree))
+    build_all_dijets(tree)

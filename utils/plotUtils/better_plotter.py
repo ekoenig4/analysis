@@ -55,7 +55,7 @@ def graph_histos(histos, figax=None, **kwargs):
     return fig,ax
     
     
-def plot_histo(histo, figax=None, **kwargs):
+def plot_histo(histo, errors=True, figax=None, **kwargs):
     if figax is None: figax = plt.subplots()
     fig,ax = figax
 
@@ -64,15 +64,16 @@ def plot_histo(histo, figax=None, **kwargs):
     _,_,container = ax.hist(bin_centers, bins=histo.bins, weights=histo.histo, **histo.kwargs)
     histo.kwargs['color'] = container[0].get_ec()
     color = histo.kwargs['color'] if histo.kwargs.get('histtype',False) else 'black'
-    ax.errorbar(bin_centers, histo.histo, yerr=histo.error,fmt='none', color=color, capsize=1)
+    if errors:
+        ax.errorbar(bin_centers, histo.histo, yerr=histo.error,fmt='none', color=color, capsize=1)
     
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
 
-def plot_histos(histos, figax=None, **kwargs):
+def plot_histos(histos, figax=None, errors=True, **kwargs):
     if figax is None: figax = plt.subplots()
     fig,ax = figax
-    for histo in histos: plot_histo(histo, figax=figax)
+    for histo in histos: plot_histo(histo, errors=errors, figax=figax)
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
     

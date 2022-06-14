@@ -398,8 +398,8 @@ def build_all_dijets(tree, pairs=None):
         awkward.Record: Awkward collection of dijets
     """
     jets = get_collection(tree, 'jet', False)[
-        ['m', 'pt', 'eta', 'phi', 'signalId', 'btag']]
-    jets = join_fields(jets, idx=ak.local_index(jets.pt, axis=-1))
+        ['mRegressed', 'ptRegressed', 'eta', 'phi', 'signalId', 'btag']]
+    jets = join_fields(jets, idx=ak.local_index(jets.ptRegressed, axis=-1))
 
     if pairs is None: pairs = ak.unzip(ak.combinations(jets.idx, 2))
     else: pairs = pairs[:,:,0], pairs[:,:,1]
@@ -411,13 +411,16 @@ def build_all_dijets(tree, pairs=None):
     mod2 = add % 2
     paired = (diff*mod2 == 1) & ((add == 1) | (add == 5) | (add == 9) | (add == 13))
 
-    j1_m, j2_m = pairs.m
-    j1_pt, j2_pt = pairs.pt
+    j1_m, j2_m = pairs.mRegressed
+    j1_pt, j2_pt = pairs.ptRegressed
     j1_eta, j2_eta = pairs.eta
     j1_phi, j2_phi = pairs.phi
     j1_idx, j2_idx = pairs.idx
     j1_btag, j2_btag = pairs.btag   
-    dr = np.sqrt((j1_eta-j2_eta)**2 + (j1_phi-j2_phi)**2)
+
+    dphi = calc_dphi(j1_phi, j2_phi)
+    deta = calc_deta(j1_eta, j2_eta)
+    dr = np.sqrt(deta**2 + dphi**2)
 
     j1_p4 = vector.obj(m=j1_m, pt=j1_pt, eta=j1_eta, phi=j1_phi)
     j2_p4 = vector.obj(m=j2_m, pt=j2_pt, eta=j2_eta, phi=j2_phi)
