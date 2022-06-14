@@ -208,11 +208,8 @@ def draw_data(data, edge_mask=None, width=None, figax=None, edge_labels=None, un
         if value.shape[0] == edge_mask.shape[0]:
             kwargs[key] = value[edge_mask].numpy()
 
-
     graph = to_networkx(data, remove_self_loops=True, to_undirected=undirected)
-
     pos = nx.circular_layout(graph)
-
     nx.draw(graph, pos, node_color=(data.node_id+1)//2, width=width, **kwargs)
 
     if edge_labels is not None:

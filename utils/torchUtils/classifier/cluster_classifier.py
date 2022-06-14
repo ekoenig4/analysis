@@ -8,98 +8,127 @@ import torchmetrics.functional as f_metrics
 from ..losses import *
 from ..cpp_geometric import *
 from .LightningModel import LightningModel
+from ..gnn import k_max_neighbors, attr_undirected, top_accuracy, sample_cluster
 
 __all__ = [ 
-    "GoldenCluster"
+    "GoldenCluster",
 ]
 
 class ClusterClassifier(LightningModel):
     def __init__(self, loss='std_loss', **kwargs):
         super().__init__(**kwargs)
         self.save_hyperparameters('loss')
-        self.node_loss = getattr(node_losses, loss)
-        self.edge_loss = getattr(edge_losses, loss)
-        self.cluster_loss = getattr(cluster_losses,loss)
+        self.cluster_loss = getattr(cluster_losses, loss)
+
+    def predict(self, data : Data):
+        with torch.no_grad():
+            cluster_o = self(data)
+        return torch.exp(cluster_o[:,1])
 
     def shared_step(self, batch, batch_idx, tag):
-        node_o, edge_o, cluster_o = self(batch)
-        loss = self.node_loss(self, node_o, batch) + self.edge_loss(self, edge_o, batch) + self.cluster_loss(self, cluster_o, batch)
 
-        node_score = torch.exp(node_o[:,1])
-        node_auroc = f_metrics.auroc(node_score, batch.y)
+        def _eval_cluster(batch, cluster):
+            batch = sample_cluster(batch, cluster)
+            o = self(batch)
+            loss = self.cluster_loss(self, o, batch)
+            return o, loss
 
-        edge_score = torch.exp(edge_o[:,1])
-        edge_auroc = f_metrics.auroc(edge_score, batch.edge_y)
+        pos_o, pos_loss = [], []
+        for pos_cluster in batch.pos_index:
+            _pos_o, _pos_loss = _eval_cluster(batch, pos_cluster)
+            pos_o.append(_pos_o)
+            pos_loss.append(_pos_loss)
+        pos_o = torch.stack(pos_o)
+        pos_loss = torch.stack(pos_loss).mean()
 
-        y1_score = torch.exp(cluster_o[:,1])
-        y1_auroc = f_metrics.auroc(y1_score, 1*(batch.cluster_y == 1))
+        neg_o, neg_loss = [], []
+        for neg_cluster in batch.neg_index:
+            _neg_o, _neg_loss = _eval_cluster(batch, neg_cluster)
+            neg_o.append(_neg_o)
+            neg_loss.append(_neg_loss)
+        neg_o = torch.stack(neg_o)
+        neg_loss = torch.stack(neg_loss).mean()
 
-        y2_score = torch.exp(cluster_o[:,2])
-        y2_auroc = f_metrics.auroc(y2_score, 1*(batch.cluster_y == 2))
+        pos_score, neg_score = torch.exp(pos_o[:,:,1]), torch.exp(neg_o[:,:,1])
+
+        rank_loss = torch.mean(F.relu(1 - pos_score.unsqueeze(1) + neg_score.unsqueeze(0))**2)
+
+        # loss = pos_loss + neg_loss
+        loss = pos_loss + neg_loss + rank_loss
+        # loss = rank_loss
+        hits = torch.mean( 1.0*(pos_score>neg_score.max(dim=0)[0]) )
+        maxhits = torch.mean( 1.0*(pos_score.max(dim=0)[0]>neg_score.max(dim=0)[0]) )
 
         metrics = dict(
-            loss=loss, 
-            node_auroc=node_auroc,
-            edge_auroc=edge_auroc,
-            y1_auroc  =y1_auroc,
-            y2_auroc  =y2_auroc
+            loss=loss,hits=hits,maxhits=maxhits
         )
         self.log_scalar(metrics, tag)
 
-        true_node_score = node_score[batch.y == 1]
-        fake_node_score = node_score[batch.y == 0]
-
-        true_edge_score = edge_score[batch.edge_y == 1]
-        fake_edge_score = edge_score[batch.edge_y == 0]
-
-        true_y1_score = y1_score[batch.cluster_y == 1]
-        fake_y1_score = y1_score[batch.cluster_y != 1]
-
-        true_y2_score = y2_score[batch.cluster_y == 2]
-        fake_y2_score = y2_score[batch.cluster_y != 2]
-
         histos = dict(
-            true_node_score=true_node_score, fake_node_score=fake_node_score,
-            true_edge_score=true_edge_score, fake_edge_score=fake_edge_score,
-            true_y1_score  =true_y1_score  , fake_y1_score  =fake_y1_score,
-            true_y2_score  =true_y2_score  , fake_y2_score  =fake_y2_score
+            pos_score=pos_score.reshape(-1),
+            neg_score=neg_score.reshape(-1)
         )
         self.log_histos(histos, tag)
 
         return metrics
 
 
+class ClusterPredictor(torch.nn.Module):
+    def __init__(self, n_in_node=None, n_out=None):
+        super().__init__()
+        self.linear = torch.nn.Linear(4*n_in_node, n_out)
+
+    def forward(self, x, cluster_index):
+        x_0, x_1, x_2, x_3 = x[cluster_index]
+        e_ij = torch.cat([ x_0, x_1, x_2, x_3], dim=-1 )
+        return self.linear(e_ij)
+
 class GoldenCluster(ClusterClassifier):
-    name = 'golden_cluster'
-    def __init__(self, nn_conv1_out=64, nn_conv2_out=256, nn_linear_out=128 , **kwargs):
+    name = "golden_cluster"
+    def __init__(self, nn_embed_1=64, nn_embed_2=128, nn_out_1=96, nn_out_2=32, **kwargs):
         super().__init__(**kwargs)
-        self.conv1 = layers.GCNConvMSG(n_in_node=self.n_in_node, n_in_edge=self.n_in_edge, n_out=nn_conv1_out)
-        self.relu1 = layers.GCNRelu()
-        self.conv2 = layers.GCNConvMSG(n_in_node=nn_conv1_out, n_in_edge=nn_conv1_out, n_out=nn_conv2_out)
-        self.relu2 = layers.GCNRelu()
-
-        self.linear1 = layers.GCNLinear(nn_conv2_out, nn_conv2_out, nn_linear_out)
-        self.relu3 = layers.GCNRelu()
-
-        self.linear_o = layers.GCNLinear(nn_linear_out, nn_linear_out, 2)
-        self.cluster_linear = torch.nn.Linear(nn_linear_out, 3)
-
-    def forward(self, data : Data) -> Tensor:
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-
-        x, edge_attr = self.conv1(x, edge_index, edge_attr)
-        x, edge_attr = self.relu1(x, edge_index, edge_attr)
-
-        x, edge_attr = self.conv2(x, edge_index, edge_attr)
-        x, edge_attr = self.relu2(x, edge_index, edge_attr)
-
-        x, edge_attr = self.linear1(x, edge_index, edge_attr)
-        x, edge_attr = self.relu3(x, edge_index, edge_attr)
-
-        (node_o, edge_o), cluster_o = self.linear_o(x, edge_index, edge_attr), self.cluster_linear(x)
-        node_o, edge_o, cluster_o = F.log_softmax(node_o, dim=-1), \
-                                    F.log_softmax(edge_o, dim=-1), \
-                                    F.log_softmax(cluster_o, dim=-1)
-
-        return node_o, edge_o, cluster_o
+        self.embed_1 = layers.GCNLinear(self.n_in_node+1, self.n_in_edge, nn_embed_1)
+        self.conv_1 = layers.GCNConvMask(n_in_node=nn_embed_1, n_in_edge=nn_embed_1, n_out=nn_embed_1)
+        self.norm_1 = layers.GCNBatchNorm(nn_embed_1, nn_embed_1)
+        self.relu_1 = layers.GCNRelu()
         
+        self.embed_2 = layers.GCNLinear(nn_embed_1, nn_embed_1, nn_embed_2)
+        self.conv_2 = layers.GCNConvMask(n_in_node=nn_embed_2, n_in_edge=nn_embed_2, n_out=nn_embed_2)
+        self.norm_2 = layers.GCNBatchNorm(nn_embed_2, nn_embed_2)
+        self.relu_2 = layers.GCNRelu()
+
+        self.cluster_1 = ClusterPredictor(nn_embed_2, nn_out_1)
+        self.relu_3 = torch.nn.ReLU()
+
+        self.readout = torch.nn.Sequential(
+            torch.nn.Linear(nn_out_1, nn_out_2),
+            torch.nn.ReLU(),
+            torch.nn.Linear(nn_out_2, 2),
+            torch.nn.LogSoftmax(dim=-1)
+        )
+
+    def forward(self, data : Data):
+        data = data.to(self.device)
+        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        edge_mask, batch = data.get('edge_mask', None), data.get('batch', None)
+
+        if edge_mask is not None:
+            edge_index = edge_index[:,edge_mask]
+            edge_attr = edge_attr[edge_mask]
+            edge_mask = None        
+
+        x, edge_attr = self.embed_1(x, edge_index, edge_attr)
+        x, _ = self.conv_1(x, edge_index, edge_attr, edge_mask)        
+        x, _ = self.norm_1(x, edge_index, edge_attr, batch)
+        x, _ = self.relu_1(x, edge_index, edge_attr)        
+
+        x, edge_attr = self.embed_2(x, edge_index, edge_attr)
+        x, _ = self.conv_2(x, edge_index, edge_attr, edge_mask)
+        x, _ = self.norm_2(x, edge_index, edge_attr, batch)
+        x, _ = self.relu_2(x, edge_index, edge_attr)
+
+        cluster_x = self.cluster_1(x, data.cluster_index)
+        cluster_x = self.relu_3(cluster_x)
+        cluster_x = self.readout(cluster_x)
+
+        return cluster_x

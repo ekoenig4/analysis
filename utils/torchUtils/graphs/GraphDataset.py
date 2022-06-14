@@ -5,10 +5,9 @@ import torch
 from torch_geometric.data import Data, InMemoryDataset
 from torch.utils.data import ConcatDataset
 
-from ..selectUtils import *
-from ..utils import get_collection
-from .torchscript import build_dataset
-from .gnn import *
+from ...utils import get_collection
+from ..torchscript import build_dataset
+from ..gnn import *
 from .GraphTransforms import *
 
 
@@ -102,7 +101,7 @@ def clean_features(features, fill_value=0):
     return features
 
 
-def get_node_attrs(jets, attrs=["m", "pt", "eta", "phi", "btag"]):
+def get_node_attrs(jets, attrs=["mRegressed", "ptRegressed", "eta", "phi", "btag"]):
     features = ak.concatenate([attr[:, :, None]
                               for attr in ak.unzip(jets[attrs])], axis=-1)
     return clean_features(features)
@@ -113,19 +112,21 @@ def get_node_targs(jets):
     return targets
 
 
-def get_edge_attrs(jets, attrs=["m","dpt","dr","deta","dphi"]):
-    dpt = ak.flatten(jets.pt[:,:,None] - jets.pt[:,None],axis=2)
+def get_edge_attrs(jets, attrs=["m","pt","eta","phi","dr"]):
     deta = ak.flatten(calc_deta(jets.eta[:,:,None],jets.eta[:,None]),axis=2)
     dphi = ak.flatten(calc_dphi(jets.phi[:,:,None],jets.phi[:,None]),axis=2)
     dr = np.sqrt(deta**2 + dphi**2)
 
-    p4_1 = vector.obj(pt=jets.pt[:,:,None],eta=jets.eta[:,:,None],phi=jets.phi[:,:,None],m=jets.m[:,:,None])
-    p4_2 = vector.obj(pt=jets.pt[:,None],eta=jets.eta[:,None],phi=jets.phi[:,None],m=jets.m[:,None])
+    p4_1 = vector.obj(pt=jets.ptRegressed[:,:,None],eta=jets.eta[:,:,None],phi=jets.phi[:,:,None],m=jets.mRegressed[:,:,None])
+    p4_2 = vector.obj(pt=jets.ptRegressed[:,None],eta=jets.eta[:,None],phi=jets.phi[:,None],m=jets.mRegressed[:,None])
     res = p4_1 + p4_2
 
     m = ak.flatten(res.m,axis=2)
+    pt = ak.flatten(res.pt,axis=2)
+    eta = ak.flatten(res.eta,axis=2)
+    phi = ak.flatten(res.phi,axis=2)
     
-    edges = ak.zip(dict(m=m,dpt=dpt,deta=deta,dphi=dphi,dr=dr),depth_limit=1)
+    edges = ak.zip(dict(m=m,pt=pt,eta=eta,phi=phi,dr=dr),depth_limit=1)
     
     features = ak.concatenate([attr[:, :, None]
                               for attr in ak.unzip(edges[attrs])], axis=-1)
@@ -145,19 +146,19 @@ def get_edge_targs(jets):
     return ak.flatten(target, axis=2)
 
 
-def build_node_features(jets, node_attr_names=["m", "pt", "eta", "phi", "btag"]):
+def build_node_features(jets, node_attr_names=["mRegressed", "ptRegressed", "eta", "phi", "btag"]):
     node_attrs = get_node_attrs(jets, node_attr_names)
     node_targs = get_node_targs(jets)
     return node_attrs, node_targs, node_attr_names
 
 
-def build_edge_features(jets, edge_attr_names=["m","dpt","dr","deta","dphi"]):
+def build_edge_features(jets, edge_attr_names=["m","pt","eta","phi","dr"]):
     edge_attrs = get_edge_attrs(jets, edge_attr_names)
     edge_targs = get_edge_targs(jets)
     return edge_attrs, edge_targs, edge_attr_names
 
 
-def build_features(tree, node_attr_names=["m", "pt", "eta", "phi", "btag"], edge_attr_names=["m", "pt", "eta", "phi", "btag"]):
+def build_features(tree, node_attr_names=["mRegressed", "ptRegressed", "eta", "phi", "btag"], edge_attr_names=["m", "pt", "eta", "phi", "dr"]):
     jets = get_collection(tree, 'jet', False)
     return build_node_features(jets, node_attr_names), build_edge_features(jets, edge_attr_names)
 

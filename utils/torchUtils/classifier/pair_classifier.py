@@ -1,5 +1,5 @@
 import torch
-from torch import Tensor
+from torch import Tensor, softmax
 from torch.nn import Module
 import torch.nn.functional as F
 from torch_geometric.data import Data
@@ -8,11 +8,11 @@ import torchmetrics.functional as f_metrics
 from ..losses import *
 from ..cpp_geometric import *
 from .LightningModel import LightningModel
-from ..gnn import k_max_neighbors, attr_undirected, top_accuracy, sample_pair
+from ..gnn import k_max_neighbors, attr_undirected, top_accuracy, sample_pair, mask_graph_edges
 from torch_scatter import scatter_max
 
 __all__ = [ 
-    "GoldenPair",
+    "GoldenPair","GoldenPairV2"
 ]
 
 class PairClassifier(LightningModel):
@@ -61,7 +61,8 @@ class PairClassifier(LightningModel):
         maxhits = torch.mean( 1.0*(pos_score.max(dim=0)[0]>neg_score.max(dim=0)[0]) )
 
         metrics = dict(
-            loss=loss,hits=hits,maxhits=maxhits
+            loss=loss,hits=hits,maxhits=maxhits,
+            pos_loss=pos_loss.detach(), neg_loss=neg_loss.detach(), rank_loss=rank_loss.detach()
         )
         self.log_scalar(metrics, tag)
 
@@ -105,12 +106,19 @@ class GoldenPair(PairClassifier):
             torch.nn.Linear(nn_out_1, nn_out_2),
             torch.nn.ReLU(),
             torch.nn.Linear(nn_out_2, 2),
+            torch.nn.ReLU(),
             torch.nn.LogSoftmax(dim=-1)
         )
 
     def forward(self, data : Data):
+        data = data.to(self.device)
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         edge_mask, batch = data.get('edge_mask', None), data.get('batch', None)
+
+        if edge_mask is not None:
+            edge_index = edge_index[:,edge_mask]
+            edge_attr = edge_attr[edge_mask]
+            edge_mask = None        
 
         x, edge_attr = self.embed_1(x, edge_index, edge_attr)
         x, _ = self.conv_1(x, edge_index, edge_attr, edge_mask)        
@@ -127,3 +135,56 @@ class GoldenPair(PairClassifier):
         pair_x = self.readout(pair_x)
 
         return pair_x
+
+class GoldenPairV2(PairClassifier):
+    name = "golden_pair_v2"
+    def __init__(self, nn_embed_1=64, nn_embed_2=128, nn_out_1=96, nn_out_2=32, **kwargs):
+        super().__init__(**kwargs)
+        self.embed_1 = torch.nn.Linear(self.n_in_node+1, nn_embed_1)
+        self.conv_1 = layers.GCNConvMask(n_in_node=nn_embed_1, n_in_edge=self.n_in_edge, n_out=nn_embed_1)
+        self.norm_1 = layers.GCNBatchNorm(nn_embed_1, self.n_in_edge)
+        self.relu_1 = layers.GCNRelu()
+        
+        self.embed_2 = torch.nn.Linear(nn_embed_1, nn_embed_2)
+        self.conv_2 = layers.GCNConvMask(n_in_node=nn_embed_2, n_in_edge=self.n_in_edge, n_out=nn_embed_2)
+        self.norm_2 = layers.GCNBatchNorm(nn_embed_2, self.n_in_edge)
+        self.relu_2 = layers.GCNRelu()
+
+        self.pair_1 = PairPredictor(nn_embed_2, nn_out_1)
+        self.relu_3 = torch.nn.ReLU()
+
+        self.readout = torch.nn.Sequential(
+            torch.nn.Linear(nn_out_1, nn_out_2),
+            torch.nn.ReLU(),
+            torch.nn.Linear(nn_out_2, 2),
+            torch.nn.ReLU(),
+            torch.nn.LogSoftmax(dim=-1)
+        )
+
+    def forward(self, data : Data):
+        data = data.to(self.device)
+        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        edge_mask, batch = data.get('edge_mask', None), data.get('batch', None)
+
+        if edge_mask is not None:
+            edge_index = edge_index[:,edge_mask]
+            edge_attr = edge_attr[edge_mask]
+            edge_mask = None        
+
+        x = self.embed_1(x)
+        x, _ = self.conv_1(x, edge_index, edge_attr, edge_mask)        
+        x, _ = self.norm_1(x, edge_index, edge_attr, batch)
+        x, _ = self.relu_1(x, edge_index, edge_attr)        
+
+        x = self.embed_2(x)
+        x, _ = self.conv_2(x, edge_index, edge_attr, edge_mask)
+        x, _ = self.norm_2(x, edge_index, edge_attr, batch)
+        x, _ = self.relu_2(x, edge_index, edge_attr)
+
+        pair_x = self.pair_1(x, data.pair_index)
+        pair_x = self.relu_3(pair_x)
+        pair_x = self.readout(pair_x)
+
+        return pair_x
+
+

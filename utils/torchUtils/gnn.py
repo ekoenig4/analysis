@@ -72,6 +72,18 @@ def predict_dataset_nodes(model, dataset, batch_size=50):
     edge_scores = torch.cat([model.predict_nodes(data) for data in dataset])
     return edge_scores.numpy()
 
+def mask_graph_nodes(data, node_mask):
+    for key,value in data.items():
+        if value.shape[0] == node_mask.shape[0]:
+            data[key] = value[node_mask]
+
+    arange = torch.arange(data.num_nodes)
+    row = torch.repeat_interleave(arange, data.num_nodes)
+    col = torch.cat([arange]*data.num_nodes)
+    data.edge_index = torch.stack([row,col])
+
+    return data
+
 def mask_graph_edges(data, edge_mask):
     data.edge_index = data.edge_index[:,edge_mask]
     for key,value in data.items():
@@ -244,7 +256,6 @@ def k_max_neighbors(d, edge_index, n_neighbor=1, remove_self=False, return_steps
     return used_edges
 
 def sample_pair(data, pair):
-    device = data.get('device', 'cpu')
     data, pair = data.to('cpu'), pair.to('cpu')
     pair = pair.reshape(2,-1)
     labels = torch.zeros(data.num_nodes, 1)
@@ -253,6 +264,25 @@ def sample_pair(data, pair):
     data.x = torch.cat([data.x, labels], dim=-1)
     data.labeled = torch.LongTensor([1])
     data.pair_index = pair
-    pair_mask = (pair[:,None] == data.edge_index[:,:,None]).all(dim=0).any(dim=-1)
-    data.pair_y = data.edge_y[pair_mask]
+
+    pair_id = data.node_id[data.pair_index]
+    higgs_id = (pair_id+1)//2
+    higgs_mask = (higgs_id[1] == higgs_id[0]) & (higgs_id[0] > 0)
+    data.pair_y = 1*higgs_mask
+    return data.to(config.device)
+
+def sample_cluster(data, cluster):
+    data, cluster = data.to('cpu'), cluster.to('cpu')
+    cluster = cluster.reshape(4,-1)
+    labels = torch.zeros(data.num_nodes, 1)
+    labels[cluster] = 1
+    if hasattr(data,'labeled'): data.x = data.x[:,:-1]
+    data.x = torch.cat([data.x, labels], dim=-1)
+    data.labeled = torch.LongTensor([1])
+    data.cluster_index = cluster
+
+    cluster_id = data.node_id[data.cluster_index]
+    y_id = (cluster_id+3)//4
+    y_mask = (y_id[1] == y_id[0]) & (y_id[0] > 0)
+    data.cluster_y = 1*y_mask
     return data.to(config.device)
