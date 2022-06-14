@@ -43,6 +43,7 @@ parser.add_argument('--random-pair',help='Random positive and negative pairs to 
 parser.add_argument('--valid-size',help='Fraction of training graphs to use as validation',type=float,default=0.2)
 parser.add_argument('--test-size',help='Fraction of testing graphs to use to test with',type=float,default=0.8)
 parser.add_argument('--batch-size',help='Specify batch size',type=int, default=100)
+parser.add_argument('--mass',help='Specify mass point to train on', type=str, default='MX_1000_MY_450')
 
 parser.add_argument('--no-gpu',help='Dont use GPU',default=True,action='store_false')
 args = parser.parse_args()
@@ -54,37 +55,40 @@ gnn.config.set_gpu(args.no_gpu)
 print('Loading Training and Testing Data...')
 print('N CPU:',ncpu)
 
-hparams = dict()
-transform = gnn.Transform()
-if args.uptri: transform.append(gnn.to_uptri_graph())
-if args.cluster_y: transform.append(gnn.cluster_y())
-if args.hyper_edge: transform.append(gnn.HyperEdgeY())
-if args.remove_self: transform.append(gnn.remove_self_loops())
-if args.min_knn > 0: transform.append(gnn.min_edge_neighbor(n_neighbor=args.min_knn, undirected=True))
-if args.random_sample: transform.append(gnn.RandomSample())
-if args.random_pair: transform.append(gnn.SamplePair())
+sampler = None
+transform = None
+# if args.random_pair: transform.append(gnn.SamplePair())
+# if args.uptri: transform.append(gnn.to_uptri_graph())
+# if args.cluster_y: transform.append(gnn.cluster_y())
+# if args.hyper_edge: transform.append(gnn.HyperEdgeY())
+# if args.remove_self: transform.append(gnn.remove_self_loops())
+# if args.min_knn > 0: transform.append(gnn.min_edge_neighbor(n_neighbor=args.min_knn, undirected=True))
+# if args.random_sample: transform.append(gnn.RandomSample())
 
+if args.model == 'simple_pair': 
+    transform = gnn.Transform(gnn.Top8Btag(), gnn.SimplePair())
+    sampler = gnn.Require8B
+
+if args.mass != 'all': mass_list = [args.mass]
 template = gnn.Dataset('data/template',make_template=True, transform=transform, scale=args.scale, node_mask=args.node_mask, edge_mask=args.edge_mask)
-
 dataset = gnn.concat_dataset([f'data/{mass}-training' for mass in mass_list],transform=template.transform)
-
 testing = gnn.concat_dataset([f'data/{mass}-testing' for mass in mass_list],transform=template.transform)
 
 from torch_geometric.loader import DataLoader
 
 training, validation = gnn.train_test_split(dataset,args.valid_size)
 
-trainloader = DataLoader(training,batch_size=args.batch_size,shuffle=True,num_workers=ncpu)
-validloader = DataLoader(validation,batch_size=args.batch_size,num_workers=ncpu)
+trainloader = gnn.graph_loader(training,sampler=sampler,batch_size=args.batch_size,shuffle=False,num_workers=ncpu)
+validloader = gnn.graph_loader(validation,sampler=sampler,batch_size=args.batch_size,num_workers=ncpu)
 
 testsample, _ = gnn.train_test_split(testing,1-args.test_size)
-testloader = DataLoader(testsample,batch_size=args.batch_size,num_workers=ncpu)
+testloader = gnn.graph_loader(testsample,sampler=sampler,batch_size=args.batch_size,num_workers=ncpu)
 
 # --- Loading Model --- #
 
 print('Loading GCN Model...')
 
-model = gnn.modelMap[args.model](*args.model_args,dataset=template,loss=args.loss,lr=args.lr,batch_size=args.batch_size, **template.transform.hparams)
+model = gnn.modelMap[args.model](*args.model_args,dataset=template,loss=args.loss,lr=args.lr,batch_size=args.batch_size,mass=mass_list, **template.transform.hparams)
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
