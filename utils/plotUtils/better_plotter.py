@@ -3,16 +3,34 @@ import matplotlib.colors as clrs
 import matplotlib.pyplot as plt
 import numpy as np
 
+plt.style.use(['science','no-latex'])
+plt.rcParams["figure.figsize"] = (6.5,6.5)
+plt.rcParams['font.size'] =  15
+
 from ..utils import get_bin_centers, get_bin_widths
 from .histogram import HistoList, Stack
 from .graph import GraphList, Ratio
 from .formater import format_axes
 
-def plot_graph(graph, figax=None, **kwargs):
+def plot_function(function, figax=None, **kwargs):
     if figax is None: figax = plt.subplots()
     fig,ax = figax
     
-    ax.errorbar(graph.x_array,graph.y_array,**graph.kwargs)
+    ax.plot(function.x_array, function.y_array, **function.kwargs)
+
+    if any(kwargs): format_axes(ax, **kwargs)
+    return fig,ax
+
+def plot_graph(graph, errors=True, figax=None, **kwargs):
+    if figax is None: figax = plt.subplots()
+    fig,ax = figax
+    
+    xerr, yerr = (graph.xerr, graph.yerr) if errors else (None,None)
+
+    ax.errorbar(graph.x_array,graph.y_array, xerr=xerr, yerr=yerr, **graph.kwargs)
+
+    if getattr(graph, 'fit', None) is not None:
+        plot_function(graph.fit, figax=figax)
     
     if any(kwargs): format_axes(ax, **kwargs)
     return fig,ax
@@ -37,18 +55,24 @@ def graph_arrays(x_arrays, y_arrays, figax=None, **kwargs):
     
     return fig,ax    
     
-def graph_histo(histo, figax=None, **kwargs):
+def graph_histo(histo, errors=True, figax=None, **kwargs):
     if figax is None: figax = plt.subplots()
     fig,ax = figax
     
     bins = histo.bins 
-    bin_centers, bin_widths = get_bin_centers(bins), get_bin_widths(bins)
-    ax.errorbar(bin_centers, histo.histo, xerr=bin_widths, **histo.kwargs)
+    bin_centers = get_bin_centers(bins)
+    yerr = histo.error if errors else None
+    xerr = get_bin_widths(bins) if errors else None
+    ax.errorbar(bin_centers, histo.histo, xerr=xerr, yerr=yerr, **histo.kwargs)
+    
+    if getattr(histo, 'fit', None) is not None:
+        plot_function(histo.fit, figax=figax)
     
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
     
 def graph_histos(histos, figax=None, **kwargs):
+    if figax is None: figax = plt.subplots()
     fig,ax = figax
     for histo in histos: graph_histo(histo, figax=figax)
     if any(kwargs): format_axes(ax,**kwargs)
@@ -59,6 +83,9 @@ def plot_histo(histo, errors=True, figax=None, **kwargs):
     if figax is None: figax = plt.subplots()
     fig,ax = figax
 
+    if histo.continous: 
+        return graph_histo(histo, errors=errors, figax=figax, **kwargs)
+
     bin_centers = get_bin_centers(histo.bins)
     
     _,_,container = ax.hist(bin_centers, bins=histo.bins, weights=histo.histo, **histo.kwargs)
@@ -66,6 +93,9 @@ def plot_histo(histo, errors=True, figax=None, **kwargs):
     color = histo.kwargs['color'] if histo.kwargs.get('histtype',False) else 'black'
     if errors:
         ax.errorbar(bin_centers, histo.histo, yerr=histo.error,fmt='none', color=color, capsize=1)
+
+    if getattr(histo, 'fit', None) is not None:
+        plot_function(histo.fit, figax=figax)
     
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
