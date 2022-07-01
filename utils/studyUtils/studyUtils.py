@@ -158,7 +158,7 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-
     if study.return_figax:
         return fig,axs
 
-def overlay(tree, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1), xlabels=None, flip=None, **kwargs):
+def overlay(tree, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1), xlabels=None, flip=None, figax=None, **kwargs):
     if type(varlist[0]) != list:
         varlist = [varlist]
     study = Study(tree, **kwargs)
@@ -170,10 +170,12 @@ def overlay(tree, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1), xlabels=N
 
     nrows, ncols = autodim(nvar, dim, flip)
     xsize, ysize = autosize(size,(nrows,ncols))
-    fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
-                            figsize=(int(xsize*ncols), ysize*nrows))
+    if figax is None:
+        figax = plt.subplots(nrows=nrows, ncols=ncols,
+                                figsize=(int(xsize*ncols), ysize*nrows),
+                                dpi=80)
+    fig, axs = figax
 
-    storage = []
     for i, (group, bins, xlabel) in enumerate(varlist):
         hists = [study.get(var)[0] for var in group]
         weights = [study.get_scale(hists)[0] for var in group]

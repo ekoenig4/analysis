@@ -444,7 +444,7 @@ def build_all_dijets(tree, pairs=None):
     )
 
 
-def select_higgs(tree, field='score', tag='gnn', nhiggs=3):
+def select_higgs(tree, field='score', tag='gnn', nhiggs=3, ptordered=True):
     """Select unique dijets based on highest value specified from field
 
     Args:
@@ -472,6 +472,8 @@ def select_higgs(tree, field='score', tag='gnn', nhiggs=3):
         higgs, sorted_dijets = get_next_higgs(sorted_dijets)
         higgs_list.append(higgs)
     higgs = ak.concatenate(higgs_list, axis=1)
+    if ptordered:
+        higgs = higgs[ak.argsort(-higgs.pt)]
     higgs = rename_collection(higgs, f'{tag}_higgs')
     
     tree.extend(

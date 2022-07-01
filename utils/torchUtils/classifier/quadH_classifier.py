@@ -4,6 +4,8 @@ from torch.nn.functional import relu, binary_cross_entropy
 from torch_geometric.data import Data
 import torchmetrics.functional as f_metrics
 
+from utils.torchUtils.gnn import quad_labels
+
 from ..losses import *
 from ..cpp_geometric import *
 from .LightningModel import LightningModel
@@ -24,6 +26,7 @@ class QuadHClassifier(LightningModel):
 
     def eval_batch(self, batch, quad_mask):
         batch.quad_mask = quad_mask
+        batch = quad_labels(batch, quad_mask)
         score = self(batch)[:,0]    
         # loss = quadH_losses.mass_spread_loss(batch, quad_mask)
         # return [score, loss]
@@ -37,8 +40,8 @@ class QuadHClassifier(LightningModel):
         y = (1*(batch.sampled_quad_y == 4)).long()
 
         loss = binary_cross_entropy(scores, y.float())
-        for mask_lo, mask_hi in zip(rank_masks[:-1], rank_masks[1:]):
-            loss = loss + torch.mean(relu(1 - scores[mask_hi] + scores[mask_lo]))
+        # for mask_lo, mask_hi in zip(rank_masks[:-1], rank_masks[1:]):
+        #     loss = loss + torch.mean(relu(1 - scores[mask_hi] + scores[mask_lo]))
 
         auroc = f_metrics.auroc(scores, y)
 
@@ -59,7 +62,7 @@ class PairPredictor(torch.nn.Module):
         return self.linear(e_ij)
 
 class QuadPredictor(torch.nn.Module):
-    def __init__(self, n_in_node=None, n_in_edge=None, n_out=None, aggr='max'):
+    def __init__(self, n_in_node=None, n_in_edge=None, n_out=None, aggr='avg'):
         super().__init__()
         self.aggr = aggr
 
@@ -71,9 +74,11 @@ class QuadPredictor(torch.nn.Module):
         elif self.aggr == 'max':
             x = torch.cat([quad.unsqueeze(-1) for quad in quad_x],dim=-1)
             x = x.max(dim=-1)[0]
-
+        elif self.aggr == 'avg':
+            x = torch.cat([quad.unsqueeze(-1) for quad in quad_x],dim=-1)
+            x = x.mean(dim=-1)
         return x
-        
+
 
 class GoldenQuadH(QuadHClassifier):
     name = "golden_quadh"
@@ -83,7 +88,7 @@ class GoldenQuadH(QuadHClassifier):
         # self.node_embed = torch.nn.Linear(self.n_in_node, nn_embed_1)
         # self.edge_embed = torch.nn.Linear(self.n_in_edge, nn_embed_1)
 
-        self.gnn_module = layers.GCNConvMask(n_in_node=self.n_in_node, n_in_edge=self.n_in_edge, n_out=nn_embed_1)
+        self.gnn_module = layers.GCNConvMask(n_in_node=self.n_in_node+4, n_in_edge=self.n_in_edge, n_out=nn_embed_1)
         self.gnn_norm = layers.BatchNorm(nn_embed_1)
         self.gnn_relu = torch.nn.ReLU()
 
@@ -108,7 +113,7 @@ class GoldenQuadH(QuadHClassifier):
         edge_mask, quad_mask = data.edge_mask, data.quad_mask
 
         batch = data.get('batch',None)
-        x,_ = self.gnn_module(x, edge_index[:,edge_mask], edge_attr[edge_mask])
+        x = self.gnn_module(x, edge_index[:,edge_mask], edge_attr[edge_mask])
         x = self.gnn_norm(x, batch)
         x = self.gnn_relu(x)
 

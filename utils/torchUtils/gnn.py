@@ -286,3 +286,20 @@ def sample_cluster(data, cluster):
     y_mask = (y_id[1] == y_id[0]) & (y_id[0] > 0)
     data.cluster_y = 1*y_mask
     return data.to(config.device)
+
+def quad_labels(data, quad_mask):
+    data, quad_mask = data.to('cpu'), quad_mask.to('cpu')
+    quad_index = data.edge_index[:,quad_mask]
+
+    if hasattr(data,'labeled'): data.x = data.x[:,:-4]
+    label = torch.zeros(data.num_nodes, 4)
+    
+    n_quad = quad_index[0].shape[0]//4
+    arange = torch.arange(4)
+    arange = torch.repeat_interleave(arange[None], n_quad, dim=0).reshape(-1)
+    label[quad_index[0], arange] = 1
+    label[quad_index[1], arange] = 1
+    data.x = torch.cat([data.x, label], dim=-1)
+    data.labeled = torch.LongTensor([1])
+
+    return data.to(config.device)

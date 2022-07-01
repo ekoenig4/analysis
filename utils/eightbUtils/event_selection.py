@@ -5,9 +5,8 @@ from ..eightbUtils import quarklist
 import awkward as ak
 import numpy as np
 
-
-def calc_m_asym(tree):
-    higgs_m = ak.concatenate([ array[:,None] for array in ak.unzip(tree[["H1Y1_m","H2Y1_m","H1Y2_m","H2Y2_m"]])],axis=-1).to_numpy()
+def calc_4h_asym(higgs_m):
+    higgs_m = ak.to_numpy(higgs_m)
     higgs_m.sort(axis=-1)
     hm12_asym = (higgs_m[:,3]-higgs_m[:,2])/(higgs_m[:,3]+higgs_m[:,2])
     hm13_asym = (higgs_m[:,3]-higgs_m[:,1])/(higgs_m[:,3]+higgs_m[:,1])
@@ -17,16 +16,26 @@ def calc_m_asym(tree):
     hm24_asym = (higgs_m[:,2]-higgs_m[:,0])/(higgs_m[:,2]+higgs_m[:,0])
     
     hm34_asym = (higgs_m[:,1]-higgs_m[:,0])/(higgs_m[:,1]+higgs_m[:,0])
-
-    y_m = ak.concatenate([ array[:,None] for array in ak.unzip(tree[["Y1_m","Y2_m"]])],axis=-1).to_numpy()
-    y_m.sort(axis=-1)
-    ym_asym = (y_m[:,1]-y_m[:,0])/(y_m[:,1]+y_m[:,0])
-
-    tree.extend(
+    return dict(
         hm12_asym=hm12_asym,hm13_asym=hm13_asym,hm14_asym=hm14_asym,
         hm23_asym=hm23_asym,hm24_asym=hm24_asym,hm34_asym=hm34_asym,
-        hm1234_asym=(hm12_asym+hm34_asym)/2, ym_asym=ym_asym
+        hm1234_asym=(hm12_asym+hm34_asym)/2, 
     )
+
+def calc_2y_asym(y_m):
+    y_m.sort(axis=-1)
+    ym_asym = (y_m[:,1]-y_m[:,0])/(y_m[:,1]+y_m[:,0])
+    return dict(ym_asym=ym_asym)
+
+
+def calc_m_asym(tree):
+    higgs_m = ak.concatenate([ array[:,None] for array in ak.unzip(tree[["H1Y1_m","H2Y1_m","H1Y2_m","H2Y2_m"]])],axis=-1).to_numpy()
+    hm_asym = calc_4h_asym(higgs_m)
+
+    y_m = ak.concatenate([ array[:,None] for array in ak.unzip(tree[["Y1_m","Y2_m"]])],axis=-1).to_numpy()
+    ym_asym = calc_2y_asym(y_m)
+
+    tree.extend(**hm_asym, **ym_asym)
     
 def set_asym(tree):
     tree.extend(

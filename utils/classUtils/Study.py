@@ -23,6 +23,7 @@ def save_fig(fig, directory, saveas, base=GIT_WD):
         os.makedirs(directory)
     # fig.savefig(f"{directory}/{saveas}.pdf", format="pdf")
     fig.savefig(f"{outfn}.png", format="png", dpi=400)
+    # fig.savefig(f"{outfn}.png", format="png")
 
 def _mask_items(self,items):
     def mask_item(item,selection,mask):
@@ -106,6 +107,7 @@ class Study:
         return scales
 
     def format_var(self, var, bins=None, xlabel=None):
+        if callable(var) and hasattr(var,'name'): var = var.name
         info = varinfo.find(var)
         if bins is None and info:
             bins = info.bins

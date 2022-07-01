@@ -80,17 +80,17 @@ def reject_outliers(data, m=2.):
     return data[s < m]
 
 
-def restrict_array(array, bins, weights=None):
+def restrict_array(array, bins, *params):
     x_lo = array >= bins[0]
     x_hi = array < bins[-1]
     array = array[x_lo & x_hi]
-    if weights is not None:
-        weights = weights[x_lo & x_hi]
-        return array, weights
+    if len(params) > 0:
+        params = [ param[x_lo & x_hi] for param in params ]
+        return array, *params
     return array
 
 
-def _autobin_(data, nstd=3):
+def _autobin_(data, nstd=3, nbins=30):
     ndata = ak.size(data)
     mean = ak.mean(data)
     stdv = ak.std(data)
@@ -101,20 +101,19 @@ def _autobin_(data, nstd=3):
         xlo, xhi, nbins = min(minim,0), maxim+1, maxim-minim
     else:
         xlo, xhi = max([minim, mean-nstd*stdv]), min([maxim, mean+nstd*stdv])
-        nbins = 30  # min(int(1+np.sqrt(ndata)), 30)
     return xlo, xhi, nbins, int(is_int)
 
 
-def autobin(data, nstd=3):
+def autobin(data, nstd=3, nbins=30):
     if type(data) == list:
         datalist = list(data)
-        databins = np.array([_autobin_(data, nstd) for data in datalist])
+        databins = np.array([_autobin_(data, nstd, nbins) for data in datalist])
         xlo = np.nanmin(databins[:, 0])
         xhi = np.nanmax(databins[:, 1])
         nbins = int(np.min(databins[:, 2]))
         is_int = databins[:, 3][0]
     else:
-        xlo, xhi, nbins, is_int = _autobin_(data, nstd)
+        xlo, xhi, nbins, is_int = _autobin_(data, nstd, nbins)
     if is_int == 1:
         return np.arange(xlo, xhi+1)
     return np.linspace(xlo, xhi, nbins)
