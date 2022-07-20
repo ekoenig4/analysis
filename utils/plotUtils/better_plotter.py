@@ -8,56 +8,85 @@ plt.rcParams["figure.figsize"] = (6.5,6.5)
 plt.rcParams['font.size'] =  15
 
 from ..utils import get_bin_centers, get_bin_widths
-from .histogram import HistoList, Stack
-from .graph import GraphList, Ratio
+from .histogram import Histo, HistoList, Stack
+from .graph import Graph, GraphList, Ratio
 from .formater import format_axes
 
+def get_figax(figax=None):
+    if figax is None: return plt.subplots()
+    if figax == 'same' and any(plt.get_fignums()):
+        fig = plt.gcf()
+        ax = fig.get_axes()[-1]
+        return (fig,ax)
+    if figax == 'same' and not any(plt.get_fignums()):
+        return plt.subplots()
+    return figax    
+
 def plot_function(function, figax=None, **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
+    fig, ax = get_figax(figax=figax)
     
     ax.plot(function.x_array, function.y_array, **function.kwargs)
 
     if any(kwargs): format_axes(ax, **kwargs)
     return fig,ax
 
-def plot_graph(graph, errors=True, figax=None, **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
-    
+def plot_graph(graph, errors=True, fill_error=False, figax=None, **kwargs):
+    fig, ax = get_figax(figax=figax)
     xerr, yerr = (graph.xerr, graph.yerr) if errors else (None,None)
 
-    ax.errorbar(graph.x_array,graph.y_array, xerr=xerr, yerr=yerr, **graph.kwargs)
+    if not fill_error:
+        fill_error = (graph.x_array.shape[0] >= 30) and (yerr is not None)
+
+    if not fill_error:
+        container = ax.errorbar(graph.x_array,graph.y_array, xerr=xerr, yerr=yerr, **graph.kwargs)
+        graph.kwargs['color'] = container[0].get_color()
+    elif yerr is not None:
+        container = ax.errorbar(graph.x_array, graph.y_array, xerr=xerr, **graph.kwargs)
+        graph.kwargs['color'] = container[0].get_color()
+        for nstd in range(1, int(fill_error)+1 ):
+            ax.fill_between(graph.x_array, graph.y_array-nstd*yerr, graph.y_array+nstd*yerr, color=graph.kwargs['color'], alpha=0.25/nstd)
+
 
     if getattr(graph, 'fit', None) is not None:
-        plot_function(graph.fit, figax=figax)
+        plot_function(graph.fit, figax=(fig,ax))
     
+    kwargs['ylabel'] = kwargs.get('ylabel', None)
     if any(kwargs): format_axes(ax, **kwargs)
     return fig,ax
 
-def plot_graphs(graphs, figax=None, **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
-    for graph in graphs: plot_graph(graph, figax=figax)
+def plot_graphs(graphs, figax=None, errors=True, fill_error=False, **kwargs):
+    fig, ax = get_figax(figax=figax)
+    for graph in graphs: plot_graph(graph, errors=errors, fill_error=fill_error, figax=(fig,ax))
+    kwargs['ylabel'] = kwargs.get('ylabel', None)
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
     
-def graph_arrays(x_arrays, y_arrays, figax=None, **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
+def graph_array(x, y, xerr=None, yerr=None, figax=None, **kwargs):
+    (fig,ax) = get_figax(figax=figax)
     
     # --- Configure kwargs ---
     graph_kwargs = { key[2:]:value for key,value in kwargs.items() if key.startswith('g_') }
     kwargs = { key:value for key,value in kwargs.items() if not key.startswith('g_') }
 
-    graphlist = GraphList(x_arrays,y_arrays,**graph_kwargs)
-    plot_graphs(graphlist,figax=figax,**kwargs)
+    graph = Graph(x,y, xerr=xerr, yerr=yerr, **graph_kwargs)
+    plot_graph(graph,figax=(fig,ax),**kwargs)
     
-    return fig,ax    
+    return (fig,ax)    
+
+def graph_arrays(x_arrays, y_arrays, xerr=None, yerr=None, figax=None, **kwargs):
+    (fig,ax) = get_figax(figax=figax)
+    
+    # --- Configure kwargs ---
+    graph_kwargs = { key[2:]:value for key,value in kwargs.items() if key.startswith('g_') }
+    kwargs = { key:value for key,value in kwargs.items() if not key.startswith('g_') }
+
+    graphlist = GraphList(x_arrays,y_arrays, xerr=xerr, yerr=yerr, **graph_kwargs)
+    plot_graphs(graphlist,figax=(fig,ax),**kwargs)
+    
+    return (fig,ax)    
     
 def graph_histo(histo, errors=True, figax=None, **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
+    fig, ax = get_figax(figax=figax)
     
     bins = histo.bins 
     bin_centers = get_bin_centers(bins)
@@ -66,52 +95,70 @@ def graph_histo(histo, errors=True, figax=None, **kwargs):
     ax.errorbar(bin_centers, histo.histo, xerr=xerr, yerr=yerr, **histo.kwargs)
     
     if getattr(histo, 'fit', None) is not None:
-        plot_function(histo.fit, figax=figax)
+        plot_function(histo.fit, figax=(fig,ax))
     
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
     
 def graph_histos(histos, figax=None, **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
-    for histo in histos: graph_histo(histo, figax=figax)
+    fig, ax = get_figax(figax=figax)
+    for histo in histos: graph_histo(histo, figax=(fig,ax))
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
     
     
-def plot_histo(histo, errors=True, figax=None, **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
+def plot_histo(histo, errors=True, fill_error=False, figax=None, **kwargs):
+    fig, ax = get_figax(figax=figax)
 
     if histo.continous: 
-        return graph_histo(histo, errors=errors, figax=figax, **kwargs)
+        return graph_histo(histo, errors=errors, figax=(fig,ax), **kwargs)
 
     bin_centers = get_bin_centers(histo.bins)
     
     _,_,container = ax.hist(bin_centers, bins=histo.bins, weights=histo.histo, **histo.kwargs)
-    histo.kwargs['color'] = container[0].get_ec()
+    histo.kwargs['color'] = container[0].get_ec() if container[0].get_ec() != (0.,0.,0.,0.) else container[0].get_fc()
     color = histo.kwargs['color'] if histo.kwargs.get('histtype',False) else 'black'
+    
     if errors:
-        ax.errorbar(bin_centers, histo.histo, yerr=histo.error,fmt='none', color=color, capsize=1)
+        if not fill_error:
+            ax.errorbar(bin_centers, histo.histo, yerr=histo.error,fmt='none', color=color, capsize=1)
+        else:
+            for nstd in range(1, int(fill_error)+1 ):
+                ax.fill_between(bin_centers, histo.histo-nstd*histo.error, histo.histo+nstd*histo.error, color=histo.kwargs['color'], alpha=0.25/nstd, step='mid')
 
     if getattr(histo, 'fit', None) is not None:
-        plot_function(histo.fit, figax=figax)
+        plot_function(histo.fit, figax=(fig,ax))
     
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
 
-def plot_histos(histos, figax=None, errors=True, **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
-    for histo in histos: plot_histo(histo, errors=errors, figax=figax)
+def plot_histos(histos, figax=None, errors=True, fill_error=False, **kwargs):
+    fig, ax = get_figax(figax=figax)
+    for histo in histos: plot_histo(histo, errors=errors, fill_error=fill_error, figax=(fig,ax))
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
+
+def histo_array(array, bins=None, weights=None, density = False, 
+                cumulative=False, scale=None, lumi=None,
+                figax=None, **kwargs):
+    fig, ax = get_figax(figax=figax)
     
+    # --- Configure kwargs ---
+    ext_kwargs = dict(density=density,cumulative=cumulative,scale=scale, lumi=lumi)
+    hist_kwargs = { key[2:]:value for key,value in kwargs.items() if key.startswith('h_') }
+    hist_kwargs.update(ext_kwargs)
+    kwargs = { key:value for key,value in kwargs.items() if not key.startswith('h_') }
+    kwargs.update(ext_kwargs)
+    
+    histo = Histo(array,bins=bins,weights=weights,**hist_kwargs)
+    plot_histo(histo, figax=(fig,ax), **kwargs)
+    
+    return fig,ax
+
 def histo_arrays(arrays, bins=None, weights=None, density = False, 
                 cumulative=False, scale=None, lumi=None,
                 figax=None, **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
+    fig, ax = get_figax(figax=figax)
     
     # --- Configure kwargs ---
     ext_kwargs = dict(density=density,cumulative=cumulative,scale=scale, lumi=lumi)
@@ -121,36 +168,43 @@ def histo_arrays(arrays, bins=None, weights=None, density = False,
     kwargs.update(ext_kwargs)
     
     histolist = HistoList(arrays,bins=bins,weights=weights,**hist_kwargs)
-    plot_histos(histolist, figax=figax, **kwargs)
+    plot_histos(histolist, figax=(fig,ax), **kwargs)
     
     return fig,ax
 
-def plot_stack(stack, figax=None, **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
+def plot_stack(stack, figax=None, fill_error=False, **kwargs):
+    fig, ax = get_figax(figax=(figax))
     
-    bin_centers = get_bin_centers(stack.bins[0])
-    bin_widths = 2*get_bin_widths(stack.bins[0])
-    
-    histo_sum = np.zeros(stack[0].histo.shape)
-    for i,histo in enumerate(stack):
-        container = ax.bar(bin_centers, histo.histo, bin_widths,
-               bottom=histo_sum, **histo.kwargs)
-        histo.kwargs['color'] = container[0].get_fc()
-        histo_sum = histo_sum + histo.histo
+    bin_centers = get_bin_centers(stack.bins)
+    bin_widths = 2*get_bin_widths(stack.bins)
 
-    error = np.sqrt((stack.error.npy**2).sum(axis=0))
-    ax.errorbar(bin_centers, histo_sum, yerr=error,
-                fmt='none', color='grey', capsize=1)
+    if not stack.stack_fill:
+        histo_sum = np.zeros(stack[0].histo.shape)
+        for i,histo in enumerate(stack):
+            container = ax.bar(bin_centers, histo.histo, bin_widths,
+                bottom=histo_sum, **histo.kwargs)
+            histo.kwargs['color'] = container[0].get_fc()
+            histo_sum = histo_sum + histo.histo
+
+        error = np.sqrt((stack.error.npy**2).sum(axis=0))
+
+        if not fill_error:
+            ax.errorbar(bin_centers, histo_sum, yerr=error,
+                        fmt='none', color='grey', capsize=1)
+        else:
+            for nstd in range(1, int(fill_error)+1 ):
+                ax.fill_between(bin_centers, histo_sum-nstd*error, histo_sum+nstd*error, color='grey', alpha=0.25/nstd, step='mid')
+    else:
+        histo = stack.get_histo()
+        plot_histo(histo, figax=(fig,ax), fill_error=fill_error)
     
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
 
 def stack_arrays(arrays, bins=None, weights=None, density = False, 
-                cumulative=False, scale=None, lumi=None,
+                cumulative=False, scale=None, lumi=None, stack_fill=False,
                 figax=None, **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
+    fig, ax = get_figax(figax=figax)
     
     # --- Configure kwargs ---
     ext_kwargs = dict(density=density,cumulative=cumulative,scale=scale, lumi=lumi)
@@ -159,17 +213,16 @@ def stack_arrays(arrays, bins=None, weights=None, density = False,
     kwargs = { key:value for key,value in kwargs.items() if not key.startswith('h_') }
     kwargs.update(ext_kwargs)
     
-    stack = Stack(arrays,bins=bins,weights=weights,**hist_kwargs)
-    plot_stack(stack, figax=figax, **kwargs)
+    stack = Stack(arrays,bins=bins,weights=weights,stack_fill=stack_fill,**hist_kwargs)
+    plot_stack(stack, figax=(fig,ax), **kwargs)
 
 def histo_ratio(histos, figax=None, inv=False, ylabel='Ratio', **kwargs):
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
+    fig, ax = get_figax(figax=figax)
     
     num = histos[0]
     dens = histos[1:]
     ratios = [ Ratio(num,den,inv) for den in dens ]
-    plot_graphs(ratios, figax=figax, **kwargs)
+    plot_graphs(ratios, figax=(fig,ax), **kwargs)
     
     if any(kwargs): format_axes(ax, ylabel=ylabel, **kwargs)
     return fig,ax
@@ -195,8 +248,7 @@ def array_ratio(arrays, bins=None, weights=None, density = False,
     Returns:
         figax: Tuple of figure and axes
     """
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
+    fig, ax = get_figax(figax=figax)
     
     # --- Configure kwargs ---
     ext_kwargs = dict(density=density,cumulative=cumulative,scale=scale, lumi=lumi)
@@ -206,7 +258,7 @@ def array_ratio(arrays, bins=None, weights=None, density = False,
     kwargs.update(ext_kwargs)
     
     histolist = HistoList(arrays, bins=bins,weights=weights,**hist_kwargs)
-    histo_ratio(histolist,figax=figax, ylabel=ylabel, **kwargs)
+    histo_ratio(histolist,figax=(fig,ax), ylabel=ylabel, **kwargs)
     
     return fig,ax
 
@@ -224,8 +276,7 @@ def plot_histo2d(x_histo, y_histo, figax=None, cmap="YlOrRd", show_counts=False,
     Returns:
         figax: Tuple of figure and axes
     """
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
+    fig, ax = get_figax(figax=figax)
 
     n, bx, by, im = ax.hist2d(x_histo.array, y_histo.array, (x_histo.bins, y_histo.bins), weights=x_histo.weights,
                                         norm=clrs.LogNorm() if log else clrs.Normalize(), cmap=cmap, alpha=alpha, cmin=cmin)
@@ -243,7 +294,7 @@ def plot_histo2d(x_histo, y_histo, figax=None, cmap="YlOrRd", show_counts=False,
     return fig,ax
 
 def histo2d_arrays(x_array, y_array, x_bins=None, y_bins=None, weights=None, density = False, 
-                cumulative=False, scale=None, lumi=None,
+                cumulative=False, scale=None, lumi=None, efficiency=False,
                 figax=None, **kwargs):
     """Plot 2D histogram
 
@@ -262,18 +313,17 @@ def histo2d_arrays(x_array, y_array, x_bins=None, y_bins=None, weights=None, den
     Returns:
         figax: Tuple of figure and axes
     """
-    if figax is None: figax = plt.subplots()
-    fig,ax = figax
+    fig, ax = get_figax(figax=figax)
     
     # --- Configure kwargs ---
-    ext_kwargs = dict(density=density,cumulative=cumulative,scale=scale, lumi=lumi)
+    ext_kwargs = dict(density=density,cumulative=cumulative,efficiency=efficiency,scale=scale, lumi=lumi)
     hist_kwargs = { key[2:]:value for key,value in kwargs.items() if key.startswith('h_') }
     hist_kwargs.update(ext_kwargs)
     kwargs = { key:value for key,value in kwargs.items() if not key.startswith('h_') }
     kwargs.update(ext_kwargs)
     
     histolist = HistoList([x_array,y_array],bins=[x_bins,y_bins],weights=weights,**hist_kwargs)
-    plot_histo2d(histolist[0], histolist[1], figax=figax, **kwargs)
+    plot_histo2d(histolist[0], histolist[1], figax=(fig,ax), **kwargs)
     
     return fig,ax
     

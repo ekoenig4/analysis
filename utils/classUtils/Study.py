@@ -1,5 +1,5 @@
 from datetime import date
-import os
+import os, re
 
 from ..utils import *
 from ..testUtils import is_iter
@@ -21,9 +21,47 @@ def save_fig(fig, directory, saveas, base=GIT_WD):
     directory = '/'.join(outfn.split('/')[:-1])
     if not os.path.isdir(directory):
         os.makedirs(directory)
-    # fig.savefig(f"{directory}/{saveas}.pdf", format="pdf")
+
+    fig.savefig(f"{outfn}.pdf", format="pdf")
     fig.savefig(f"{outfn}.png", format="png", dpi=400)
     # fig.savefig(f"{outfn}.png", format="png")
+
+def format_var(var, bins=None, xlabel=None):
+    if callable(var) and hasattr(var,'xlabel'): var = var.xlabel
+    info = varinfo.find(var)
+    if bins is None and info:
+        bins = info.bins
+    if info and xlabel is None:
+        xlabel = info.get('xlabel',var)
+    if xlabel is None: xlabel = var
+    return bins, xlabel
+
+def _scale_items(self, items):
+    def scale_item(item,selection,mask):
+        if mask is None: return item 
+        if callable(mask): mask = mask(selection)
+        if isinstance(mask, str): mask = selection[mask]
+        return mask*item
+
+    if callable(self.scales):
+        items = [ scale_item(item, selection, self.scaless) for item, selection in zip(
+            items, self.selections)]
+    else:
+        items = [ scale_item(item,selection,mask) for item, selection, mask in zip(items, self.selections,self.scales)]
+    return items
+
+def _index_items(self,items):
+    def index_item(item,selection,mask):
+        if mask is None: return item 
+        if callable(mask): mask = mask(selection)
+        return item[mask]
+
+    if callable(self.indicies):
+        items = [ index_item(item, selection, self.indicies) for item, selection in zip(
+            items, self.selections)]
+    else:
+        items = [ index_item(item,selection,mask) for item, selection, mask in zip(items, self.selections,self.indicies)]
+    return items
 
 def _mask_items(self,items):
     def mask_item(item,selection,mask):
@@ -52,7 +90,7 @@ def _transform_items(self,items):
     
 
 class Study:
-    def __init__(self, selections, label=None, density=0, log=0, ratio=0, stacked=0, lumi=2018, sumw2=True, title=None, saveas=None, masks=None, transforms=None, return_figax=False, **kwargs):
+    def __init__(self, selections, label=None, density=0, log=0, ratio=0, stacked=0, lumi=2018, sumw2=True, title=None, saveas=None, masks=None, transforms=None, indicies=None, return_figax=False, return_store=False, scale=None, **kwargs):
         if str(type(selections)) == str(TreeIter):
             selections = selections.trees
         elif str(type(selections)) == str(ObjIter):
@@ -65,7 +103,9 @@ class Study:
         self.selections = selections
         self.masks = masks
         self.transforms = transforms
-        
+        self.indicies = indicies
+        self.scales = scale
+
         kwargs['h_color'] = kwargs.get(
             'h_color', [selection.color for selection in selections])
         self.attrs = dict(
@@ -85,16 +125,24 @@ class Study:
         self.title = title
         self.saveas = saveas
         self.return_figax = return_figax
+        self.return_store = return_store
 
-    def get(self, key, transform=True):
+    def get(self, key, transform=True, indicies=True, scale=False):
         def _get_item(selection,key, ie=None):
             if key == 'n_mask': return 'n_mask'
             if callable(key): return key(selection)
-            if ":" in key: key,ie = key.split(":")
+            slice = None
+            if any(re.findall(r'\[.*\]',key)):
+                slice = re.findall(r'\[.*\]',key)[0]
+                key = key.replace(slice, "")
             item = selection[key]
-            if ie is not None: item = item[:,int(ie)]
+            if slice is not None: item = eval(f'item{slice}',{'item':item})
             return item
         items = [_get_item(selection,key) for selection in self.selections]
+        if scale and self.scales is not None:
+            items = _scale_items(self, items)
+        if indicies and self.indicies is not None:
+            items = _index_items(self, items)
         if self.masks is not None:
             items = _mask_items(self, items)
         if transform and self.transforms is not None:
@@ -102,19 +150,12 @@ class Study:
         return items
 
     def get_scale(self, hists):
-        scales = self.get('scale', transform=False)
+        scales = self.get('scale', transform=False, indicies=False, scale=True)
         scales =  [ak.ones_like(hist) * scale for scale, hist in zip(scales, hists)]
         return scales
 
     def format_var(self, var, bins=None, xlabel=None):
-        if callable(var) and hasattr(var,'name'): var = var.name
-        info = varinfo.find(var)
-        if bins is None and info:
-            bins = info.bins
-        if info and xlabel is None:
-            xlabel = info.get('xlabel',var)
-        if xlabel is None: xlabel = var
-        return bins, xlabel
+        return format_var(var, bins, xlabel)
 
     def save_fig(self, fig, directory, base=GIT_WD):
         save_fig(

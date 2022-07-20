@@ -7,15 +7,15 @@ import numpy as np
 
 def calc_4h_asym(higgs_m):
     higgs_m = ak.to_numpy(higgs_m)
-    higgs_m.sort(axis=-1)
-    hm12_asym = (higgs_m[:,3]-higgs_m[:,2])/(higgs_m[:,3]+higgs_m[:,2])
-    hm13_asym = (higgs_m[:,3]-higgs_m[:,1])/(higgs_m[:,3]+higgs_m[:,1])
-    hm14_asym = (higgs_m[:,3]-higgs_m[:,0])/(higgs_m[:,3]+higgs_m[:,0])
+    # higgs_m.sort(axis=-1)
+    hm12_asym = 2*np.abs(higgs_m[:,3]-higgs_m[:,2])/(higgs_m[:,3]+higgs_m[:,2])
+    hm13_asym = 2*np.abs(higgs_m[:,3]-higgs_m[:,1])/(higgs_m[:,3]+higgs_m[:,1])
+    hm14_asym = 2*np.abs(higgs_m[:,3]-higgs_m[:,0])/(higgs_m[:,3]+higgs_m[:,0])
     
-    hm23_asym = (higgs_m[:,2]-higgs_m[:,1])/(higgs_m[:,2]+higgs_m[:,1])
-    hm24_asym = (higgs_m[:,2]-higgs_m[:,0])/(higgs_m[:,2]+higgs_m[:,0])
+    hm23_asym = 2*np.abs(higgs_m[:,2]-higgs_m[:,1])/(higgs_m[:,2]+higgs_m[:,1])
+    hm24_asym = 2*np.abs(higgs_m[:,2]-higgs_m[:,0])/(higgs_m[:,2]+higgs_m[:,0])
     
-    hm34_asym = (higgs_m[:,1]-higgs_m[:,0])/(higgs_m[:,1]+higgs_m[:,0])
+    hm34_asym = 2*np.abs(higgs_m[:,1]-higgs_m[:,0])/(higgs_m[:,1]+higgs_m[:,0])
     return dict(
         hm12_asym=hm12_asym,hm13_asym=hm13_asym,hm14_asym=hm14_asym,
         hm23_asym=hm23_asym,hm24_asym=hm24_asym,hm34_asym=hm34_asym,
@@ -36,6 +36,19 @@ def calc_m_asym(tree):
     ym_asym = calc_2y_asym(y_m)
 
     tree.extend(**hm_asym, **ym_asym)
+
+def standardize_variable(array):
+    mu, sigma = np.mean(array, axis=-1)[:,None], np.std(array, axis=-1)[:,None]
+    return (array - mu)/sigma
+
+def standardize_resonances(tree):
+    higgs_m = ak.concatenate([ array[:,None] for array in ak.unzip(tree[["H1Y1_m","H2Y1_m","H1Y2_m","H2Y2_m"]])],axis=-1).to_numpy()
+    higgs_std_m = standardize_variable(higgs_m)
+
+    y_m = ak.concatenate([ array[:,None] for array in ak.unzip(tree[["Y1_m","Y2_m"]])],axis=-1).to_numpy()
+    y_std_m = standardize_variable(y_m)
+
+    tree.extend(higgs_std_m=higgs_std_m, y_std_m=y_std_m)
     
 def set_asym(tree):
     tree.extend(
@@ -69,8 +82,11 @@ def selected_btagsum(tree):
 target_filter = EventFilter("medium_4btag",filter=lambda t : n_selected_btag(t,jet_btagWP[2]) > 3)
 estimation_filter = EventFilter("medium_inv_3btag",filter=lambda t : n_selected_btag(t,jet_btagWP[2]) == 3)
 
-target_filter_v2 = EventFilter("high_btagsum",filter=lambda t : selected_btagsum(t) > 4)
-estimation_filter_v2 = EventFilter("low_btagsum",filter=lambda t : selected_btagsum(t) <= 4)
+target_filter_v2 = EventFilter("medium_5btag",filter=lambda t : n_selected_btag(t,jet_btagWP[2]) > 4)
+estimation_filter_v2 = EventFilter("medium_inv_5btag",filter=lambda t : n_selected_btag(t,jet_btagWP[2]) < 5)
+
+target_filter_v3 = EventFilter("high_btagsum",filter=lambda t : selected_btagsum(t) > 4)
+estimation_filter_v3 = EventFilter("low_btagsum",filter=lambda t : selected_btagsum(t) <= 4)
 
 asr_filter = EventFilter('asr',asym_diff_max=sr)
 acr_filter = EventFilter('acr',asym_diff_min=sr,asym_diff_max=cr)

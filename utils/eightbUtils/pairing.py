@@ -1,4 +1,5 @@
 from ..utils import *
+import vector
 
 def get_remaining_pairs(pair,all_pairs):
     return list(filter(lambda h : not any(j in h for j in pair),all_pairs))
@@ -48,3 +49,53 @@ def pair_higgs(tree,operator=mass_diff,nsave=4):
                 f'h{form.get(save,save)}_ptsum':ak.sum(higgs.pt,axis=-1)
                 })
     return tree
+
+def get_diY_pairings():
+    y_index = ak.concatenate([ idx[:,None] for idx in ak.unzip(ak.combinations(np.arange(8), 4, axis=0)) ], axis=-1)
+    y1_index = y_index[:35]
+    y2_index=  y_index[35:][::-1]
+    return y1_index, y2_index
+
+def build_y(jets, y_index):
+  j1, j2, j3, j4 = [ jets[:,y_index[:,i]] for i in range(4) ]
+
+  y_p4 = None
+  for j in (j1,j2,j3,j4):
+    if y_p4 is None: y_p4 = build_p4(j, use_regressed=True)
+    else: y_p4 = y_p4 + build_p4(j, use_regressed=True)
+
+  signalIds = np.array([ (j.signalId+4)//4 for j in (j1,j2,j3,j4) ])
+  signalId = signalIds[0]*( ak.all(signalIds[:1] == signalIds[1:],axis=0) )
+
+  y_p4.m = ak.where( np.isnan(y_p4.m), np.max(y_p4.m), np.abs(y_p4.m) )
+
+  n_y1j = np.sum( signalIds == 1,axis=0 )
+  n_y2j = np.sum( signalIds == 2,axis=0 )
+  rank = np.where( n_y1j>n_y2j, n_y1j, n_y2j)
+
+  info = dict(
+    pt=y_p4.pt,
+    m=y_p4.m,
+    eta=y_p4.eta,
+    phi=y_p4.phi,
+    signalId=signalId,
+    rank=rank
+  )
+  return ak.zip(info)
+
+def build_all_ys(tree):
+    y1_index, y2_index = get_diY_pairings()
+
+    jets = get_collection(tree, 'jet', False)
+    y1 = build_y(jets, y1_index)
+    y2 = build_y(jets, y2_index)
+
+    ys = ak.concatenate([y1[:,:,None], y2[:,:,None]], axis=2)
+    ys = ys[ak.argsort(-ys.pt, axis=-1)]
+    y1, y2 = ys[:,:,0], ys[:,:,1]
+
+    ym_asym = 2*np.abs(y1.m-y2.m)/(y1.m+y2.m)
+
+    y1 = rename_collection(y1, 'y1')
+    y2 = rename_collection(y2, 'y2')
+    tree.extend(y1, y2, ym_asym=ym_asym)

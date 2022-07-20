@@ -9,6 +9,7 @@ class Function:
   __instance__ = ['pdf','func','cdf','rvs','sf']
 
   def __init__(self, x, params, pcov=None, n_obs=0, **kwargs):
+    self.params = params
     self.nparams = len(params)
     for key,value in params.items(): setattr(self, key, value)
     for key in self.__instance__: 
@@ -58,6 +59,11 @@ class Function:
     y = histo.histo
     return self.r2(x, y)
 
+  def r2_graph(self, graph):
+    x = graph.x_array
+    y = graph.y_array
+    return self.r2(x, y)
+
   @classmethod
   def fit(cls, x, y, n_obs=None, **kwargs):
     if n_obs is None: n_obs = len(x)
@@ -95,6 +101,7 @@ class Function:
   def fit_graph(cls, graph, **kwargs):
     fit = cls.fit(graph.x_array, graph.y_array, **kwargs)
 
+    graph.stats.r2 = fit.r2_graph(graph)
 
     return fit
     

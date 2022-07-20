@@ -5,14 +5,17 @@ def _set_rescale(ax, **kwargs):
     ax.autoscale()
     return kwargs
 
-def _set_legend(ax, legend=False, is_2d=False, **kwargs):
-    if legend: ax.legend()
+def _set_legend(ax, legend=False, legend_loc='upper left', is_2d=False, **kwargs):
+    if legend: 
+        ax.legend(loc=legend_loc)
     return kwargs
 
-def _get_ylabel(density=False, cumulative=False, scale=None):
+def _get_ylabel(density=False, cumulative=False, efficiency=False, scale=None):
     ylabel = "Events"
     if scale == "xs":
         ylabel = "Cross-Section (pb)"
+    if efficiency:
+        ylabel = "PDF"
     if density:
         ylabel = "PDF"
     if cumulative or cumulative == 1:
@@ -21,8 +24,8 @@ def _get_ylabel(density=False, cumulative=False, scale=None):
         ylabel = "CDF Above"
     return ylabel
 
-def _set_ylabel(ax, density=False, cumulative=False, scale=None, **kwargs):
-    kwargs['ylabel'] = kwargs.get('ylabel',_get_ylabel(density,cumulative,scale))
+def _set_ylabel(ax, density=False, cumulative=False, efficiency=False, scale=None, **kwargs):
+    kwargs['ylabel'] = kwargs.get('ylabel',_get_ylabel(density,cumulative,efficiency, scale))
     return kwargs
 
 def _get_ylim(ax, yscale=None, log=False, is_2d=False):

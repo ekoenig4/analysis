@@ -28,6 +28,19 @@ class MethodIter:
         def build_kwargs(t): return dict(**f_kwargs(t), **kw)
         out = [call(*build_args(t), **build_kwargs(t)) for t, call in self.calliter]
         return ObjIter(out)
+
+    def zip(self, objiter, *a, args=lambda t:[], kwargs=lambda t:{}, **kw):
+        f_args, f_kwargs = args, kwargs
+        if not callable(f_args):
+            def f_args(t): return args
+        if not callable(f_kwargs):
+            def f_kwargs(t): return kwargs
+
+        def build_args(t): return list(a)+list(f_args(t))
+        def build_kwargs(t): return dict(**f_kwargs(t), **kw)
+        out = [call(obj, *build_args(t), **build_kwargs(t)) for (t, call), obj in zip(self.calliter, objiter) ]
+        return ObjIter(out)
+
     
 def get_slice(obj,slices):
     if len(slices) == 1:
@@ -77,6 +90,11 @@ class ObjIter:
     def awk(self): return ak.from_regular(self.objs)
     @property
     def list(self): return self.objs
+    @property
+    def cat(self): return ak.concatenate(self.objs)
+
+    def zip(self, other):
+        return ObjIter(list(zip(self.objs, other.objs)))
     
     def filter(self,obj_filter):
         return ObjIter(list(filter(obj_filter,self)))

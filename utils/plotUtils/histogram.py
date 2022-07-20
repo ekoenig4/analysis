@@ -7,6 +7,7 @@ import numpy as np
 import numba
 import awkward as ak
 import re
+import copy
 
 class Stats:
     def __init__(self,histo):
@@ -57,9 +58,9 @@ def histogram(array, bins, weights, sumw2=False):
     return numba_weighted_histo_sumw2(array, bins, weights)
 
 class Histo:
-    def __init__(self, array, bins=None, weights=None, density=False, cumulative=False, lumi=None, restrict=False,
+    def __init__(self, array, bins=None, weights=None, efficiency=False, density=False, cumulative=False, lumi=None, restrict=False,
                  label_stat='events', is_data=False, is_signal=False, sumw2=True, scale=1, __id__=None, fit=None,
-                 continous=False, ndata=None, emperical=False, nbins=30,
+                 continous=False, ndata=None, nbins=30,
                  **kwargs):
         self.__id__ = __id__
         if weights is not None: weights = flatten(ak.ones_like(array)*weights)
@@ -67,9 +68,13 @@ class Histo:
         self.array = flatten(array)
         self.counts = len(self.array)
         self.ndata = self.counts if ndata is None else ndata
-        
-        self.bins = autobin(self.array, nbins=nbins) if bins is None else bins
         self.weights = np.ones((self.counts,)) if weights is None else weights
+        self.ndata = self.counts if weights is None else weights.sum()
+        
+        if isinstance(bins, tuple): bins = np.linspace(*bins)
+        if isinstance(bins, list): bins = np.array(bins)
+        self.bins = autobin(self.array, nbins=nbins) if bins is None else bins
+        
         self.sumw2 = sumw2
 
         if restrict:
@@ -84,17 +89,21 @@ class Histo:
         self.is_bkg = not (is_data or is_signal)
         
         lumi,_ = lumiMap.get(lumi,(lumi,None))
+        self.lumi = lumi
         if not is_data: self.weights = lumi * self.weights
-            
-        self.stats = Stats(self)      
-        if scale == 'xs': scale = scale/lumi
-        if density or cumulative: scale = 1/np.sum(self.weights)
-        self.rescale(scale)
-        
             
         self.density = density 
         self.cumulative = cumulative
+        self.efficiency = efficiency
         self.continous = continous
+
+        # if not (scale is None or is_iter(scale)):
+        #     self.weights = scale*self.weights
+
+        self.stats = Stats(self)      
+        if scale is 'xs': scale = scale/lumi
+        if density or efficiency or cumulative: scale = 1/np.sum(self.weights)
+        self.rescale(scale)
 
         self.fit = vars(function).get(fit, None)
         if self.fit is not None:
@@ -106,36 +115,66 @@ class Histo:
         
     def rescale(self,scale):
         if scale is not None:
-            if is_iter(scale): scale = flatten(scale)            
+            if is_iter(scale): 
+                scale = flatten(scale)      
+
             self.weights = scale * self.weights
         
-            if scale != 1 and not is_iter(scale) and isinstance(scale,int):
-                self.label = f'{self.label} x {scale}'
+            # if scale != 1 and not is_iter(scale) and isinstance(scale,int):
+            #     self.label = f'{self.label} x {scale}'
                 
         self.histo, self.error = histogram(self.array, self.bins, self.weights, sumw2=self.sumw2)
-        
-        # self.histo, _ = histogram(self.array, self.bins, self.weights)
-        # self.error = np.sqrt(self.histo) if not self.sumw2 else np.sqrt(histogram(self.array,bins=self.bins,weights=self.weights**2))
+
+        if self.density:
+            self.widths = get_bin_widths(self.bins)
+            self.histo /= self.widths 
+            self.error /= self.widths
                 
     def cdf(self, cumulative):
         if cumulative == 1: # CDF Below 
+            if self.density: 
+                self.histo *= self.widths
+                self.error *= self.widths
             self.histo = np.cumsum(self.histo)
             self.error = np.sqrt( np.cumsum(self.error**2) )
         elif cumulative == -1: # CDF Above
+            if self.density: 
+                self.histo *= self.widths
+                self.error *= self.widths
             self.histo = np.cumsum(self.histo[::-1])[::-1]
             self.error = np.sqrt(np.cumsum(self.error[::-1]**2))[::-1]
 
-    def ecdf(self):
+    def ecdf(self, sf=False):
         order = np.argsort(self.array)
+
         total = np.sum(self.weights)
+        total_err = np.sqrt( np.sum(self.weights**2) )
 
         x = self.array[order]
-        weights = self.weights[order]/total
+        weights = self.weights[order]
 
-        y = weights.cumsum()
-        yerr = np.sqrt((weights**2).cumsum())
+        x, weights = restrict_array(x, self.bins, weights)
 
-        return Graph(x, y)
+        y = weights.cumsum()/total
+
+        # yerr = 2*np.stack([y*total_err/total,(1-y)*total_err/total]).min(axis=0)
+
+        weights = weights/total
+
+        if sf: y = 1 - y
+
+        # return Graph(x, y, yerr=None, weights=weights, **self.kwargs)
+        return (x,y), dict(yerr=None, weights=weights, **self.kwargs)
+
+    def sample(self, fraction=0.1):
+        ndata = int(self.counts*fraction)
+        mask = np.zeros_like(self.array)
+        mask[:ndata] = 1
+        mask = np.random.permutation(mask) == 1
+
+        array = self.array[mask]
+        weights = self.weights[mask] if self.weights is not None else None
+        return Histo(array, bins=self.bins, weights=weights)
                     
     def set_label(self, label_stat='events'):
         nevents = self.stats.nevents
@@ -144,8 +183,10 @@ class Histo:
         
         
         if label_stat is None: pass
+        elif callable(label_stat):
+            label_stat = label_stat(self)
         elif any(re.findall(r'{(.*?)}', label_stat)):
-            label_stat = label_stat.format(**vars(self.stats))
+            label_stat = label_stat.format(**vars(self))
         elif label_stat == 'events':
             label_stat = f'{nevents:0.2e}'
         elif label_stat == 'mean':
@@ -184,14 +225,25 @@ class DataList(HistoList):
         super().__init__(arrays,bins=bins,**kwargs)
 
 class Stack(HistoList):
-    def __init__(self, arrays, bins=None, density=False, cumulative=False, **kwargs):
-        super().__init__(arrays, bins=bins, **kwargs)
-        
-        if density or cumulative: 
-            nevents = self.stats.nevents.npy.sum()
-            self.apply(lambda histo : histo.rescale(1/nevents))
-        if cumulative:
-            self.apply(lambda histo : histo.cdf(cumulative))
+    def __init__(self, arrays, bins=None, density=False, cumulative=False, efficiency=False, stack_fill=False, label_stat='events', **kwargs):
+        super().__init__(arrays, bins=bins, label_stat=label_stat, **kwargs)
+
+        self.stack_fill = stack_fill
+        self.bins = self[-1].bins
+        self.array = np.concatenate([ h.array for h in self ])
+        self.weights = np.concatenate([ h.weights for h in self ])
+
+        self.opts = dict(density=density, efficiency=efficiency, cumulative=cumulative, label_stat=label_stat, color='grey', label='MC-Bkg')
+
+        if not stack_fill:
+            if density or cumulative or efficiency: 
+                nevents = self.stats.nevents.npy.sum()
+                self.apply(lambda histo : histo.rescale(1/nevents))
+            if cumulative:
+                self.apply(lambda histo : histo.cdf(cumulative))
+
+    def get_histo(self):
+        return Histo(self.array, self.bins, self.weights, **self.opts)
         
 
 class HistoFromGraph(Histo):

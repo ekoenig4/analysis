@@ -1,14 +1,16 @@
 import awkward as ak
+from matplotlib.pyplot import isinteractive
 import torch 
 import git
 import numpy as np
 import re
 import itertools
+import vector
 
 GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
 
 
-def flatten(array): 
+def _flatten(array):
     if isinstance(array, ak.Array):
         array = ak.flatten(array, axis=None)
         return ak.to_numpy(array)
@@ -16,6 +18,12 @@ def flatten(array):
         array = torch.flatten(array)
         return array.cpu().numpy()
     return np.array(array).reshape(-1)
+
+def flatten(array, clean=True): 
+    array = _flatten(array)
+    # mask = ~( np.isnan(array) | np.isinf( np.abs(array) ) )
+    # return array[mask]
+    return array
 
 
 def ordinal(n): return "%d%s" % (
@@ -201,3 +209,10 @@ def get_avg_std(array, weights=None, bins=None):
         avg = np.average(array, weights=weights)
         std = np.sqrt(np.average((array-avg)**2, weights=weights))
     return avg, std
+
+def build_p4(array, use_regressed=False):
+  kin = ['pt','eta','phi','m'] 
+  regmap = {}
+  if use_regressed:
+    regmap = {'pt':'ptRegressed', 'm':'mRegressed'}
+  return vector.obj(**{ var:array[ regmap.get(var, var) ] for var in kin })

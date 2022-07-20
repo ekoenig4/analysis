@@ -116,11 +116,6 @@ class Tree:
         return "\n".join(sample_string)
 
     def __getitem__(self, key): return self.ttree[key]
-    #     item = None
-    #     if isinstance(key, str): item = _regex_field(self, key)
-    #     if item is None: item = self.ttree[key]
-    #     return item
-
     def __getattr__(self, key): return self[key]
     def get(self, key): return self[key]
 
@@ -156,6 +151,16 @@ class Tree:
         tree = self.copy()
         collection = get_collection(tree,collection)
         tree.extend( reorder_collection(collection,order) )
+        return tree
+
+    def merge(self, other):
+        tree = self.copy()
+        tree.filelist = tree.filelist + other.filelist
+        
+        init_sample(tree)
+        init_tree(tree)
+        init_selection(tree)
+
         return tree
 
 class CopyTree(Tree):

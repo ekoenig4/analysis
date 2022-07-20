@@ -10,6 +10,23 @@ from .utils import *
 from .classUtils.ObjIter import ObjIter
 
 
+def _combinations(items, ks):
+   if len(ks) == 1:
+      for c in itertools.combinations(items, ks[0]):
+         yield (c,)
+
+   else:
+      for c_first in itertools.combinations(items, ks[0]):
+         items_remaining= set(items) - set(c_first)
+         for c_other in \
+           _combinations(items_remaining, ks[1:]):
+            if len(c_first)!=len(c_other[0]) or c_first<c_other[0]:
+               yield (c_first,) + c_other    
+
+def combinations(nitems, ks):
+   combs = list(_combinations(np.arange(nitems), ks))
+   return np.array(combs)
+
 def get_jet_index_mask(jets, index):
     """ Generate jet mask for a list of indicies """
     if hasattr(jets, 'ttree'):
@@ -83,9 +100,8 @@ def get_jet_position(jet_index, jet_mask):
 
 
 def calc_dphi(phi_1, phi_2):
-    dphi = phi_2 - phi_1
-    dphi_shift = 2*np.pi*(1*(dphi <= -np.pi)-1*(dphi > np.pi))
-    dphi = dphi + dphi_shift
+    dphi = np.abs(phi_2 - phi_1)
+    dphi = ak.where(dphi>np.pi, 2.*np.pi-dphi, dphi)
     return dphi
 
 

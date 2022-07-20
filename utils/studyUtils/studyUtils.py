@@ -5,7 +5,7 @@ from .studyUtils import *
 from ..plotUtils.plotUtils import graph_multi, boxplot_multi,  plot_barrel_display, plot_endcap_display
 from ..plotUtils.multi_plotter import hist_multi,hist2d_simple
 from ..selectUtils import *
-from ..classUtils.Study import Study, save_fig
+from ..classUtils.Study import Study, save_fig, format_var
 from ..varConfig import varinfo
 from ..utils import loop_iter
 
@@ -32,7 +32,7 @@ def autodim(nvar, dim=None, flip=False):
         ncols = nvar//nrows
     return nrows, ncols
 
-def autosize(size,dim):
+def autosize(size=(-1,-1),dim=(-1, 1)):
     nrows, ncols = dim
     xsize, ysize = size
     if xsize == -1:
@@ -40,6 +40,13 @@ def autosize(size,dim):
     if ysize == -1:
         ysize = 5
     return xsize,ysize
+
+def get_figax(nvar=1, dim=(-1,-1), flip=False, size=(-1,-1)):
+    nrows, ncols = autodim(nvar, dim, flip)
+    xsize, ysize = autosize(size,(nrows,ncols))
+    return plt.subplots(nrows=nrows, ncols=ncols,
+                        figsize=(int(xsize*ncols), ysize*nrows),
+                        dpi=80)
 
 def cutflow(*args, size=(16, 8), log=1, h_label_stat=None,scale=True,density=False,lumi=2018, **kwargs):
     study = Study(*args, sumw2=False, log=log,
@@ -201,7 +208,7 @@ def overlay(tree, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1), xlabels=N
         return fig,axs
 
 
-def quick2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=False, **kwargs):
+def quick2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=False, figax=None, **kwargs):
     study = Study(*args, **kwargs)
 
     nvar = len(study.selections)
@@ -211,8 +218,12 @@ def quick2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=Fa
     xbins, ybins = binlist
     nrows, ncols = autodim(nvar, dim, flip)
     xsize, ysize = autosize(size,(nrows,ncols))
-    fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
-                            figsize=(int(xsize*ncols), ysize*nrows))
+
+    if figax is None:
+        figax = plt.subplots(nrows=nrows, ncols=ncols,
+                                figsize=(int(xsize*ncols), ysize*nrows),
+                                dpi=80)
+    fig, axs = figax
 
     xbins, xlabel = study.format_var(xvar, bins=xbins, xlabel=xvar)
     ybins, ylabel = study.format_var(yvar, bins=ybins, xlabel=yvar)
@@ -256,8 +267,11 @@ def overlay2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=
 
     nrows, ncols = autodim(nvar, dim, flip)
     xsize, ysize = autosize(size,(nrows,ncols))
-    fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
-                            figsize=(int(xsize*ncols), ysize*nrows))
+    if figax is None:
+        figax = plt.subplots(nrows=nrows, ncols=ncols,
+                                figsize=(int(xsize*ncols), ysize*nrows),
+                                dpi=80)
+    fig, axs = figax
 
     xbins, xlabel = study.format_var(xvar, bins=xbins, xlabel=xvar)
     ybins, ylabel = study.format_var(yvar, bins=ybins, xlabel=yvar)
@@ -275,6 +289,113 @@ def overlay2d(*args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=
     
     for i, (xhist, yhist, weight, label) in enumerate(zip(xhists, yhists, weights, labels)):
         hist2d_simple(xhist, yhist, weights=weight, **info, **study.attrs, figax=(fig, axs), cmap=next(cmapiter))
+    fig.suptitle(study.title)
+    fig.tight_layout()
+    # plt.show()
+    if study.saveas:
+        save_fig(fig, "", study.saveas)
+    
+    if study.return_figax:
+        return fig,axs
+
+def quick_region(r1trees, r2trees, *args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-1), flip=False, figax=None, **kwargs):
+    study = Study(r1trees+r2trees, *args, **kwargs)
+
+    nr1 = len(r1trees)
+
+    nvar = len(varlist)
+    binlist = init_attr(binlist, None, nvar)
+    xlabels = init_attr(xlabels, None, nvar)
+    varlist = zip(varlist, binlist, xlabels)
+
+    nrows, ncols = autodim(nvar, dim, flip)
+    xsize, ysize = autosize(size,(nrows,ncols))
+    
+    if figax is None:
+        figax = plt.subplots(nrows=nrows, ncols=ncols,
+                                figsize=(int(xsize*ncols), ysize*nrows),
+                                dpi=80)
+    fig, axs = figax
+
+    for i, (var, bins, xlabel) in enumerate(varlist):
+        if ncols == 1 and nrows == 1:
+            ax = axs
+        elif bool(ncols > 1) != bool(nrows > 1):
+            ax = axs[i]
+        else:
+            ax = axs[i//ncols, i % ncols]
+            
+        if var is None: 
+            ax.set_visible(False)
+            continue
+        
+        bins, xlabel = study.format_var(var, bins, xlabel)
+        hists = study.get(var)
+        weights = study.get_scale(hists)
+
+        r1hist = ak.concatenate(hists[:nr1])
+        r2hist = ak.concatenate(hists[nr1:])
+        hists = [r1hist, r2hist]
+
+        r1weights = ak.concatenate(weights[:nr1])
+        r2weights = ak.concatenate(weights[nr1:])
+        weights = [r1weights, r2weights]
+
+        hist_multi(hists, bins=bins, xlabel=xlabel,
+                   weights=weights, **study.attrs, figax=(fig, ax))
+    fig.suptitle(study.title)
+    fig.tight_layout()
+        
+    # plt.show()
+    if study.saveas:
+        save_fig(fig, "", study.saveas)
+        
+    if study.return_figax:
+        return fig,axs
+
+
+def quick2d_region(r1trees, *args, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1),  flip=False, figax=None, **kwargs):
+    study = Study(r1trees, *args, **kwargs)
+
+    nvar = 1
+
+    binlist = init_attr(binlist, None, 2)
+    xvar, yvar = varlist
+    xbins, ybins = binlist
+    nrows, ncols = autodim(nvar, dim, flip)
+    xsize, ysize = autosize(size,(nrows,ncols))
+    if figax is None:
+        figax = plt.subplots(nrows=nrows, ncols=ncols,
+                                figsize=(int(xsize*ncols), ysize*nrows),
+                                dpi=80)
+    fig, axs = figax
+
+    xbins, xlabel = study.format_var(xvar, bins=xbins, xlabel=xvar)
+    ybins, ylabel = study.format_var(yvar, bins=ybins, xlabel=yvar)
+    info = dict(x_bins=xbins, xlabel=xlabel, y_bins=ybins, ylabel=ylabel)
+
+    xhists = study.get(xvar)
+    yhists = study.get(yvar)
+
+    weights = study.get_scale(xhists)
+    weights = [ak.concatenate(weights)]
+    xhists = [ak.concatenate(xhists)]
+    yhists = [ak.concatenate(yhists)]
+
+    labels = study.attrs.pop("h_label")
+    
+    for i, (xhist, yhist, weight, label) in enumerate(zip(xhists, yhists, weights, labels)):
+        study.attrs["h_label"] = label
+
+        if ncols == 1 and nrows == 1:
+            ax = axs
+        elif bool(ncols > 1) != bool(nrows > 1):
+            ax = axs[i]
+        else:
+            ax = axs[i//ncols, i % ncols]
+        
+        hist2d_simple(xhist, yhist, weights=weight, **
+                      info, **study.attrs, figax=(fig, ax))
     fig.suptitle(study.title)
     fig.tight_layout()
     # plt.show()
