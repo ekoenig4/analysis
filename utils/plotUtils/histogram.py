@@ -12,6 +12,7 @@ import copy
 class Stats:
     def __init__(self,histo):
         self.nevents = np.sum(histo.weights)
+        self.ess = np.sum(histo.weights)**2/np.sum(histo.weights**2)
         if self.nevents > 0:
             self.mean, self.stdv = get_avg_std(histo.array,histo.weights,histo.bins)
             self.minim, self.maxim = np.min(histo.array), np.max(histo.array)
@@ -59,21 +60,25 @@ def histogram(array, bins, weights, sumw2=False):
 
 class Histo:
     def __init__(self, array, bins=None, weights=None, efficiency=False, density=False, cumulative=False, lumi=None, restrict=False,
-                 label_stat='events', is_data=False, is_signal=False, sumw2=True, scale=1, __id__=None, fit=None,
+                 label_stat='events', is_data=False, is_signal=False, is_model=False, sumw2=True, scale=1, __id__=None, fit=None,
                  continous=False, ndata=None, nbins=30,
                  **kwargs):
         self.__id__ = __id__
-        if weights is not None: weights = flatten(ak.ones_like(array)*weights)
 
         self.array = flatten(array)
         self.counts = len(self.array)
         self.ndata = self.counts if ndata is None else ndata
-        self.weights = np.ones((self.counts,)) if weights is None else weights
-        self.ndata = self.counts if weights is None else weights.sum()
+
+        if weights is not None:
+            self.weights = flatten(weights)
+            if self.weights.shape != self.array.shape:
+                self.weights = flatten(ak.ones_like(array)*weights)
+        else:
+            self.weights= np.ones((self.counts,))
+
+        self.ndata = self.weights.sum()
         
-        if isinstance(bins, tuple): bins = np.linspace(*bins)
-        if isinstance(bins, list): bins = np.array(bins)
-        self.bins = autobin(self.array, nbins=nbins) if bins is None else bins
+        self.bins = autobin(self.array, bins=bins, nbins=nbins)
         
         self.sumw2 = sumw2
 
@@ -87,6 +92,7 @@ class Histo:
         self.is_data = is_data 
         self.is_signal = is_signal 
         self.is_bkg = not (is_data or is_signal)
+        self.is_model = is_model
         
         lumi,_ = lumiMap.get(lumi,(lumi,None))
         self.lumi = lumi
@@ -153,7 +159,7 @@ class Histo:
         x = self.array[order]
         weights = self.weights[order]
 
-        x, weights = restrict_array(x, self.bins, weights)
+        x, weights = restrict_array(x, self.bins, weights=weights)
 
         y = weights.cumsum()/total
 
@@ -196,6 +202,10 @@ class Histo:
             exp_str = "" if exponent == 0 else "\\times 10^{"+str(exponent)+"}"
             # label_stat = f'$\mu={mean/(10**exponent):0.2f} \pm {stdv/(10**exponent):0.2f} {exp_str}$'
             label_stat = f'$\mu={mean:0.2e}\pm{stdv:0.2e}$'
+        elif label_stat == 'exp_lim':
+            if hasattr(self.stats, 'exp_limits'):
+                label_stat = f'CL$^{{95\%}}r<{self.stats.exp_limits[2]:0.2}$'
+
         else: label_stat = f'{getattr(self.stats,label_stat):0.2e}'
 
         self.kwargs['label'] = self.label
@@ -225,7 +235,7 @@ class DataList(HistoList):
         super().__init__(arrays,bins=bins,**kwargs)
 
 class Stack(HistoList):
-    def __init__(self, arrays, bins=None, density=False, cumulative=False, efficiency=False, stack_fill=False, label_stat='events', **kwargs):
+    def __init__(self, arrays, bins=None, density=False, cumulative=False, efficiency=False, stack_fill=False, label_stat='events', histtype=None, **kwargs):
         super().__init__(arrays, bins=bins, label_stat=label_stat, **kwargs)
 
         self.stack_fill = stack_fill

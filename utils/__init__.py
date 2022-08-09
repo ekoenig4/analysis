@@ -9,5 +9,6 @@ from .selectUtils import *
 from .studyUtils import *
 from .classUtils import *
 from .orderUtils import *
+from .abcdUtils import *
 from .testUtils import *
 from . import eightbUtils as eightb

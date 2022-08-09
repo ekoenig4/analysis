@@ -5,7 +5,7 @@ from ..utils import *
 import uproot as ut
 import awkward as ak
 import numpy as np
-import re
+import re, glob
 
 
 class SixBFile:
@@ -27,10 +27,18 @@ class SixBFile:
         self.ttree = self.tfile.get('sixBtree')
         self.raw_events = self.ttree.num_entries
 
+def init_files(self, filelist):
+    if type(filelist) == str:
+        filelist = [filelist]
+    filelist = flatten([ glob.glob(fn) for fn in filelist ])
+    self.filelist = [SixBFile(fn) for fn in filelist]
+
 
 def init_sample(self):  # Helper Method For Tree Class
     self.is_data = any("Data" in fn.fname for fn in self.filelist)
     self.is_signal = all("NMSSM" in fn.fname for fn in self.filelist)
+    self.is_model = False
+    
     sample_tag = [next((tag for key, tag in tagMap.items(
     ) if key in fn.sample), None) for fn in self.filelist]
     if (sample_tag.count(sample_tag[0]) == len(sample_tag)):
@@ -54,7 +62,7 @@ def init_tree(self):
     self.extend(
         sample_id=ak.concatenate([ak.Array([i]*fn.raw_events)
                                  for i, fn in enumerate(self.filelist)]),
-        scale=ak.concatenate([np.full(
+        scale=self.genWeight*ak.concatenate([np.full(
             shape=fn.raw_events, fill_value=fn.scale, dtype=np.float) for fn in self.filelist])
     )
 
@@ -95,9 +103,9 @@ def _regex_field(self, regex):
 
 class Tree:
     def __init__(self, filelist,allow_empty=False):
-        if type(filelist) == str:
-            filelist = [filelist]
-        self.filelist = [SixBFile(fn) for fn in filelist]
+
+        init_files(self, filelist)
+
         if not allow_empty:
             self.filelist = list(filter(lambda fn : fn.raw_events > 0,self.filelist))
 

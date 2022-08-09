@@ -3,6 +3,7 @@ from ..classUtils.AttrArray import AttrArray
 from .better_plotter import * 
 from .histogram import * 
 from .graph import * 
+from .model import *
 from .function import *
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.colors as mcolors
@@ -23,6 +24,7 @@ def _configure_kwargs(**kwargs):
     d_kwargs, kwargs = group_kwargs('d_', **kwargs)
     c_kwargs, kwargs = group_kwargs('c_', **kwargs)
     e_kwargs, kwargs = group_kwargs('e_', **kwargs)
+    l_kwargs, kwargs = group_kwargs('l_', **kwargs)
 
     return dict(
         obj=o_kwargs,
@@ -31,6 +33,7 @@ def _configure_kwargs(**kwargs):
         difference=d_kwargs,
         correlation=c_kwargs,
         empirical=e_kwargs,
+        limits=l_kwargs,
         remaining=kwargs
     )
 
@@ -71,25 +74,25 @@ def _group_objs(histobjs):
     group = [ (x, ys) ]
     return group
 
-def _plot_objects(figax, plotobjs, size='20%', sharex=True, pad=0.1, errors=True, fill_error=False, **kwargs):
+def _plot_objects(figax, plotobjs, size='20%', sharex=True, pad=0.1, errors=True, fill_error=False, exe=None, **kwargs):
     fig, ax = figax
     ax, sub_ax = _add_new_axis(ax, size=size, sharex=sharex, pad=pad)
 
     for plotobj in plotobjs: 
         if isinstance(plotobj,DataList): 
-            graph_histos(plotobj,figax=(fig, sub_ax))
+            graph_histos(plotobj,figax=(fig, sub_ax), exe=exe)
         elif isinstance(plotobj, Stack): 
-            plot_stack(plotobj,figax=(fig, sub_ax))
+            plot_stack(plotobj,figax=(fig, sub_ax), exe=exe)
         elif isinstance(plotobj, HistoList): 
-            plot_histos(plotobj,errors=errors, fill_error=fill_error, figax=(fig, sub_ax))
+            plot_histos(plotobj,errors=errors, fill_error=fill_error, figax=(fig, sub_ax), exe=exe)
         elif isinstance(plotobj, Histo): 
-            plot_histo(plotobj, errors=errors, fill_error=fill_error, figax=(fig,sub_ax))
+            plot_histo(plotobj, errors=errors, fill_error=fill_error, figax=(fig,sub_ax), exe=exe)
         elif isinstance(plotobj, GraphList): 
-            plot_graphs(plotobj, errors=errors, fill_error=fill_error, figax=(fig,sub_ax))
+            plot_graphs(plotobj, errors=errors, fill_error=fill_error, figax=(fig,sub_ax), exe=exe)
         elif isinstance(plotobj, Graph): 
-            plot_graph(plotobj, errors=errors, fill_error=fill_error, figax=(fig, sub_ax))
+            plot_graph(plotobj, errors=errors, fill_error=fill_error, figax=(fig, sub_ax), exe=exe)
         elif isinstance(plotobj, Function): 
-            plot_function(plotobj, figax=(fig, sub_ax))
+            plot_function(plotobj, figax=(fig, sub_ax), exe=exe)
 
     format_axes(sub_ax, **kwargs)
 
@@ -114,6 +117,24 @@ def _add_histo(figax, plotobjs, store=None, size='50%', sharex=False, pad=0.6, e
 
     _plot_objects(figax, histos,  size=size, sharex=sharex, pad=pad, xlabel=xlabel, errors=errors, density=density, cumulative=cumulative, efficiency=efficiency, **kwargs['remaining'])
 
+def _add_limits(figax, plotobjs, xy=(0.05,0.95), xycoords='axes fraction', **kwargs):
+    # --- Configure kwargs ---d
+    kwargs = _configure_kwargs(**kwargs)
+
+    h_sigs, h_bkgs, h_data = [], [], None
+    for plotobj in _flatten_plotobjs(plotobjs):
+        plotobj.set_label(None)
+        if isinstance(plotobj, Stack): h_bkgs = plotobj
+        elif plotobj.is_signal: h_sigs.append(plotobj)
+        elif plotobj.is_bkg:    h_bkgs.append(plotobj)
+        elif plotobj.is_data:   h_data = plotobj
+
+    models = [ Model(h_sig, h_bkgs, h_data) for h_sig in h_sigs ]        
+    for model in models:
+        model.upperlimit()
+        model.h_sig.set_label('exp_lim')
+
+    
 def _add_ratio(figax, plotobjs, store=None, show=True, ylim=(0.1, 1.9), ylabel=None, size='20%', sharex=True, grid=True, inv=False, group=None, method=None, label_stat=None, num_transform=None, den_transform=None, histo=False, **kwargs):
     # --- Configure kwargs ---
     kwargs = _configure_kwargs(**kwargs)
@@ -327,8 +348,8 @@ def _multi_driver(plotobjs, kwargs, store=None, histo=False, ratio=False, differ
 
 def hist_multi(arrays, bins=None, weights=None, density = False, efficiency=False,
                 cumulative=False, scale=None, lumi=None,
-                is_data=False, is_signal=False,stacked=False, stack_fill=False,
-                histo=True, ratio=False, correlation=False, difference=False, empirical=False,
+                is_data=False, is_signal=False, is_model=False, stacked=False, stack_fill=False,
+                histo=True, ratio=False, correlation=False, difference=False, empirical=False, limits=False, 
                 figax=None, **kwargs):
     fig, ax = get_figax(figax)
     
@@ -339,12 +360,13 @@ def hist_multi(arrays, bins=None, weights=None, density = False, efficiency=Fals
     kwargs['ratio'].update(dict(xlabel=kwargs['ratio'].get('xlabel', kwargs['remaining'].get('xlabel', None))))
     kwargs['difference'].update(dict(xlabel=kwargs['difference'].get('xlabel', kwargs['remaining'].get('xlabel', None))))
     kwargs['empirical'].update(dict(xlabel=kwargs['empirical'].get('xlabel', kwargs['remaining'].get('xlabel', None))))
+    kwargs['correlation'].update(dict(label_stat=kwargs['correlation'].get('label_stat','area')))
     kwargs['remaining'].update(dict(density=density, cumulative=cumulative, efficiency=efficiency, scale=scale, lumi=lumi))
     
-    attrs = AttrArray(arrays=arrays,weights=weights, is_data=is_data,is_signal=is_signal, **kwargs['hist']) 
+    attrs = AttrArray(arrays=arrays,weights=weights, is_data=is_data,is_signal=is_signal, is_model=is_model, **kwargs['hist']) 
     plotobjs = []
     
-    datas,attrs = attrs.split(lambda h : h.is_data)
+    datas,attrs = attrs.split(lambda h : h.is_data and not h.is_model)
     if len(datas) > 0: 
         data_kwargs = datas.unzip(datas.fields[1:])
         data_kwargs.update(dict(color='black', marker='o', linestyle='None'))
@@ -368,6 +390,9 @@ def hist_multi(arrays, bins=None, weights=None, density = False, efficiency=Fals
         plotobjs.append(histos)
         
     store = obj_store(plotobjs)
+    if (limits): 
+        _add_limits((fig,ax), plotobjs, **kwargs['limits'])
+
     if (histo): _plot_objects((fig,ax), plotobjs, **kwargs['remaining'])
     _multi_driver(plotobjs, kwargs, store=store, histo=False, ratio=ratio, difference=difference, empirical=empirical, correlation=correlation, figax=(fig,ax))
 
@@ -375,7 +400,7 @@ def hist_multi(arrays, bins=None, weights=None, density = False, efficiency=Fals
     return fig, ax
 
 def hist2d_simple(x_array, y_array, 
-                is_data=False, is_signal=False,
+                is_data=False, is_signal=False, is_model=False,
                 stacked=False, ratio=False,
                 figax=None, **kwargs):
     return histo2d_arrays(x_array,y_array, figax=figax, **kwargs)

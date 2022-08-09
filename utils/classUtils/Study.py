@@ -1,5 +1,6 @@
 from datetime import date
 import os, re
+from inspect import signature
 
 from ..utils import *
 from ..testUtils import is_iter
@@ -27,7 +28,9 @@ def save_fig(fig, directory, saveas, base=GIT_WD):
     # fig.savefig(f"{outfn}.png", format="png")
 
 def format_var(var, bins=None, xlabel=None):
-    if callable(var) and hasattr(var,'xlabel'): var = var.xlabel
+    if hasattr(var, 'xlabel'): xlabel = var.xlabel
+    if hasattr(var, 'bins'): bins = var.bins
+
     info = varinfo.find(var)
     if bins is None and info:
         bins = info.bins
@@ -44,7 +47,7 @@ def _scale_items(self, items):
         return mask*item
 
     if callable(self.scales):
-        items = [ scale_item(item, selection, self.scaless) for item, selection in zip(
+        items = [ scale_item(item, selection, self.scales) for item, selection in zip(
             items, self.selections)]
     else:
         items = [ scale_item(item,selection,mask) for item, selection, mask in zip(items, self.selections,self.scales)]
@@ -53,7 +56,13 @@ def _scale_items(self, items):
 def _index_items(self,items):
     def index_item(item,selection,mask):
         if mask is None: return item 
-        if callable(mask): mask = mask(selection)
+        if callable(mask): 
+            sign = signature(mask)
+            if len(sign.parameters) == 1:
+                mask = mask(selection)
+            else:
+                return mask(selection, item)
+
         return item[mask]
 
     if callable(self.indicies):
@@ -113,6 +122,7 @@ class Study:
                 selection.sample for selection in selections],
             is_data=[selection.is_data for selection in selections],
             is_signal=[selection.is_signal for selection in selections],
+            is_model=[selection.is_model for selection in selections],
             density=density,
             log=log,
             ratio=ratio,
@@ -152,6 +162,7 @@ class Study:
     def get_scale(self, hists):
         scales = self.get('scale', transform=False, indicies=False, scale=True)
         scales =  [ak.ones_like(hist) * scale for scale, hist in zip(scales, hists)]
+        # scales =  [scale for scale, hist in zip(scales, hists)]
         return scales
 
     def format_var(self, var, bins=None, xlabel=None):

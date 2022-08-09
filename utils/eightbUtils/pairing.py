@@ -56,13 +56,45 @@ def get_diY_pairings():
     y2_index=  y_index[35:][::-1]
     return y1_index, y2_index
 
+def _build_h(j1, j2):
+    h_p4 = sum_p4([ build_p4(j, use_regressed=True) for j in (j1, j2)])
+    signalIds = np.array([ (j.signalId+4)//4 for j in (j1,j2) ])
+    signalId = signalIds[0]*( ak.all(signalIds[:1] == signalIds[1:],axis=0) )
+
+    n_y1j = np.sum( signalIds == 1,axis=0 )
+    n_y2j = np.sum( signalIds == 2,axis=0 )
+    rank = np.where( n_y1j>n_y2j, n_y1j, n_y2j)
+
+    info = dict(
+        pt=h_p4.pt,
+        m=h_p4.m,
+        eta=h_p4.eta,
+        phi=h_p4.phi,
+        signalId=signalId,
+        rank=rank,
+    )
+    return ak.zip(info)
+
+def _build_y_higgs(jets, y_index):
+  j1, j2, j3, j4 = [ jets[:,y_index[:,i]] for i in range(4) ]
+
+  ha = ak_stack([_build_h(j1, j2), _build_h(j3, j4)], axis=2)
+  hb = ak_stack([_build_h(j1, j3), _build_h(j2, j4)], axis=2)
+  hc = ak_stack([_build_h(j1, j4), _build_h(j2, j3)], axis=2)
+  higgs = ak_stack([ha, hb, hc], axis=2)
+  higgs = higgs[ ak.argsort(-higgs.pt, axis=-1) ]
+
+  return higgs
+#   h1, h2 = higgs[:,:,0], higgs[:,:,1]
+#   h1 = rename_collection(h1, 'h1')
+#   h2 = rename_collection(h2, 'h2')
+#   return h1, h2
+
+
 def build_y(jets, y_index):
   j1, j2, j3, j4 = [ jets[:,y_index[:,i]] for i in range(4) ]
 
-  y_p4 = None
-  for j in (j1,j2,j3,j4):
-    if y_p4 is None: y_p4 = build_p4(j, use_regressed=True)
-    else: y_p4 = y_p4 + build_p4(j, use_regressed=True)
+  y_p4 = sum_p4([ build_p4(j, use_regressed=True) for j in (j1,j2,j3,j4)])
 
   signalIds = np.array([ (j.signalId+4)//4 for j in (j1,j2,j3,j4) ])
   signalId = signalIds[0]*( ak.all(signalIds[:1] == signalIds[1:],axis=0) )
@@ -79,7 +111,7 @@ def build_y(jets, y_index):
     eta=y_p4.eta,
     phi=y_p4.phi,
     signalId=signalId,
-    rank=rank
+    rank=rank,
   )
   return ak.zip(info)
 
@@ -87,15 +119,24 @@ def build_all_ys(tree):
     y1_index, y2_index = get_diY_pairings()
 
     jets = get_collection(tree, 'jet', False)
-    y1 = build_y(jets, y1_index)
-    y2 = build_y(jets, y2_index)
+    ys = ak_stack([ build_y(jets, y_index) for y_index in (y1_index, y2_index) ], axis=2)
 
-    ys = ak.concatenate([y1[:,:,None], y2[:,:,None]], axis=2)
-    ys = ys[ak.argsort(-ys.pt, axis=-1)]
+    order = ak.argsort(-ys.pt, axis=-1)
+    ys = ys[order]
     y1, y2 = ys[:,:,0], ys[:,:,1]
-
     ym_asym = 2*np.abs(y1.m-y2.m)/(y1.m+y2.m)
-
     y1 = rename_collection(y1, 'y1')
     y2 = rename_collection(y2, 'y2')
     tree.extend(y1, y2, ym_asym=ym_asym)
+
+    higgs = ak_stack([ _build_y_higgs(jets, y_index) for y_index in (y1_index, y2_index) ], axis=2)
+    higgs = higgs[order]
+    hy1, hy2 = higgs[:,:,0], higgs[:,:,1]
+    h1y1, h2y1 = hy1[:,:,:,0], hy1[:,:,:,1]
+    h1y2, h2y2 = hy2[:,:,:,0], hy2[:,:,:,1]
+
+    h1y1 = rename_collection(h1y1, 'h1y1')
+    h2y1 = rename_collection(h2y1, 'h2y1')
+    h1y2 = rename_collection(h1y2, 'h1y2')
+    h2y2 = rename_collection(h2y2, 'h2y2')
+    tree.extend(h1y1,h2y1,h1y2,h2y2)

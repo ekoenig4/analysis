@@ -59,3 +59,12 @@ QCD_B_List = QCD_bEn_List + QCD_bGf_List
 TTJets = f"{base}/TTJets/TTJets/ntuple.root"
 
 Bkg_MC_List = QCD_B_List + [TTJets]
+
+
+JetHT_Run2018A_UL = f"{base}/JetHT_Data/JetHT_Run2018A/ntuple.root"
+JetHT_Run2018B_UL = f"{base}/JetHT_Data/JetHT_Run2018B/ntuple.root"
+JetHT_Run2018C_UL = f"{base}/JetHT_Data/JetHT_Run2018C/ntuple.root"
+JetHT_Run2018D_UL = f"{base}/JetHT_Data/JetHT_Run2018D/ntuple.root"
+
+JetHT_Data_UL_List = [JetHT_Run2018A_UL,
+                      JetHT_Run2018B_UL, JetHT_Run2018C_UL, JetHT_Run2018D_UL]

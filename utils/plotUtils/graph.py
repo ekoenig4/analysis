@@ -19,7 +19,7 @@ class Stats:
         return '\n'.join([ f'{key}={float(value):0.3e}' for key,value in vars(self).items() ])
 
 class Graph:
-    def __init__(self, x_array, y_array, weights=None, ndata=None, label_stat=None, inv=False, xerr=None, yerr=None, smooth=False, fit=None, histtype=None, **kwargs):
+    def __init__(self, x_array, y_array, weights=None, xerr=None, yerr=None, order='x', ndata=None, label_stat=None, inv=False, smooth=False, fit=None, histtype=None, **kwargs):
         if inv: x_array, y_array = y_array, x_array
         x_array = flatten(x_array)
         y_array = flatten(y_array)
@@ -32,8 +32,8 @@ class Graph:
             yerr = yerr[~mask_inf]
         if weights is not None:
             weights = weights[~mask_inf]
-        
-        order = x_array.argsort()
+
+        order = x_array.argsort() if order is 'x' else y_array.argsort()
         
         self.x_array = x_array[order]
         self.y_array = y_array[order]

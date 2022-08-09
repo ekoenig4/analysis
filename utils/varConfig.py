@@ -58,3 +58,11 @@ varinfo = VarInfo({
     "b_3d_score": dict(xlabel="3 Higgs Classifier Score", bins=np.linspace(0, 1, 30)),
     "b_2j_score": dict(xlabel="2 Jet Classifier Score", bins=np.linspace(0, 1, 30)),
 })
+
+varinfo.X_m = dict(bins=np.linspace(500,2000,30))
+varinfo.Y1_m = dict(bins=np.linspace(200,1000,30))
+varinfo.Y2_m = dict(bins=np.linspace(200,1000,30))
+varinfo.H1Y1_m = dict(bins=np.linspace(0,250,30))
+varinfo.H2Y1_m = dict(bins=np.linspace(0,250,30))
+varinfo.H1Y2_m = dict(bins=np.linspace(0,250,30))
+varinfo.H2Y2_m = dict(bins=np.linspace(0,250,30))

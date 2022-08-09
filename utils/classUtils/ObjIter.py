@@ -1,12 +1,13 @@
 import numpy as np
 import awkward as ak
+from tqdm import tqdm
 
 class ObjTransform:
     def __init__(self,**kwargs):
         for key,value in kwargs.items(): setattr(self, key, value)
-    def __call__(self, obj):
-        pass 
 
+        if hasattr(self,'init') and callable(self.init):
+            self.init()
 class MethodIter:
     def __init__(self, objs, calls):
         self.objs = objs
@@ -66,6 +67,7 @@ class ObjIter:
             return ObjIter([ get_slice(obj,key[1:]) for obj in objs ])
         if isinstance(key,slice): return ObjIter(self.objs[key])
         if isinstance(key,int): return self.objs[key]
+        if isinstance(key,str): return getattr(self, key)
         return ObjIter(self.objs[key])
 
     def __getattr__(self, key):
@@ -104,8 +106,10 @@ class ObjIter:
         split_f = self.filter(lambda obj : obj not in split_t)
         return split_t,split_f
     
-    def apply(self,obj_function):
-        out = ObjIter([ obj_function(obj) for obj in self ])
+    def apply(self,obj_function, report=False):
+        it = tqdm(self) if report else self
+
+        out = ObjIter([ obj_function(obj) for obj in it ])
         return out
         
     def copy(self):

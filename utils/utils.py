@@ -17,6 +17,9 @@ def _flatten(array):
     if isinstance(array, torch.Tensor):
         array = torch.flatten(array)
         return array.cpu().numpy()
+    if isinstance(array, list):
+        array = np.array(array)
+        return array.reshape(-1).tolist()
     return np.array(array).reshape(-1)
 
 def flatten(array, clean=True): 
@@ -73,6 +76,8 @@ def get_bin_centers(bins):
 def get_bin_widths(bins):
     return np.array([(hi-lo)/2 for lo, hi in zip(bins[:-1], bins[1:])])
 
+def get_bin_line(bins):
+    return np.linspace(bins[0], bins[-1], len(bins) - 1)
 
 def safe_divide(a, b, default=None):
     a, b = np.array(a), np.array(b)
@@ -88,12 +93,12 @@ def reject_outliers(data, m=2.):
     return data[s < m]
 
 
-def restrict_array(array, bins, *params):
+def restrict_array(array, bins, **params):
     x_lo = array >= bins[0]
     x_hi = array < bins[-1]
     array = array[x_lo & x_hi]
     if len(params) > 0:
-        params = [ param[x_lo & x_hi] for param in params ]
+        params = [ param[x_lo & x_hi] for param in params.values() ]
         return array, *params
     return array
 
@@ -112,7 +117,11 @@ def _autobin_(data, nstd=3, nbins=30):
     return xlo, xhi, nbins, int(is_int)
 
 
-def autobin(data, nstd=3, nbins=30):
+def autobin(data, bins=None, nstd=3, nbins=30):
+    if isinstance(bins, tuple): return np.linspace(*bins)
+    if isinstance(bins, list): return np.array(bins)
+    if bins is not None: return bins
+
     if type(data) == list:
         datalist = list(data)
         databins = np.array([_autobin_(data, nstd, nbins) for data in datalist])
@@ -143,6 +152,11 @@ def join_fields(awk1, *args, **kwargs):
     awk1_unzipped.update(**new_fields)
     return ak.zip(awk1_unzipped, depth_limit=1)
 
+def remove_name(collection, name):
+    unzipped = {field.replace(name+'_', ''): array for field,
+                array in zip(collection.fields, ak.unzip(collection))}
+    return ak.zip(unzipped, depth_limit=1)
+
 
 def get_collection(tree, name, named=True):
     collection_branches = list(
@@ -151,11 +165,7 @@ def get_collection(tree, name, named=True):
     branches = tree[collection_branches]
     if named:
         return branches
-
-    branches_unzipped = {field.replace(name+'_', ''): array for field,
-                         array in zip(branches.fields, ak.unzip(branches))}
-    return ak.zip(branches_unzipped, depth_limit=1)
-
+    return remove_name(branches, name)
 
 def rename_collection(collection, newname, oldname=None):
     def rename_field(field):
@@ -205,7 +215,8 @@ def get_avg_std(array, weights=None, bins=None):
     else:
         weights = ak.flatten(weights[mask], axis=None)
         if bins is not None:
-            array, weights = restrict_array(array, bins, weights)
+            array, weights = restrict_array(array, bins, weights=weights)
+        if len(array) == 0: return np.nan, np.nan
         avg = np.average(array, weights=weights)
         std = np.sqrt(np.average((array-avg)**2, weights=weights))
     return avg, std
@@ -216,3 +227,20 @@ def build_p4(array, use_regressed=False):
   if use_regressed:
     regmap = {'pt':'ptRegressed', 'm':'mRegressed'}
   return vector.obj(**{ var:array[ regmap.get(var, var) ] for var in kin })
+
+def sum_p4(p4s):
+  sum = p4s[0]
+  for p4 in p4s[1:]:
+    sum += p4
+  return sum
+
+def p4_to_awk(p4):
+  return ak.zip({ kin:getattr(p4, kin) for kin in ('pt','m','eta','phi') })
+
+def ak_stack(arrays, axis=1):
+    reshape = tuple([ slice(None) for _ in range(axis) ] + [None])
+
+    return ak.concatenate(
+        [ array[reshape] for array in arrays ],
+        axis=axis
+    )

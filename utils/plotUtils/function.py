@@ -2,6 +2,7 @@ import scipy.stats as f_stats
 from scipy.optimize import curve_fit  
 from scipy import integrate, interpolate
 import numpy as np
+import re
 
 from utils.utils import get_bin_centers
 
@@ -166,7 +167,7 @@ class linear(Function):
 
 class quadratic(Function):
   def __init__(self, x, c0=1, c1=1, c2=1, **kwargs):
-    super(self).__init__(x, dict(c0=c0, c1=c1, c2=c2), **kwargs)
+    super().__init__(x, dict(c0=c0, c1=c1, c2=c2), **kwargs)
 
   @staticmethod
   def func(x, c0=1, c1=1, c2=1): return c2*x*x + c1*x + c0 
