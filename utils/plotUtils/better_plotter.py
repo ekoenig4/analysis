@@ -27,12 +27,11 @@ def execute(exe=None, **local):
 
 def get_figax(figax=None):
     if figax is None: return plt.subplots()
-    if figax == 'same' and any(plt.get_fignums()):
+    if figax == 'same':
+        if not any(plt.get_fignums()): return plt.subplots()
         fig = plt.gcf()
         ax = fig.get_axes()[-1]
         return (fig,ax)
-    if figax == 'same' and not any(plt.get_fignums()):
-        return plt.subplots()
     return figax    
 
 def plot_function(function, figax=None, exe=None, **kwargs):
@@ -132,10 +131,8 @@ def graph_histos(histos, figax=None, exe=None, **kwargs):
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
     
-    
-def plot_histo(histo, errors=True, fill_error=False, figax=None, exe=None, **kwargs):
+def plot_histo(histo, errors=True, fill_error=False, fit_show=False, figax=None, exe=None, **kwargs):
     fig, ax = get_figax(figax=figax)
-
     if histo.continous: 
         return graph_histo(histo, errors=errors, figax=(fig,ax), **kwargs)
 
@@ -153,7 +150,8 @@ def plot_histo(histo, errors=True, fill_error=False, figax=None, exe=None, **kwa
                 ax.fill_between(bin_centers, histo.histo-nstd*histo.error, histo.histo+nstd*histo.error, color=histo.kwargs['color'], alpha=0.25/nstd, step='mid')
 
     if getattr(histo, 'fit', None) is not None:
-        plot_function(histo.fit, figax=(fig,ax))
+        if histo.fit.show:
+            plot_function(histo.fit, figax=(fig,ax))
         
     if exe: execute(**locals())
     if any(kwargs): format_axes(ax,**kwargs)
@@ -257,7 +255,6 @@ def histo_ratio(histos, figax=None, inv=False, ylabel='Ratio', exe=None, **kwarg
     if exe: execute(**locals())
     if any(kwargs): format_axes(ax, ylabel=ylabel, **kwargs)
     return fig,ax
-    
 
 def array_ratio(arrays, bins=None, weights=None, density = False, 
                 cumulative=False, scale=None, lumi=None,
@@ -308,6 +305,9 @@ def plot_histo2d(histo2d, figax=None, cmap="YlOrRd", show_counts=False, log=Fals
     """
     fig, ax = get_figax(figax=figax)
 
+    from matplotlib.colors import LogNorm
+    from matplotlib.ticker import LogLocator
+
     if contour:
         # x = get_bin_centers(histo2d.x_bins)
         # y = get_bin_centers(histo2d.y_bins)
@@ -315,14 +315,15 @@ def plot_histo2d(histo2d, figax=None, cmap="YlOrRd", show_counts=False, log=Fals
         x = get_bin_line(histo2d.x_bins)
         y = get_bin_line(histo2d.y_bins)
 
-        container = ax.contourf( x, y, histo2d.histo2d, cmap=cmap, vim=cmin, alpha=alpha)
+        Z = np.log(histo2d.histo2d) if log else histo2d.histo2d
+        container = ax.contourf( x, y, Z, cmap=cmap, vim=cmin, alpha=alpha)
     else:
-        container = ax.pcolor(histo2d.x_bins, histo2d.y_bins, histo2d.histo2d, cmap=cmap, vmin=cmin, alpha=alpha)
+        container = ax.pcolor(histo2d.x_bins, histo2d.y_bins, histo2d.histo2d, cmap=cmap, vmin=cmin, alpha=alpha, norm=LogNorm() if log else None)
 
     # n, bx, by, im = ax.hist2d(histo2d.x_array, histo2d.y_array, (histo2d.x_bins, histo2d.y_bins), weights=histo2d.weights,
     #                                     norm=clrs.LogNorm() if log else clrs.Normalize(), cmap=cmap, alpha=alpha, cmin=cmin)
     
-    n = histo2d.histo2d
+    n = histo2d.histo2d 
     bx = histo2d.x_bins
     by = histo2d.y_bins
 

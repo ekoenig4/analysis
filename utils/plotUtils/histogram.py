@@ -131,6 +131,10 @@ class Histo:
                 
         self.histo, self.error = histogram(self.array, self.bins, self.weights, sumw2=self.sumw2)
 
+        if np.any( self.histo < 0 ):
+            self.error = np.where(self.histo < 0, 0, self.error)
+            self.histo = np.where(self.histo < 0, 0, self.histo)
+
         if self.density:
             self.widths = get_bin_widths(self.bins)
             self.histo /= self.widths 
@@ -169,8 +173,8 @@ class Histo:
 
         if sf: y = 1 - y
 
-        # return Graph(x, y, yerr=None, weights=weights, **self.kwargs)
-        return (x,y), dict(yerr=None, weights=weights, **self.kwargs)
+        return Graph(x, y, yerr=None, weights=weights, **self.kwargs)
+        # return (x,y), dict(yerr=None, weights=weights, **self.kwargs)
 
     def sample(self, fraction=0.1):
         ndata = int(self.counts*fraction)
@@ -214,7 +218,7 @@ class Histo:
                 self.kwargs['label'] = f'{self.kwargs["label"]} ({label_stat})'
             else:
                 self.kwargs['label'] = f'{label_stat}'
-        
+
 class HistoList(ObjIter):
     def __init__(self, arrays, bins=None, **kwargs):
         attrs = AttrArray(arrays=arrays,**kwargs)
@@ -237,6 +241,7 @@ class DataList(HistoList):
 class Stack(HistoList):
     def __init__(self, arrays, bins=None, density=False, cumulative=False, efficiency=False, stack_fill=False, label_stat='events', histtype=None, **kwargs):
         super().__init__(arrays, bins=bins, label_stat=label_stat, **kwargs)
+        if isinstance(label_stat, list): label_stat = label_stat[0]
 
         self.stack_fill = stack_fill
         self.bins = self[-1].bins

@@ -28,6 +28,7 @@ def save_fig(fig, directory, saveas, base=GIT_WD):
     # fig.savefig(f"{outfn}.png", format="png")
 
 def format_var(var, bins=None, xlabel=None):
+    if hasattr(var, '__name__'): xlabel = var.__name__
     if hasattr(var, 'xlabel'): xlabel = var.xlabel
     if hasattr(var, 'bins'): bins = var.bins
 

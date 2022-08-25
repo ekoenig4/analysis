@@ -100,8 +100,9 @@ def get_jet_position(jet_index, jet_mask):
 
 
 def calc_dphi(phi_1, phi_2):
-    dphi = np.abs(phi_2 - phi_1)
-    dphi = ak.where(dphi>np.pi, 2.*np.pi-dphi, dphi)
+    dphi = phi_2 - phi_1
+    dphi = ak.where( dphi >= np.pi, dphi - 2.0*np.pi, dphi)
+    dphi = ak.where( dphi < -np.pi, dphi + 2.0*np.pi, dphi)
     return dphi
 
 
@@ -418,7 +419,7 @@ def build_all_dijets(tree, pairs=None):
     jets = join_fields(jets, idx=ak.local_index(jets.ptRegressed, axis=-1))
 
     if pairs is None: pairs = ak.unzip(ak.combinations(jets.idx, 2))
-    else: pairs = pairs[:,:,0], pairs[:,:,1]
+    else: pairs = pairs[:,:,0], pairs[:,:,1]    
     pairs = ObjIter([jets[pairs[0]], jets[pairs[1]]]) 
 
     j1_id, j2_id = pairs.signalId

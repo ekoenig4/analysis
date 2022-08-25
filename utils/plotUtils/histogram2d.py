@@ -102,6 +102,8 @@ class Histo2D:
             self.x_array = self.x_array[restrict]
             self.y_array = self.y_array[restrict]
             self.weights = self.weights[restrict]
+            self.counts = len(self.x_array)
+            self.ndata = self.weights.sum()
         
         self.is_data = is_data 
         self.is_signal = is_signal 

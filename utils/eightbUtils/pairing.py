@@ -1,5 +1,9 @@
 from ..utils import *
 import vector
+import awkward0 as ak0
+import glob, os
+
+from ..selectUtils import build_all_dijets, combinations
 
 def get_remaining_pairs(pair,all_pairs):
     return list(filter(lambda h : not any(j in h for j in pair),all_pairs))
@@ -140,3 +144,24 @@ def build_all_ys(tree):
     h1y2 = rename_collection(h1y2, 'h1y2')
     h2y2 = rename_collection(h2y2, 'h2y2')
     tree.extend(h1y1,h2y1,h1y2,h2y2)
+
+def load_weaver_output(tree, model=None):
+  if tree.is_signal:
+    rgxs = ["*" + tree.sample+"*.awkd"]
+  else:
+    rgxs = [ os.path.basename(os.path.dirname(fn.fname))+".awkd" for fn in tree.filelist ]
+  toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
+
+  scores = np.concatenate([ np.array(ak0.load(fn)['scores'], dtype=float) for fn in toload ])
+  return scores
+  
+quadh_index = combinations(8, [2,2,2,2])
+def load_quadh(tree, model=None, quadh_index=quadh_index):
+  events = len(tree.n_jet)
+  scores = load_weaver_output(tree, model).reshape(events, -1)
+  maxarg = scores.argmax(axis=-1)
+  scores = ak.from_regular(scores.max(axis=-1))
+  tree.extend(quadh_score=scores)
+  
+  quadh_index = ak.from_regular(quadh_index[maxarg])
+  build_all_dijets(tree, pairs=quadh_index)

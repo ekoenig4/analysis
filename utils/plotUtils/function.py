@@ -1,21 +1,25 @@
 import scipy.stats as f_stats
-from scipy.optimize import curve_fit  
+from scipy.optimize import curve_fit , fmin
 from scipy import integrate, interpolate
 import numpy as np
 import re
 
-from utils.utils import get_bin_centers
+from sympy import Q
+
+from utils.utils import get_avg_std, get_bin_centers, get_bin_widths
 
 class Function:
   __instance__ = ['pdf','func','cdf','rvs','sf']
 
-  def __init__(self, x, params, pcov=None, n_obs=0, **kwargs):
+  def __init__(self, x=np.array([0]), params=dict(), pcov=None, n_obs=0, show=False, **kwargs):
     self.params = params
     self.nparams = len(params)
     for key,value in params.items(): setattr(self, key, value)
     for key in self.__instance__: 
       if hasattr(self,  f'_{key}'):
         setattr(self, key, getattr(self, f'_{key}'))
+
+    self.show=show
 
     self.plot(x)
     self.pcov = pcov
@@ -66,26 +70,43 @@ class Function:
     return self.r2(x, y)
 
   @classmethod
-  def fit(cls, x, y, n_obs=None, **kwargs):
+  def fit(cls, x, y, yerr=None, n_obs=None, bounds=(-np.inf, np.inf), peak=False, **kwargs):
     if n_obs is None: n_obs = len(x)
 
+    if peak:
+      nparams = cls().nparams
+      maxarg = np.argmax(y)
+
+      m = 2
+      mask = y > y[maxarg]/m
+      while not (mask.sum() > nparams+1):
+        m += 1
+        mask = y > y[maxarg]/m
+
+      bounds = x[mask]
+      bounds = (bounds[0], bounds[-1])
+      
+
     try:
-      popt, pcov = curve_fit(cls.func, x, y, check_finite=False)
+      mask = (x > bounds[0]) & (x < bounds[1])
+      _x, _y = x[mask], y[mask]
+      if yerr is not None:
+        yerr = yerr[mask]
+      p0 = cls.best(_x, _y) if hasattr(cls, 'best') else None
+      popt, pcov = curve_fit(cls.func, _x, _y, sigma=yerr, p0=p0, check_finite=False)
     except RuntimeError:
       print("[ERROR] Unable to fit")
       fit = cls(np.array([0]))
       return fit
 
-
     x_lo, x_hi = x[0], x[-1]
     x = np.linspace(x_lo, x_hi, 100)
-
     return cls(x, *popt, pcov=pcov, n_obs=n_obs, **kwargs)
 
   @classmethod
   def fit_histo(cls, histo, **kwargs):
     x = get_bin_centers(histo.bins)
-    fit = cls.fit(x, histo.histo, n_obs=histo.ndata, **kwargs)
+    fit = cls.fit(x, histo.histo, yerr=histo.error, n_obs=histo.ndata, **kwargs)
 
     histo.stats.ks, histo.stats.ks_pvalue = fit.ks(histo)
     histo.stats.chi2, histo.stats.chi2_pvalue = fit.chi2_histo(histo)
@@ -101,14 +122,12 @@ class Function:
   @classmethod
   def fit_graph(cls, graph, **kwargs):
     fit = cls.fit(graph.x_array, graph.y_array, **kwargs)
-
     graph.stats.r2 = fit.r2_graph(graph)
 
     return fit
-    
 
 class gaussian(Function):
-  def __init__(self, x, n=1, mu=0, sigma=1, **kwargs):
+  def __init__(self, x=np.array([0]), n=1, mu=0, sigma=1, **kwargs):
     super().__init__(x, dict(n=n, mu=mu, sigma=sigma), **kwargs)
 
   @staticmethod
@@ -131,8 +150,15 @@ class gaussian(Function):
   def func(x, n=1, mu=0, sigma=1): return n*gaussian.pdf(x, mu, sigma)
   def _func(self, x): return gaussian.func(x, self.n, self.mu, self.sigma)
 
+  @staticmethod
+  def best(x, y):
+    mu, sigma = get_avg_std(x, y)
+    func = lambda n : np.sum((gaussian.func(x, n, mu=mu, sigma=sigma)-y)**2)
+    n = fmin(func, x0=np.sum(y), maxiter=10, full_output=False, disp=False)[0]
+    return n, mu, sigma
+
 class norm(Function):
-  def __init__(self, x, n=1, sigma=1, **kwargs):
+  def __init__(self, x=np.array([0]), n=1, sigma=1, **kwargs):
     super().__init__(x, dict(n=n, mu=0, sigma=sigma), **kwargs)
 
   @staticmethod
@@ -157,7 +183,7 @@ class norm(Function):
 
 
 class linear(Function):
-  def __init__(self, x, c0=1, c1=1, **kwargs):
+  def __init__(self, x=np.array([0]), c0=1, c1=1, **kwargs):
     super().__init__(x, dict(c0=c0, c1=c1), **kwargs)
 
   @staticmethod
@@ -166,7 +192,7 @@ class linear(Function):
 
 
 class quadratic(Function):
-  def __init__(self, x, c0=1, c1=1, c2=1, **kwargs):
+  def __init__(self, x=np.array([0]), c0=1, c1=1, c2=1, **kwargs):
     super().__init__(x, dict(c0=c0, c1=c1, c2=c2), **kwargs)
 
   @staticmethod

@@ -1,4 +1,5 @@
-
+import matplotlib.pyplot as plt
+from itertools import cycle
 lumiMap = {
     None: [1, None],
     2016: [35900, "(13 TeV,2016)"],
@@ -19,10 +20,11 @@ tagMap = {
     "Data": "Data",
 }
 
+
 colorMap = {    
     "QCD": "blue",
     "X$\\rightarrow$ YH$\\rightarrow$3H$\\rightarrow$6b": "orange",
-    "X$\\rightarrow$ YY$\\rightarrow$4H$\\rightarrow$8b": "tomato",
+    "X$\\rightarrow$ YY$\\rightarrow$4H$\\rightarrow$8b": iter(cycle(['tomato', 'royalblue', 'mediumorchid'])),
     "TTJets": "green",
     "Data": "black",
     "MC-Bkg": "grey"

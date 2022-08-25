@@ -29,7 +29,7 @@ def autodim(nvar, dim=None, flip=False):
         ncols = nvar//2
         nrows = nvar//ncols
     else:
-        nrows = nvar//2
+        nrows = int(np.sqrt(nvar))
         ncols = nvar//nrows
     return nrows, ncols
 
@@ -345,6 +345,7 @@ def quick_region(*rtrees, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), s
     study = Study(ftrees, **kwargs)
 
     nr = [0] + [ len(rt) for rt in rtrees ]
+    nr = np.cumsum(nr)
 
     nvar = len(varlist)
     binlist = init_attr(binlist, None, nvar)
@@ -376,8 +377,8 @@ def quick_region(*rtrees, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), s
         hists = study.get(var)
         weights = study.get_scale(hists)
 
-        hists = [ ak.concatenate(hists[lo:hi]) for lo,hi in zip(nr[:-1],nr[1:]) ]
-        weights = [ ak.concatenate(weights[lo:hi]) for lo,hi in zip(nr[:-1],nr[1:]) ]
+        hists = [ ak.concatenate(hists[lo:hi]) for lo,hi in zip(nr[:-1],nr[1:]) if hi <= len(hists) ]
+        weights = [ ak.concatenate(weights[lo:hi]) for lo,hi in zip(nr[:-1],nr[1:]) if hi <= len(weights) ]
 
         hist_multi(hists, bins=bins, xlabel=xlabel,
                    weights=weights, **study.attrs, figax=(fig, ax))
@@ -392,8 +393,14 @@ def quick_region(*rtrees, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), s
         return fig,axs
 
 
-def quick2d_region(r1trees, *args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlist=[], ybinlist=[],  dim=(-1,-1), size=(-1,-1),  flip=False, figax=None, **kwargs):
-    study = Study(r1trees, *args, **kwargs)
+def quick2d_region(*rtrees, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlist=[], ybinlist=[],  dim=(-1,-1), size=(-1,-1),  flip=False, figax=None, **kwargs):
+    ftrees = rtrees[0]
+    for rt in rtrees[1:]:
+        ftrees = ftrees + rt
+    study = Study(ftrees, **kwargs)
+
+    nr = [0] + [ len(rt) for rt in rtrees ]
+    nr = np.cumsum(nr)
 
     if varlist is not None:
         xvarlist=varlist[::2]
@@ -402,13 +409,13 @@ def quick2d_region(r1trees, *args, varlist=None, binlist=None, xvarlist=[], yvar
         xbinlist=binlist[::2]
         ybinlist=binlist[1::2]
 
-    nvar = 1
+    nvar = len(rtrees)
     nplots = len(xvarlist)
 
     xbinlist = init_attr(xbinlist, None, nplots)
     ybinlist = init_attr(ybinlist, None, nplots)
 
-    nrows, ncols = autodim(nvar, dim, flip)
+    nrows, ncols = autodim(nvar*nplots, dim, flip)
     xsize, ysize = autosize(size,(nrows,ncols))
     if figax is None:
         figax = plt.subplots(nrows=nrows, ncols=ncols,
@@ -426,9 +433,10 @@ def quick2d_region(r1trees, *args, varlist=None, binlist=None, xvarlist=[], yvar
         yhists = study.get(yvar)
 
         weights = study.get_scale(xhists)
-        weights = [ak.concatenate(weights)]
-        xhists = [ak.concatenate(xhists)]
-        yhists = [ak.concatenate(yhists)]
+        
+        xhists = [ ak.concatenate(xhists[lo:hi]) for lo,hi in zip(nr[:-1],nr[1:]) if hi <= len(xhists)  ]
+        yhists = [ ak.concatenate(yhists[lo:hi]) for lo,hi in zip(nr[:-1],nr[1:]) if hi <= len(yhists)  ]
+        weights = [ ak.concatenate(weights[lo:hi]) for lo,hi in zip(nr[:-1],nr[1:]) if hi <= len(weights)  ]
         
         for j, (xhist, yhist, weight, label) in enumerate(zip(xhists, yhists, weights, labels)):
             if nvar == ncols:

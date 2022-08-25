@@ -1,3 +1,4 @@
+from genericpath import isfile
 from ..selectUtils import *
 from ..xsecUtils import *
 from ..utils import *
@@ -5,9 +6,14 @@ from ..utils import *
 import uproot as ut
 import awkward as ak
 import numpy as np
-import re, glob
+import re, glob, os
 
+from tqdm import tqdm
+import subprocess
 
+def _check_file(fname):
+    if os.path.isfile(fname): return fname
+    return None
 class SixBFile:
     def __init__(self, fname):
         self.fname = fname
@@ -27,12 +33,45 @@ class SixBFile:
         self.ttree = self.tfile.get('sixBtree')
         self.raw_events = self.ttree.num_entries
 
+class LazySixBFile:
+    def __init__(self, fname, use_cutflow=True):
+        self.fname = _check_file(fname)
+
+        self.raw_events = 0
+        self.total_events = 0
+
+        if self.fname is None: 
+            print(f'[WARNING] skipping {fname}, was not found.')
+            return
+        
+        if use_cutflow:
+            with ut.open(f'{fname}:h_cutflow') as cutflow:
+                self.cutflow_labels = cutflow.axis().labels()
+                if self.cutflow_labels is None: self.cutflow_labels = []
+                self.cutflow = cutflow.to_numpy()[0]
+                self.total_events = self.cutflow[0]
+        self.normtree = f'{fname}:NormWeightTree' 
+
+        self.sample, self.xsec = next(
+            ((key, value) for key, value in xsecMap.items() if key in fname), ("unk", 1))
+        self.scale = self.xsec / \
+            self.total_events if type(self.xsec) == float else 1
+
+        tree = ut.lazy(f'{self.fname}:sixBtree')
+        self.raw_events = len(tree)
+        self.fields = tree.fields
+        del tree
+
+
 def init_files(self, filelist):
     if type(filelist) == str:
         filelist = [filelist]
-    filelist = flatten([ glob.glob(fn) for fn in filelist ])
-    self.filelist = [SixBFile(fn) for fn in filelist]
+    filelist = [ fn for flist in filelist for fn in glob.glob(flist) ]
+    # self.filelist = [SixBFile(fn) for fn in filelist]
+    self.filelist = [LazySixBFile(fn) for fn in tqdm(filelist)]
+    self.lazy = True
 
+    self.filelist = [ fn for fn in self.filelist if fn.raw_events > 0 ]
 
 def init_sample(self):  # Helper Method For Tree Class
     self.is_data = any("Data" in fn.fname for fn in self.filelist)
@@ -50,20 +89,30 @@ def init_sample(self):  # Helper Method For Tree Class
         self.sample = "Data"
         
     self.color = colorMap.get(self.sample, None)
+    if not isinstance(self.color, str): self.color = next(self.color)
+
     if self.is_signal:
         points = [ re.findall('MX_\d+_MY_\d+',fn.fname)[0] for fn in self.filelist ]
         if len(set(points)) == 1:
             self.sample = points[0]
 
 
-def init_tree(self):
-    self.ttree = ut.lazy([fn.ttree for fn in self.filelist])
-    self.fields = self.ttree.fields
+def init_tree(self, use_gen=False):
+    self.fields = list(set.intersection(*[ set(fn.fields) for fn in self.filelist]))
+
+    if self.lazy :
+        self.ttree = ut.lazy([ f'{fn.fname}:sixBtree' for fn in self.filelist ])
+    else:
+        self.ttree = ut.lazy([fn.ttree for fn in self.filelist])
+
+    self.ttree = self.ttree[self.fields]
+
+    scale = self.ttree['genWeight'] if use_gen else 1
+
     self.extend(
         sample_id=ak.concatenate([ak.Array([i]*fn.raw_events)
                                  for i, fn in enumerate(self.filelist)]),
-        scale=self.genWeight*ak.concatenate([np.full(
-            shape=fn.raw_events, fill_value=fn.scale, dtype=np.float) for fn in self.filelist])
+        scale=scale*ak.concatenate([np.full(shape=fn.raw_events, fill_value=fn.scale, dtype=np.float) for fn in self.filelist])
     )
 
     self.raw_events = sum(fn.raw_events for fn in self.filelist)
@@ -102,16 +151,19 @@ def _regex_field(self, regex):
     return item
 
 class Tree:
-    def __init__(self, filelist,allow_empty=False):
+    def __init__(self, filelist, allow_empty=False, use_gen=True):
 
         init_files(self, filelist)
 
-        if not allow_empty:
-            self.filelist = list(filter(lambda fn : fn.raw_events > 0,self.filelist))
+        if not any(self.filelist):
+            print('[WARNING] unable to open any files.')
+            return
+        # if not allow_empty:
+        #     self.filelist = list(filter(lambda fn : fn.raw_events > 0,self.filelist))
 
         init_sample(self)
-        init_tree(self)
-        init_selection(self)
+        init_tree(self, use_gen)
+        # init_selection(self)
 
         # self.reco_XY()
     def __str__(self):

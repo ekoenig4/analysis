@@ -1,6 +1,15 @@
 import warnings
 warnings.filterwarnings("ignore")
 
+def _set_text(ax, text=None, text_style=None, **kwargs):
+    if text is not None:
+        style = dict(transform=ax.transAxes, va="center")
+        style.update(**text_style)
+        if isinstance(text, tuple): text = [text]
+        for x, y, s in text:
+            ax.text(x, y, s, **style)
+    return kwargs
+
 def _set_rescale(ax, **kwargs):
     ax.autoscale()
     return kwargs
@@ -37,7 +46,14 @@ def _get_ylim(ax, yscale=None, log=False, is_2d=False):
     return ( min(ymax_scale*ymin,ymin_scale*ymin), max(ymin_scale*ymax,ymax_scale*ymax) )
 
 def _set_ylim(ax, yscale=None, log=False, is_2d=False, **kwargs):
-    kwargs['ylim'] = kwargs.get('ylim',_get_ylim(ax, yscale, log, is_2d))
+    ylim = kwargs.get('ylim',_get_ylim(ax, yscale, log, is_2d))
+    if ylim is None: ylim = ax.get_ylim()
+    
+    ylo, yhi = ylim
+    if ylo is None: ylo = ax.get_ylim()[0]
+    if yhi is None: yhi = ax.get_ylim()[1]
+
+    kwargs['ylim'] = (ylo, yhi)
     if log: ax.set_yscale('log')
     return kwargs
 
@@ -65,7 +81,7 @@ def _set_lumi(ax, lumi=None, is_2d=False, **kwargs):
     if label is None: return kwargs 
     
     text = f"{lumi/1000:0.1f} $fb^{'{-1}'}$ {label}"
-    ax.text(0.75,1.04, text,ha="center", va="center", transform=ax.transAxes)
+    _set_text(ax, (1.0, 1.0, text), text_style=dict(ha="right", va="bottom", fontsize=10))
     
     return kwargs
 
@@ -75,5 +91,5 @@ def format_axes(ax,is_2d=False, **kwargs):
     for set_func in _set_axs: 
         kwargs = set_func(ax, is_2d=is_2d, **kwargs)
         if 'is_2d' in kwargs: kwargs.pop('is_2d')
-    
+
     if any(kwargs): ax.set(**kwargs)
