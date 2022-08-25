@@ -59,55 +59,20 @@ def set_model(tree):
 target = bkg.apply(set_target)
 model = bkg.apply(set_model)
 
-
-# %%
-# def get_abcd_masks(v1_r, v2_r):
-#   v1_sr = lambda t : (t.n_medium_btag >= v1_r[1]) & (t.n_medium_btag < v1_r[2])
-#   v1_cr = lambda t : (t.n_medium_btag >= v1_r[0]) & (t.n_medium_btag < v1_r[1])
-
-#   v2_sr = lambda t : (t.quadh_score >= v2_r[1]) & (t.quadh_score < v2_r[2])
-#   v2_cr = lambda t : (t.quadh_score >= v2_r[0]) & (t.quadh_score < v2_r[1])
-
-#   r_a = lambda t : v1_sr(t) & v2_sr(t)
-#   r_b = lambda t : v1_cr(t) & v2_sr(t)
-
-#   r_c = lambda t : v1_sr(t) & v2_cr(t)
-#   r_d = lambda t : v1_cr(t) & v2_cr(t)
-#   return r_a, r_b, r_c, r_d
-
-
-# def get_region_scale(r, model=model):
-#   t = model.apply(lambda t:t.scale).apply(np.sum).npy.sum()
-#   n = model.apply(lambda t:t.scale[r(t)]).apply(np.sum).npy.sum()
-#   e = np.sqrt(model.apply(lambda t:(t.scale[r(t)])**2).apply(np.sum).npy.sum())
-#   return n/t,e/t
-
-
-# def get_abcd_scale(r_a, r_b, r_c, r_d):
-#   n_d, e_d = get_region_scale(r_d)
-#   n_c, e_c = get_region_scale(r_c)
-#   n_b, e_b = get_region_scale(r_b)
-#   n_a, e_a = get_region_scale(r_a)
-
-#   k_factor = n_c/n_d
-#   e_factor = k_factor*np.sqrt( (e_c/n_c)**2 + (e_d/n_d)**2 )
-#   k_target = n_a/n_b
-#   e_target = k_target*np.sqrt( (e_a/n_a)**2 + (e_b/n_b)**2 )
-
-#   # n_model = k_factor*n_b
-#   # e_model = n_model*np.sqrt( (e_factor/k_factor)**2 )
-
-#   return (k_target, e_target), (k_factor, e_factor)
+feature_names = [
+    f'{obj}_m'
+    for obj in ['X']+eightb.ylist+eightb.higgslist
+]
 
 def apply_abcd(v1_r, v2_r, tag=""):
   print(f'Processing ABCD region - {tag}')
 
   r_a, r_b, r_c, r_d = get_abcd_masks(v1_r, v2_r)
-  (k_target, e_target), (k_factor, e_factor), (n_model, e_model) = get_abcd_scale(r_a, r_b, r_c, r_d, model)
 
-  print(f'K Factor: {k_factor:0.3}+/-{e_factor/k_factor:0.3%}')
-  print(f'K Target: {k_target:0.3}')
-  print(f'K Ratio:  {k_target/k_factor:0.3}+/-{e_factor/k_factor:0.3%}')
+  abcd = ABCD(feature_names, r_a, r_b, r_c, r_d)
+  abcd.train(model)
+
+  print(f'K Factor: {abcd.k_factor:0.3}')
 
   if target.is_data.npy.all():
     label = 'Data'
@@ -145,7 +110,7 @@ def apply_abcd(v1_r, v2_r, tag=""):
     varlist=varlist,
     h_color=None, label=['target','model'], legend=True,
     masks=[r_a]*len(target) + [r_b]*len(model),
-    scale=[None]*len(target) + [k_factor]*len(model),
+    scale=[None]*len(target) + [abcd.reweight_tree]*len(model),
     h_label_stat=lambda h:f'{np.sum(h.weights):0.2e}',
     lumi=lumi,
     legend_loc='upper left',
