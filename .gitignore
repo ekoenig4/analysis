@@ -158,3 +158,5 @@ processed
 
 cpp_geometric/
 cpp_geometric
+
+*-jvsc-*.ipynb
