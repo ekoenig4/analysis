@@ -4,8 +4,10 @@ import torch
 import git
 import numpy as np
 import re
+from typing import Callable
 import itertools
 import vector
+from tqdm import tqdm
 vector.register_awkward()
 
 GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
@@ -271,3 +273,36 @@ def ak_stack(arrays, axis=1):
         [array[reshape] for array in arrays],
         axis=axis
     )
+
+
+
+def _chunks_(total_events, batches):
+    k, m = divmod(total_events, batches)
+    for i in range(batches):
+        yield i*k+min(i, m), (i+1)*k+min(i+1, m)
+
+def chunk_method(array: ak.Array, array_method: Callable, batches=25, events=None, report=False) -> ak.Array:
+    """Apply a method on an array in chunks. The final result is then concatenated together.
+
+    Args:
+        array (ak.Array): Awkward Array like structure
+        array_method (Callable): Method that takes an array as the first argument and returns an array
+        batches (int, optional): Number of batches to chunk the array into. Defaults to None.
+        events (int, optional): Approximate number of events per chunk. Defaults to None.
+        report (bool, optional): Gives TQDM reporting. Defaults to True.
+
+    Returns:
+        ak.Array: Awkward Array that is a concatenation of the results of the array_method
+    """
+    total_events = len(array)
+    if batches:
+        batches = batches
+    if events:
+        batches = total_events//events
+
+    it = enumerate(_chunks_(total_events, batches))
+    if report:
+        it = tqdm(it, total=batches)
+
+    builder = [array_method(array[start:stop]) for i, (start, stop) in it]
+    return ak.concatenate(builder)

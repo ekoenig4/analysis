@@ -235,7 +235,7 @@ class Tree:
             total += cache.current
             cache.clear()
             remaining += cache.current
-        freed = total - remaining + gc.collect()
+        freed = total - remaining
         return freed 
 
 class CopyTree(Tree):
