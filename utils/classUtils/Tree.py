@@ -45,6 +45,12 @@ class LazySixBFile:
             return
         
         if use_cutflow:
+
+            try:
+                ut.open(f'{fname}:h_cutflow')
+            except ut.KeyInFileError:
+                return
+
             with ut.open(f'{fname}:h_cutflow') as cutflow:
                 self.cutflow_labels = cutflow.axis().labels()
                 if self.cutflow_labels is None: self.cutflow_labels = []
@@ -61,7 +67,6 @@ class LazySixBFile:
         self.raw_events = len(tree)
         self.fields = tree.fields
         del tree
-
 
 def init_files(self, filelist):
     if type(filelist) == str:
@@ -97,17 +102,17 @@ def init_sample(self):  # Helper Method For Tree Class
             self.sample = points[0]
 
 
-def init_tree(self, use_gen=False):
+def init_tree(self, use_gen=False, cache=None):
     self.fields = list(set.intersection(*[ set(fn.fields) for fn in self.filelist]))
 
     if self.lazy :
-        self.ttree = ut.lazy([ f'{fn.fname}:sixBtree' for fn in self.filelist ])
+        self.ttree = ut.lazy([ f'{fn.fname}:sixBtree' for fn in self.filelist ], array_cache=cache)
     else:
-        self.ttree = ut.lazy([fn.ttree for fn in self.filelist])
+        self.ttree = ut.lazy([fn.tree for fn in self.filelist])
 
     self.ttree = self.ttree[self.fields]
 
-    scale = self.ttree['genWeight'] if use_gen else 1
+    scale = self.ttree['genWeight'] if (use_gen and 'genWeight' in self.fields) else 1
 
     self.extend(
         sample_id=ak.concatenate([ak.Array([i]*fn.raw_events)
@@ -151,7 +156,7 @@ def _regex_field(self, regex):
     return item
 
 class Tree:
-    def __init__(self, filelist, allow_empty=False, use_gen=True):
+    def __init__(self, filelist, allow_empty=False, use_gen=True, cache=None):
 
         init_files(self, filelist)
 
@@ -162,7 +167,7 @@ class Tree:
         #     self.filelist = list(filter(lambda fn : fn.raw_events > 0,self.filelist))
 
         init_sample(self)
-        init_tree(self, use_gen)
+        init_tree(self, use_gen, cache)
         # init_selection(self)
 
         # self.reco_XY()
@@ -177,6 +182,7 @@ class Tree:
 
     def __getitem__(self, key): return self.ttree[key]
     def __getattr__(self, key): return self[key]
+    def __len__(self): return len(self.ttree)
     def get(self, key): return self[key]
 
     def expected_events(self, lumikey=2018):
@@ -222,6 +228,15 @@ class Tree:
         init_selection(tree)
 
         return tree
+
+    def clear(self):
+        total, remaining = 0,0
+        for cache in self.ttrees.cache:
+            total += cache.current
+            cache.clear()
+            remaining += cache.current
+        freed = total - remaining + gc.collect()
+        return freed 
 
 class CopyTree(Tree):
     def __init__(self, tree):

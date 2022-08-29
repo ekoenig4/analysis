@@ -4,6 +4,7 @@ import awkward0 as ak0
 import glob, os
 
 from ..selectUtils import build_all_dijets, combinations
+from ..classUtils.Filter import CollectionFilter
 
 def get_remaining_pairs(pair,all_pairs):
     return list(filter(lambda h : not any(j in h for j in pair),all_pairs))
@@ -145,23 +146,46 @@ def build_all_ys(tree):
     h2y2 = rename_collection(h2y2, 'h2y2')
     tree.extend(h1y1,h2y1,h1y2,h2y2)
 
-def load_weaver_output(tree, model=None):
+def load_weaver_output(tree, model=None, fields=['scores']):
   if tree.is_signal:
     rgxs = ["*" + tree.sample+"*.awkd"]
   else:
     rgxs = [ os.path.basename(os.path.dirname(fn.fname))+".awkd" for fn in tree.filelist ]
   toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
 
-  scores = np.concatenate([ np.array(ak0.load(fn)['scores'], dtype=float) for fn in toload ])
-  return scores
+  fields = {
+    field:np.concatenate([ np.array(ak0.load(fn)[field], dtype=float) for fn in toload ])
+    for field in fields
+  }
+  return fields
   
 quadh_index = combinations(8, [2,2,2,2])
 def load_quadh(tree, model=None, quadh_index=quadh_index):
   events = len(tree.n_jet)
-  scores = load_weaver_output(tree, model).reshape(events, -1)
+  scores = load_weaver_output(tree, model)['scores'].reshape(events, -1)
   maxarg = scores.argmax(axis=-1)
   scores = ak.from_regular(scores.max(axis=-1))
   tree.extend(quadh_score=scores)
   
+  quadh_index = ak.from_regular(quadh_index[maxarg])
+  build_all_dijets(tree, pairs=quadh_index)
+
+def load_jet_quadh(tree, model, quadh_index=quadh_index):
+  events = len(tree.n_jet)
+  output = load_weaver_output(tree, model, fields=['scores','quadh_scores'])
+
+  jet_scores = ak.unflatten(output['scores'], tree.n_jet)
+  tree.extend(jet_score=jet_scores)
+
+  jets = get_collection(tree, 'jet')
+  jet_rank = ak.argsort(ak.argsort(-jet_scores,axis=-1),axis=-1)
+  jets = jets[jet_rank<8]
+  tree.extend(jets)
+
+  quadh_scores = output['quadh_scores'].reshape(events, -1)
+  maxarg = quadh_scores.argmax(axis=-1)
+  quadh_scores = ak.from_regular(quadh_scores.max(axis=-1))
+  tree.extend(quadh_score=quadh_scores)
+
   quadh_index = ak.from_regular(quadh_index[maxarg])
   build_all_dijets(tree, pairs=quadh_index)

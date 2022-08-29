@@ -1,11 +1,12 @@
 import awkward as ak
 from matplotlib.pyplot import isinteractive
-import torch 
+import torch
 import git
 import numpy as np
 import re
 import itertools
 import vector
+vector.register_awkward()
 
 GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
 
@@ -22,7 +23,8 @@ def _flatten(array):
         return array.reshape(-1).tolist()
     return np.array(array).reshape(-1)
 
-def flatten(array, clean=True): 
+
+def flatten(array, clean=True):
     array = _flatten(array)
     # mask = ~( np.isnan(array) | np.isinf( np.abs(array) ) )
     # return array[mask]
@@ -36,6 +38,7 @@ def ordinal(n): return "%d%s" % (
 def array_min(array, value): return ak.min(ak.concatenate(
     ak.broadcast_arrays(value, array[:, np.newaxis]), axis=-1), axis=-1)
 
+
 def is_iter(array):
     try:
         it = iter(array)
@@ -43,9 +46,10 @@ def is_iter(array):
         return False
     return True
 
+
 def loop_iter(iterable):
     return itertools.cycle(iterable)
-    
+
 
 def get_batch_ranges(total, batch_size):
     batch_ranges = np.arange(0, total, batch_size)
@@ -76,8 +80,10 @@ def get_bin_centers(bins):
 def get_bin_widths(bins):
     return np.array([(hi-lo)/2 for lo, hi in zip(bins[:-1], bins[1:])])
 
+
 def get_bin_line(bins):
     return np.linspace(bins[0], bins[-1], len(bins) - 1)
+
 
 def safe_divide(a, b, default=None):
     a, b = np.array(a), np.array(b)
@@ -98,7 +104,7 @@ def restrict_array(array, bins, **params):
     x_hi = array < bins[-1]
     array = array[x_lo & x_hi]
     if len(params) > 0:
-        params = [ param[x_lo & x_hi] for param in params.values() ]
+        params = [param[x_lo & x_hi] for param in params.values()]
         return array, *params
     return array
 
@@ -111,20 +117,24 @@ def _autobin_(data, nstd=3, nbins=30):
     is_int = issubclass(data.dtype.type, np.integer)
 
     if is_int:
-        xlo, xhi, nbins = min(minim,0), maxim+1, maxim-minim
+        xlo, xhi, nbins = min(minim, 0), maxim+1, maxim-minim
     else:
         xlo, xhi = max([minim, mean-nstd*stdv]), min([maxim, mean+nstd*stdv])
     return xlo, xhi, nbins, int(is_int)
 
 
 def autobin(data, bins=None, nstd=3, nbins=30):
-    if isinstance(bins, tuple): return np.linspace(*bins)
-    if isinstance(bins, list): return np.array(bins)
-    if bins is not None: return bins
+    if isinstance(bins, tuple):
+        return np.linspace(*bins)
+    if isinstance(bins, list):
+        return np.array(bins)
+    if bins is not None:
+        return bins
 
     if type(data) == list:
         datalist = list(data)
-        databins = np.array([_autobin_(data, nstd, nbins) for data in datalist])
+        databins = np.array([_autobin_(data, nstd, nbins)
+                            for data in datalist])
         xlo = np.nanmin(databins[:, 0])
         xhi = np.nanmax(databins[:, 1])
         nbins = int(np.min(databins[:, 2]))
@@ -152,6 +162,7 @@ def join_fields(awk1, *args, **kwargs):
     awk1_unzipped.update(**new_fields)
     return ak.zip(awk1_unzipped, depth_limit=1)
 
+
 def remove_name(collection, name):
     unzipped = {field.replace(name+'_', ''): array for field,
                 array in zip(collection.fields, ak.unzip(collection))}
@@ -166,6 +177,7 @@ def get_collection(tree, name, named=True):
     if named:
         return branches
     return remove_name(branches, name)
+
 
 def rename_collection(collection, newname, oldname=None):
     def rename_field(field):
@@ -186,7 +198,7 @@ def build_collection(tree, pattern, name, ptordered=False, replace=False):
     fields = list(filter(lambda field: re.match(pattern, field), tree.fields))
     components = dict.fromkeys([re.search(pattern, field)[0]
                                for field in fields if re.search(pattern, field)]).keys()
-    
+
     shared_fields = list(set.intersection(*[set(map(lambda field: field[len(component)+1:], filter(
         lambda field: field.startswith(component), fields))) for component in components]))
 
@@ -195,17 +207,17 @@ def build_collection(tree, pattern, name, ptordered=False, replace=False):
 
     collection = {f'{name}_{field}': ak.concatenate(
         [component[field][:, None] for component in components], axis=-1) for field in shared_fields}
-    
+
     if ptordered:
-        order = ak.argsort(-collection[f'{name}_pt'],axis=-1)
-        collection = { key:array[order] for key,array in collection.items()}
-        
+        order = ak.argsort(-collection[f'{name}_pt'], axis=-1)
+        collection = {key: array[order] for key, array in collection.items()}
+
     tree.extend(**collection)
     # return collection
 
 
 def get_avg_std(array, weights=None, bins=None):
-    mask = ~np.isnan(array) & ~( np.abs(array) == np.inf )
+    mask = ~np.isnan(array) & ~(np.abs(array) == np.inf)
     array = ak.flatten(array[mask], axis=None)
     if weights is None:
         if bins is not None:
@@ -216,31 +228,46 @@ def get_avg_std(array, weights=None, bins=None):
         weights = ak.flatten(weights[mask], axis=None)
         if bins is not None:
             array, weights = restrict_array(array, bins, weights=weights)
-        if len(array) == 0: return np.nan, np.nan
+        if len(array) == 0:
+            return np.nan, np.nan
         avg = np.average(array, weights=weights)
         std = np.sqrt(np.average((array-avg)**2, weights=weights))
     return avg, std
 
-def build_p4(array, use_regressed=False):
-  kin = ['pt','eta','phi','m'] 
-  regmap = {}
-  if use_regressed:
-    regmap = {'pt':'ptRegressed', 'm':'mRegressed'}
-  return vector.obj(**{ var:array[ regmap.get(var, var) ] for var in kin })
+
+def build_p4(array, prefix=None, use_regressed=False):
+    kin = ['pt', 'eta', 'phi', 'm']
+    regmap = {}
+    if use_regressed:
+        regmap = {'pt': 'ptRegressed', 'm': 'mRegressed'}
+
+    if prefix:
+        get_var = lambda var : f'{prefix}_{var}'
+    else:
+        get_var = lambda var : var
+
+    return ak.zip(
+        {
+            var: array[get_var(regmap.get(var,var))]
+            for var in kin
+        }, with_name='Momentum4D'
+    )
 
 def sum_p4(p4s):
-  sum = p4s[0]
-  for p4 in p4s[1:]:
-    sum += p4
-  return sum
+    sum = p4s[0]
+    for p4 in p4s[1:]:
+        sum += p4
+    return sum
+
 
 def p4_to_awk(p4):
-  return ak.zip({ kin:getattr(p4, kin) for kin in ('pt','m','eta','phi') })
+    return ak.zip({kin: getattr(p4, kin) for kin in ('pt', 'm', 'eta', 'phi')})
+
 
 def ak_stack(arrays, axis=1):
-    reshape = tuple([ slice(None) for _ in range(axis) ] + [None])
+    reshape = tuple([slice(None) for _ in range(axis)] + [None])
 
     return ak.concatenate(
-        [ array[reshape] for array in arrays ],
+        [array[reshape] for array in arrays],
         axis=axis
     )

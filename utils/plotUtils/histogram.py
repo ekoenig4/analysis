@@ -200,7 +200,7 @@ class Histo:
         elif label_stat == 'events':
             label_stat = f'{nevents:0.2e}'
         elif label_stat == 'mean':
-            label_stat = f'$\mu={mean:0.2e}$'
+            label_stat = f'$\mu={mean:0.2}$'
         elif label_stat == 'mean_stdv':
             exponent = int(np.log10(np.abs(mean)))
             exp_str = "" if exponent == 0 else "\\times 10^{"+str(exponent)+"}"
