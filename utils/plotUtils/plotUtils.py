@@ -10,12 +10,6 @@ import matplotlib.colors as clrs
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-
-plt.style.use(['science','no-latex'])
-plt.rcParams["figure.figsize"] = (6.5,6.5)
-plt.rcParams['font.size'] =  15
-
-
 def format_axis(ax, title=None, xlabel=None, xlim=None, ylabel=None, ylim=None, grid=False, **kwargs):
     ax.set_ylabel(ylabel)
 

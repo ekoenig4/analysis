@@ -28,6 +28,10 @@ class Function:
     self.kwargs['linestyle'] = kwargs.get('linestyle','--')
     self.kwargs['linewidth'] = kwargs.get('linewidth', 2)
 
+  def __format__(self, spec):
+    self.spec = spec
+    return str(self)
+
   def plot(self, x):
     self.x_array, self.xerr = x, None
     self.y_array, self.yerr = self.func(x), None
@@ -73,27 +77,27 @@ class Function:
   def fit(cls, x, y, yerr=None, n_obs=None, bounds=(-np.inf, np.inf), peak=False, **kwargs):
     if n_obs is None: n_obs = len(x)
 
+    mask = (x > bounds[0]) & (x < bounds[1])
+    X, Y = x[mask], y[mask]
+    if yerr is not None: yerr = yerr[mask]
+
     if peak:
       nparams = cls().nparams
-      maxarg = np.argmax(y)
+      maxarg = np.argmax(Y)
 
       m = 2
-      mask = y > y[maxarg]/m
+      mask = Y > Y[maxarg]/m
       while not (mask.sum() > nparams+1):
         m += 1
-        mask = y > y[maxarg]/m
+        mask = Y > Y[maxarg]/m
 
-      bounds = x[mask]
-      bounds = (bounds[0], bounds[-1])
+      X, Y = X[mask], Y[mask]
+      if yerr is not None: yerr = yerr[mask]
       
 
     try:
-      mask = (x > bounds[0]) & (x < bounds[1])
-      _x, _y = x[mask], y[mask]
-      if yerr is not None:
-        yerr = yerr[mask]
-      p0 = cls.best(_x, _y) if hasattr(cls, 'best') else None
-      popt, pcov = curve_fit(cls.func, _x, _y, sigma=yerr, p0=p0, check_finite=False)
+      p0 = cls.best(X, Y) if hasattr(cls, 'best') else None
+      popt, pcov = curve_fit(cls.func, X, Y, sigma=yerr, p0=p0, check_finite=False)
     except RuntimeError:
       print("[ERROR] Unable to fit")
       fit = cls(np.array([0]))
@@ -130,6 +134,14 @@ class gaussian(Function):
   def __init__(self, x=np.array([0]), n=1, mu=0, sigma=1, **kwargs):
     super().__init__(x, dict(n=n, mu=mu, sigma=sigma), **kwargs)
 
+  def __str__(self):
+    if not hasattr(self,"spec"):
+      fvar = lambda v : str(v)
+    else: 
+      fvar = lambda v : f'{v:{self.spec}}'
+
+    return f"${fvar(self.n)}\exp(-0.5(\frac{{x-{fvar(self.mu)}}}{{{fvar(self.sigma)}}})^2)$"
+
   @staticmethod
   def rvs(mu=0, sigma=1, size=1): return f_stats.norm.rvs(mu, sigma, size=size)
   def _rvs(self, size=1): return gaussian.rvs(self.mu, self.sigma, size)
@@ -161,6 +173,14 @@ class norm(Function):
   def __init__(self, x=np.array([0]), n=1, sigma=1, **kwargs):
     super().__init__(x, dict(n=n, mu=0, sigma=sigma), **kwargs)
 
+  def __str__(self):
+    if not hasattr(self,"spec"):
+      fvar = lambda v : str(v)
+    else: 
+      fvar = lambda v : f'{v:{self.spec}}'
+
+    return f"${fvar(self.n)}\exp(-0.5(\frac{{x}}{{{fvar(self.sigma)}}})^2)$"
+
   @staticmethod
   def rvs(sigma=1, size=1): return f_stats.norm.rvs(0, sigma, size=size)
   def _rvs(self, size=1): return gaussian.rvs(self.mu, self.sigma, size)
@@ -185,6 +205,13 @@ class norm(Function):
 class linear(Function):
   def __init__(self, x=np.array([0]), c0=1, c1=1, **kwargs):
     super().__init__(x, dict(c0=c0, c1=c1), **kwargs)
+
+  def __str__(self):
+    if not hasattr(self,"spec"):
+      fvar = lambda v : str(v)
+    else: 
+      fvar = lambda v : f'{v:{self.spec}}'
+    return f"${fvar(self.c1)} x + {fvar(self.c0)}$"
 
   @staticmethod
   def func(x, c0=1, c1=1): return c1*x + c0 

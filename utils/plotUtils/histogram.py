@@ -58,10 +58,19 @@ def histogram(array, bins, weights, sumw2=False):
     elif not sumw2: return numba_weighted_histo(array,bins,weights)
     return numba_weighted_histo_sumw2(array, bins, weights)
 
+def apply_systematic(histo, error, systematic):
+    if systematic is None: return error 
+
+    if isinstance(systematic, float):
+        systematic = systematic * histo
+        error = np.sqrt( error**2 + systematic**2 )
+
+    return error
+
 class Histo:
     def __init__(self, array, bins=None, weights=None, efficiency=False, density=False, cumulative=False, lumi=None, restrict=False,
                  label_stat='events', is_data=False, is_signal=False, is_model=False, sumw2=True, scale=1, __id__=None, fit=None,
-                 continous=False, ndata=None, nbins=30,
+                 continous=False, ndata=None, nbins=30, systematics=None,
                  **kwargs):
         self.__id__ = __id__
 
@@ -76,6 +85,7 @@ class Histo:
         else:
             self.weights= np.ones((self.counts,))
 
+        self.systematics = systematics
         self.ndata = self.weights.sum()
         
         self.bins = autobin(self.array, bins=bins, nbins=nbins)
@@ -108,7 +118,8 @@ class Histo:
 
         self.stats = Stats(self)      
         if scale is 'xs': scale = scale/lumi
-        if density or efficiency or cumulative: scale = 1/np.sum(self.weights)
+        # if density or efficiency or cumulative: scale = 1/np.sum(self.weights)
+        if density or efficiency: scale = 1/np.sum(self.weights)
         self.rescale(scale)
 
         self.fit = vars(function).get(fit, None)
@@ -131,6 +142,8 @@ class Histo:
                 
         self.histo, self.error = histogram(self.array, self.bins, self.weights, sumw2=self.sumw2)
 
+        self.add_systematics()
+
         if np.any( self.histo < 0 ):
             self.error = np.where(self.histo < 0, 0, self.error)
             self.histo = np.where(self.histo < 0, 0, self.histo)
@@ -139,6 +152,15 @@ class Histo:
             self.widths = get_bin_widths(self.bins)
             self.histo /= self.widths 
             self.error /= self.widths
+
+    def add_systematics(self, systematics=None):
+        if systematics is None: systematics = self.systematics
+        if systematics is None: return
+        if not isinstance(systematics, list): systematics = [systematics]
+
+        for systematic in systematics:
+            self.error = apply_systematic(self.histo, self.error, systematic)
+
                 
     def cdf(self, cumulative):
         if cumulative == 1: # CDF Below 
@@ -204,11 +226,11 @@ class Histo:
         elif label_stat == 'mean_stdv':
             exponent = int(np.log10(np.abs(mean)))
             exp_str = "" if exponent == 0 else "\\times 10^{"+str(exponent)+"}"
-            # label_stat = f'$\mu={mean/(10**exponent):0.2f} \pm {stdv/(10**exponent):0.2f} {exp_str}$'
-            label_stat = f'$\mu={mean:0.2e}\pm{stdv:0.2e}$'
+            label_stat = f'$\mu={mean/(10**exponent):0.2f} \pm {stdv/(10**exponent):0.2f} {exp_str}$'
+            # label_stat = f'$\mu={mean:0.2e}\pm{stdv:0.2e}$'
         elif label_stat == 'exp_lim':
             if hasattr(self.stats, 'exp_limits'):
-                label_stat = f'CL$^{{95\%}}r<{self.stats.exp_limits[2]:0.2}$'
+                label_stat = f'CL$^{{95\%}}r<{self.stats.exp_limits[2]:0.3}$'
 
         else: label_stat = f'{getattr(self.stats,label_stat):0.2e}'
 
@@ -251,14 +273,15 @@ class Stack(HistoList):
         self.opts = dict(density=density, efficiency=efficiency, cumulative=cumulative, label_stat=label_stat, color='grey', label='MC-Bkg')
 
         if not stack_fill:
-            if density or cumulative or efficiency: 
+            # if density or cumulative or efficiency: 
+            if density or efficiency: 
                 nevents = self.stats.nevents.npy.sum()
                 self.apply(lambda histo : histo.rescale(1/nevents))
             if cumulative:
                 self.apply(lambda histo : histo.cdf(cumulative))
 
     def get_histo(self):
-        return Histo(self.array, self.bins, self.weights, **self.opts)
+        return Histo(self.array, self.bins, self.weights, systematics=self[0].systematics, **self.opts)
         
 
 class HistoFromGraph(Histo):

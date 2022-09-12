@@ -85,7 +85,15 @@ class Histo2D:
         self.x_array = flatten(x_array)
         self.y_array = flatten(y_array)
         self.counts = len(self.x_array)
-        self.weights = np.ones((self.counts,)) if weights is None else weights
+
+        
+        if weights is not None:
+            self.weights = flatten(weights)
+            if self.weights.shape != self.x_array.shape:
+                self.weights = flatten(ak.ones_like(x_array)*weights)
+        else:
+            self.weights= np.ones((self.counts,))
+
         self.ndata = self.counts if weights is None else weights.sum()
 
         self.x_bins = autobin(self.x_array, bins=x_bins, nbins=nbins)
@@ -126,6 +134,7 @@ class Histo2D:
 
         self.label = kwargs.get('label', None)
         self.kwargs = kwargs
+        self.kwargs['cmap'] = kwargs.get('cmap', 'YlOrRd' if not self.is_bkg else 'YlGnBu')
         self.set_label(label_stat)
     
     def set_label(self, label_stat='events'):
@@ -189,3 +198,41 @@ class Histo2D:
 
         corr = np.array([ _get_bin_avg_(lo,hi) for lo,hi in zip(self.y_bins[:-1], self.y_bins[1:]) ])
         return Graph(corr[:,0], get_bin_centers(self.y_bins), xerr=corr[:,1], order='y', color='grey', **kwargs)
+
+class Histo2DList(ObjIter):
+    def __init__(self, x_arrays, y_arrays, x_bins=None, y_bins=None, **kwargs):
+        attrs = AttrArray(x_arrays=x_arrays, y_arrays=y_arrays,**kwargs)
+        kwargs = attrs[attrs.fields[1:]]
+        
+        x_multi_binned = isinstance(x_bins, list)
+        y_multi_binned = isinstance(y_bins, list)
+    
+        histo2dlist = []
+        for i,(x_array, y_array) in enumerate(zip(x_arrays, y_arrays)):
+            _x_bins = x_bins[i] if x_multi_binned else x_bins
+            _y_bins = y_bins[i] if y_multi_binned else y_bins
+
+            histo2d = Histo2D(x_array, y_array,x_bins=_x_bins, y_bins=_y_bins, **{ key:value[i] for key,value in kwargs.items() })
+            if x_bins is None: x_bins = histo2d.x_bins
+            if y_bins is None: y_bins = histo2d.y_bins
+            histo2dlist.append(histo2d)
+        super().__init__(histo2dlist)
+
+class Data2DList(Histo2DList):
+    def __init__(self, x_arrays, y_arrays, x_bins=None, y_bins=None, histtype=None, **kwargs):
+        super().__init__(x_arrays, y_arrays, x_bins=x_bins, y_bins=y_bins,**kwargs)
+
+class Stack2D(Histo2D):
+    def __init__(self, x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None, label_stat='events', **kwargs):
+        if isinstance(label_stat, list): label_stat = label_stat[0]
+
+        x_array = ak.concatenate(x_arrays, axis=0)
+        y_array = ak.concatenate(y_arrays, axis=0)
+        if isinstance(weights, list): 
+            weights = ak.concatenate(weights) if any(weight is not None for weight in weights) else None
+
+        kwargs['color'] = kwargs.get('color','grey')
+        kwargs['label'] = kwargs.get('label','MC-Bkg')
+        kwargs = { key:value[0] if isinstance(value, list) else value for key, value in kwargs.items() }
+
+        super().__init__(x_array, y_array, x_bins=x_bins, y_bins=y_bins, weights=weights, label_stat=label_stat, **kwargs)

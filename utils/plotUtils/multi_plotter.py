@@ -1,22 +1,20 @@
-from numpy import correlate
 from ..classUtils.AttrArray import AttrArray
 from .better_plotter import * 
 from .histogram import * 
 from .graph import * 
 from .model import *
 from .function import *
+from .extension import obj_store
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-import matplotlib.colors as mcolors
-import itertools 
 
+def group_kwargs(prefix, **kwargs):
+    grouped_kwargs = { key[len(prefix):]:value for key,value in kwargs.items() if key.startswith(prefix) }
+    remaining_kwargs = { key:value for key,value in kwargs.items() if not key.startswith(prefix) }
+    return grouped_kwargs, remaining_kwargs
 
 def _configure_kwargs(**kwargs):
     # --- Configure kwargs ---
 
-    def group_kwargs(prefix, **kwargs):
-        grouped_kwargs = { key[len(prefix):]:value for key,value in kwargs.items() if key.startswith(prefix) }
-        remaining_kwargs = { key:value for key,value in kwargs.items() if not key.startswith(prefix) }
-        return grouped_kwargs, remaining_kwargs
 
     o_kwargs, kwargs = group_kwargs('o_', **kwargs)
     h_kwargs, kwargs = group_kwargs('h_', **kwargs)
@@ -37,30 +35,28 @@ def _configure_kwargs(**kwargs):
         remaining=kwargs
     )
 
-def _add_new_axis(ax, size='20%', sharex=True, pad=0.1, **kwargs):
+def _add_new_axis(ax, position='bottom', size='20%', sharex=True, sharey=False, pad=0.1, **kwargs):
     if not hasattr(ax, 'divider'): 
         ax.divider = make_axes_locatable(ax)
         sub_ax = ax
     else:
         prev = ax.sub_ax if hasattr(ax, 'sub_ax') else ax
         if sharex: prev.get_xaxis().set_visible(0)
-        sub_ax = ax.divider.append_axes("bottom", size=size, pad=pad, sharex=prev if sharex else None, **kwargs)
+        sub_ax = ax.divider.append_axes(position, size=size, pad=pad, sharex=prev if sharex else None, sharey=prev if sharey else None, **kwargs)
         ax.sub_ax = sub_ax
 
     return ax, sub_ax
 
 def _flatten_plotobjs(plotobjs):
     # -- Flatten PlotObjs to primitive Histo/Stack type
-    histobjs = []
     for plotobj in plotobjs:
         if isinstance(plotobj, Stack):
-            histobjs.append(plotobj)
+            yield plotobj 
         elif isinstance(plotobj, HistoList) or isinstance(plotobj, GraphList):
             for obj in plotobj:
-                histobjs.append(obj)
+                yield obj
         else:
-            histobjs.append(plotobj)
-    return histobjs
+            yield plotobj
                 
 def _group_objs(histobjs):
     # default group
@@ -96,11 +92,12 @@ def _plot_objects(figax, plotobjs, size='20%', sharex=True, pad=0.1, errors=True
 
     format_axes(sub_ax, **kwargs)
 
-class obj_store:
-    def __init__(self, plotobjs):
-        self.objs = _flatten_plotobjs(plotobjs)
-    def __getitem__(self, key): return self.objs[key]
-    def __iter__(self): return iter(self.objs)
+def _store_objects(store, plotobjs):
+    if store is None: return
+
+    store.append(
+        [ obj for obj in _flatten_plotobjs(plotobjs) ]
+    )
 
 def _add_histo(figax, plotobjs, store=None, size='50%', sharex=False, pad=0.6, errors=True, xlabel=None, density=False, cumulative=False, efficiency=False, **kwargs):
     # --- Configure kwargs ---
@@ -113,11 +110,11 @@ def _add_histo(figax, plotobjs, store=None, size='50%', sharex=False, pad=0.6, e
         return plotobj
 
     histos = [ _to_histo_(plotobj) for plotobj in plotobjs ]
-    store.histos = obj_store(histos)
+    _store_objects(store, histos)
 
     _plot_objects(figax, histos,  size=size, sharex=sharex, pad=pad, xlabel=xlabel, errors=errors, density=density, cumulative=cumulative, efficiency=efficiency, **kwargs['remaining'])
 
-def _add_limits(figax, plotobjs, xy=(0.05,0.95), xycoords='axes fraction', **kwargs):
+def _add_limits(figax, plotobjs, xy=(0.05,0.95), xycoords='axes fraction', poi=np.linspace(0,2,21), saveas=None, **kwargs):
     # --- Configure kwargs ---d
     kwargs = _configure_kwargs(**kwargs)
 
@@ -129,10 +126,14 @@ def _add_limits(figax, plotobjs, xy=(0.05,0.95), xycoords='axes fraction', **kwa
         elif plotobj.is_bkg:    h_bkgs.append(plotobj)
         elif plotobj.is_data:   h_data = plotobj
 
-    models = [ Model(h_sig, h_bkgs, h_data) for h_sig in h_sigs ]        
+    models = [ Model(h_sig, h_bkgs, h_data) for h_sig in h_sigs ]       
+
     for model in models:
-        model.upperlimit()
+        model.upperlimit(poi=poi)
         model.h_sig.set_label('exp_lim')
+        
+    if saveas:
+        model.export_to_root(saveas=saveas)
 
     
 def _add_ratio(figax, plotobjs, store=None, show=True, ylim=(0.1, 1.9), ylabel=None, size='20%', sharex=True, grid=True, inv=False, group=None, method=None, label_stat=None, num_transform=None, den_transform=None, histo=False, **kwargs):
@@ -149,7 +150,7 @@ def _add_ratio(figax, plotobjs, store=None, show=True, ylim=(0.1, 1.9), ylabel=N
     # kwargs['obj']['marker'] = kwargs['obj'].get('marker','o')
     
     # -- Flatten PlotObjs to primitive Histo/Stack type
-    histobjs = _flatten_plotobjs(plotobjs)
+    histobjs = list(_flatten_plotobjs(plotobjs))
     if group is None: # default group
         group = _group_objs(histobjs)
     
@@ -179,11 +180,12 @@ def _add_ratio(figax, plotobjs, store=None, show=True, ylim=(0.1, 1.9), ylabel=N
             if ratio is None: continue
             ratios.append(ratio)
 
+    _store_objects(store, ratios)
+
     if (show):
         _plot_objects(figax, ratios, size=size, sharex=sharex, **kwargs['remaining'])
 
-    store.ratios = obj_store(ratios)
-    _multi_driver(plotobjs, kwargs, store=store.ratios, figax=figax, histo=histo)
+    _multi_driver(plotobjs, kwargs, figax=figax, histo=histo)
 
 def _add_difference(figax, plotobjs, store=None, show=True, ylim=None, ylabel=None, size='20%', sharex=True, grid=True, inv=False, method=None, label_stat=None, group=None, histo=False, **kwargs):    
     # --- Configure kwargs ---
@@ -213,7 +215,7 @@ def _add_difference(figax, plotobjs, store=None, show=True, ylim=None, ylabel=No
     # kwargs['obj']['marker'] = kwargs['obj'].get('marker','o')
     
     # -- Flatten PlotObjs to primitive Histo/Stack type
-    histobjs = _flatten_plotobjs(plotobjs)
+    histobjs = list(_flatten_plotobjs(plotobjs))
     if group is None: # default group
         group = _group_objs(histobjs)
     
@@ -243,11 +245,12 @@ def _add_difference(figax, plotobjs, store=None, show=True, ylim=None, ylabel=No
             if difference is None: continue
             differences.append(difference)
 
+    _store_objects(store, differences)
+
     if (show): 
         _plot_objects(figax, differences, size=size, sharex=sharex, **kwargs['remaining'])
 
-    store.differences = obj_store(differences)
-    _multi_driver(plotobjs, kwargs, store=store.differences, figax=figax, histo=histo)
+    _multi_driver(plotobjs, kwargs, figax=figax, histo=histo)
 
 def _add_empirical(figax, plotobjs, store=None, show=True, ylim=(0,1.05), ylabel=None, size='20%', sharex=True, grid=True, inv=False, sf=False, label_stat=None, difference=False, correlation=False, **kwargs):    
     # --- Configure kwargs ---
@@ -273,19 +276,18 @@ def _add_empirical(figax, plotobjs, store=None, show=True, ylim=(0,1.05), ylabel
     if difference or correlation: size = "50%"
     
     # -- Flatten PlotObjs to primitive Histo/Stack type
-    histobjs = _flatten_plotobjs(plotobjs)
+    histobjs = list(_flatten_plotobjs(plotobjs))
 
     def _get_ecdf(plotobj):
         if isinstance(plotobj, Stack): plotobj = plotobj.get_histo()
-        args, kwargs = plotobj.ecdf(sf=sf)
-        return Graph(*args, **kwargs)
+        return plotobj.ecdf(sf=sf)
         
     empiricals = [ _get_ecdf(hist) for hist in histobjs ]
+    _store_objects(store, empiricals)
+
     if (show): 
         _plot_objects(figax, empiricals, size=size, sharex=sharex, **kwargs['remaining'])
-
-    store.empiricals = obj_store(empiricals)
-    _multi_driver(empiricals, kwargs, store=store.empiricals, figax=figax, difference=difference, correlation=correlation)
+    _multi_driver(empiricals, kwargs, figax=figax, difference=difference, correlation=correlation)
     
 def _add_correlation(figax,plotobjs, store=None,show=True,size='75%', grid=True, inv=False, group=None, legend=True, method=None, label_stat=None, **kwargs):
 
@@ -303,7 +305,7 @@ def _add_correlation(figax,plotobjs, store=None,show=True,size='75%', grid=True,
         }.get(method, None)
     
     # -- Flatten PlotObjs to primitive Histo/Stack type
-    histobjs = _flatten_plotobjs(plotobjs)
+    histobjs = list(_flatten_plotobjs(plotobjs))
     if group is None: # default group
         group = _group_objs(histobjs)
     
@@ -330,24 +332,24 @@ def _add_correlation(figax,plotobjs, store=None,show=True,size='75%', grid=True,
             correlation = _plotobj_correlation(y, x)
             if correlation is None: continue
             correlations.append(correlation)
+    _store_objects(store, correlations)
             
     if (show):
         _plot_objects(figax, correlations, size=size, sharex=False, pad=0.5, legend=legend, **kwargs['remaining'])
 
-    store.correlation = obj_store(correlations)
-    _multi_driver(plotobjs, kwargs, store=store.correlation, figax=figax)
+    _multi_driver(plotobjs, kwargs, figax=figax)
 
-def _multi_driver(plotobjs, kwargs, store=None, histo=False, ratio=False, difference=False, empirical=False, correlation=False, figax=None):
+def _multi_driver(plotobjs, kwargs, histo=False, ratio=False, difference=False, empirical=False, correlation=False, figax=None):
     fig, ax = get_figax(figax)
 
-    if (histo): _add_histo((fig,ax),plotobjs, store=store, **kwargs['hist'])
-    if (ratio): _add_ratio((fig,ax), plotobjs, store=store, **kwargs['ratio'])
-    if (difference): _add_difference((fig,ax),plotobjs, store=store, **kwargs['difference'])
-    if (empirical): _add_empirical((fig,ax), plotobjs, store=store, **kwargs['empirical'])
-    if (correlation): _add_correlation((fig,ax), plotobjs, store=store, **kwargs['correlation'])
+    if (histo): _add_histo((fig,ax),plotobjs, **kwargs['hist'])
+    if (ratio): _add_ratio((fig,ax), plotobjs, **kwargs['ratio'])
+    if (difference): _add_difference((fig,ax),plotobjs, **kwargs['difference'])
+    if (empirical): _add_empirical((fig,ax), plotobjs, **kwargs['empirical'])
+    if (correlation): _add_correlation((fig,ax), plotobjs, **kwargs['correlation'])
 
 def hist_multi(arrays, bins=None, weights=None, density = False, efficiency=False,
-                cumulative=False, scale=None, lumi=None,
+                cumulative=False, scale=None, lumi=None, store=None,
                 is_data=False, is_signal=False, is_model=False, stacked=False, stack_fill=False,
                 histo=True, ratio=False, correlation=False, difference=False, empirical=False, limits=False, 
                 figax=None, **kwargs):
@@ -389,18 +391,12 @@ def hist_multi(arrays, bins=None, weights=None, density = False, efficiency=Fals
         bins = histos[0].bins
         plotobjs.append(histos)
         
-    store = obj_store(plotobjs)
+        
     if (limits): 
         _add_limits((fig,ax), plotobjs, **kwargs['limits'])
+    _store_objects(store, plotobjs)
 
     if (histo): _plot_objects((fig,ax), plotobjs, **kwargs['remaining'])
-    _multi_driver(plotobjs, kwargs, store=store, histo=False, ratio=ratio, difference=difference, empirical=empirical, correlation=correlation, figax=(fig,ax))
+    _multi_driver(plotobjs, kwargs, histo=False, ratio=ratio, difference=difference, empirical=empirical, correlation=correlation, figax=(fig,ax))
 
-    ax.store = store
     return fig, ax
-
-def hist2d_simple(x_array, y_array, 
-                is_data=False, is_signal=False, is_model=False,
-                stacked=False, ratio=False,
-                figax=None, **kwargs):
-    return histo2d_arrays(x_array,y_array, figax=figax, **kwargs)

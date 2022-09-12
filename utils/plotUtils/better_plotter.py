@@ -3,10 +3,6 @@ import matplotlib.colors as clrs
 import matplotlib.pyplot as plt
 import numpy as np
 
-plt.style.use(['science','no-latex'])
-plt.rcParams["figure.figsize"] = (6.5,6.5)
-plt.rcParams['font.size'] =  15
-
 from ..utils import get_bin_centers, get_bin_widths, get_bin_line
 from .histogram import Histo, HistoList, Stack
 from .histogram2d import Histo2D
@@ -131,7 +127,7 @@ def graph_histos(histos, figax=None, exe=None, **kwargs):
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
     
-def plot_histo(histo, errors=True, fill_error=False, fit_show=False, figax=None, exe=None, **kwargs):
+def plot_histo(histo, errors=True, fill_error=False, figax=None, exe=None, **kwargs):
     fig, ax = get_figax(figax=figax)
     if histo.continous: 
         return graph_histo(histo, errors=errors, figax=(fig,ax), **kwargs)
@@ -217,7 +213,7 @@ def plot_stack(stack, figax=None, fill_error=False, exe=None, **kwargs):
 
         if not fill_error:
             ax.errorbar(bin_centers, histo_sum, yerr=error,
-                        fmt='none', color='grey', capsize=1)
+                        fmt='none', color='black', capsize=1)
         else:
             for nstd in range(1, int(fill_error)+1 ):
                 ax.fill_between(bin_centers, histo_sum-nstd*error, histo_sum+nstd*error, color='grey', alpha=0.25/nstd, step='mid')
@@ -287,91 +283,6 @@ def array_ratio(arrays, bins=None, weights=None, density = False,
     
     histolist = HistoList(arrays, bins=bins,weights=weights,**hist_kwargs)
     histo_ratio(histolist,figax=(fig,ax), ylabel=ylabel, **kwargs)
-    
-    return fig,ax
-
-def plot_histo2d(histo2d, figax=None, cmap="YlOrRd", show_counts=False, log=False, alpha=None, cmin=None, contour=False, exe=None, **kwargs):
-    """Plot 2D histogram
-
-    Args:
-        histo2d (Histo2D): 2D Histogram to plot
-        figax ((plt.fig,plt.ax), optional): Tuple of figure and axes to draw to. Defaults to None.
-        cmap (str, optional): Color of histogram. Defaults to "YlOrRd".
-        show_counts (bool, optional): Draw each bin count on plot. Defaults to False.
-        log (bool, optional): Set z axis to log. Defaults to False.
-
-    Returns:
-        figax: Tuple of figure and axes
-    """
-    fig, ax = get_figax(figax=figax)
-
-    from matplotlib.colors import LogNorm
-    from matplotlib.ticker import LogLocator
-
-    if contour:
-        # x = get_bin_centers(histo2d.x_bins)
-        # y = get_bin_centers(histo2d.y_bins)
-
-        x = get_bin_line(histo2d.x_bins)
-        y = get_bin_line(histo2d.y_bins)
-
-        Z = np.log(histo2d.histo2d) if log else histo2d.histo2d
-        container = ax.contourf( x, y, Z, cmap=cmap, vim=cmin, alpha=alpha)
-    else:
-        container = ax.pcolor(histo2d.x_bins, histo2d.y_bins, histo2d.histo2d, cmap=cmap, vmin=cmin, alpha=alpha, norm=LogNorm() if log else None)
-
-    # n, bx, by, im = ax.hist2d(histo2d.x_array, histo2d.y_array, (histo2d.x_bins, histo2d.y_bins), weights=histo2d.weights,
-    #                                     norm=clrs.LogNorm() if log else clrs.Normalize(), cmap=cmap, alpha=alpha, cmin=cmin)
-    
-    n = histo2d.histo2d 
-    bx = histo2d.x_bins
-    by = histo2d.y_bins
-
-    if show_counts:
-        for i,(bx_lo,bx_hi) in enumerate(zip(bx[:-1],bx[1:])):
-            for j,(by_lo,by_hi) in enumerate(zip(by[:-1],by[1:])):
-                ax.text((bx_hi+bx_lo)/2,(by_hi+by_lo)/2,f'{n[i,j]:0.2}',ha="center", va="center", fontweight="bold")
-                
-    if histo2d.kwargs.get('label',None):
-        ax.text(0.05, 1.01, f"{histo2d.label} ({histo2d.stats.nevents:0.2e})", transform=ax.transAxes)
-                
-    fig.colorbar(container, ax=ax)
-
-    if exe: execute(**locals())
-    if any(kwargs): format_axes(ax, is_2d=True, **kwargs)
-    return fig,ax
-
-def histo2d_arrays(x_array, y_array, x_bins=None, y_bins=None, weights=None, density = False, 
-                cumulative=False, scale=None, lumi=None, efficiency=False,
-                figax=None, **kwargs):
-    """Plot 2D histogram
-
-    Args:
-        x_array (array): Array for x axis histogram
-        y_array (array): Array for y axis histogram
-        x_bins (array, optional): Bins for x axis. Defaults to None.
-        y_bins (array, optional): Bins for y axis. Defaults to None.
-        weights (array, optional): Weights for both x and y arrays. Defaults to None.
-        density (bool, optional): Normalize histogram to 1. Defaults to False.
-        cumulative (bool, optional): _description_. Defaults to False.
-        scale (scales, optional): Value to scale the weights by. Defaults to None.
-        lumi (lumikey, optional): Luminosity to scale each histogram by, if reconginized lumikey will use corresponding luminosity (2018 -> 59.7 fb...). Defaults to None.
-        figax ((plt.fig,plt.ax), optional): Tuple of the figure and axes to draw to. Defaults to None.
-
-    Returns:
-        figax: Tuple of figure and axes
-    """
-    fig, ax = get_figax(figax=figax)
-    
-    # --- Configure kwargs ---
-    ext_kwargs = dict(density=density,cumulative=cumulative,efficiency=efficiency,scale=scale, lumi=lumi)
-    hist_kwargs = { key[2:]:value for key,value in kwargs.items() if key.startswith('h_') }
-    hist_kwargs.update(ext_kwargs)
-    kwargs = { key:value for key,value in kwargs.items() if not key.startswith('h_') }
-    kwargs.update(ext_kwargs)
-    
-    histo2d = Histo2D(x_array,y_array, x_bins=x_bins, y_bins=y_bins,weights=weights,**hist_kwargs)
-    plot_histo2d(histo2d, figax=(fig,ax), **kwargs)
     
     return fig,ax
 

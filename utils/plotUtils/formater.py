@@ -1,6 +1,11 @@
 import warnings
 warnings.filterwarnings("ignore")
 
+def group_kwargs(prefix, **kwargs):
+    grouped_kwargs = { key[len(prefix):]:value for key,value in kwargs.items() if key.startswith(prefix) }
+    remaining_kwargs = { key:value for key,value in kwargs.items() if not key.startswith(prefix) }
+    return grouped_kwargs, remaining_kwargs
+
 def _set_text(ax, text=None, text_style=None, **kwargs):
     if text is not None:
         style = dict(transform=ax.transAxes, va="center")
@@ -15,8 +20,10 @@ def _set_rescale(ax, **kwargs):
     return kwargs
 
 def _set_legend(ax, legend=False, legend_loc='upper left', is_2d=False, **kwargs):
+    legend_kwargs, kwargs = group_kwargs('legend_', **kwargs)
+
     if legend: 
-        ax.legend(loc=legend_loc)
+        ax.legend(loc=legend_loc, **legend_kwargs)
     return kwargs
 
 def _get_ylabel(density=False, cumulative=False, efficiency=False, scale=None):
@@ -41,12 +48,12 @@ def _get_ylim(ax, yscale=None, log=False, is_2d=False):
     if is_2d: return ax.get_ylim()
     ymin,ymax = ax.get_ylim()
     if yscale is None:
-        yscale = (0.1,10) if log else (0,1.5)
+        yscale = (0.1,100) if log else (0,1.5)
     ymin_scale,ymax_scale = yscale
     return ( min(ymax_scale*ymin,ymin_scale*ymin), max(ymin_scale*ymax,ymax_scale*ymax) )
 
-def _set_ylim(ax, yscale=None, log=False, is_2d=False, **kwargs):
-    ylim = kwargs.get('ylim',_get_ylim(ax, yscale, log, is_2d))
+def _set_ylim(ax, yscale=None, log=False, logy=False, is_2d=False, **kwargs):
+    ylim = kwargs.get('ylim',_get_ylim(ax, yscale, log or logy, is_2d))
     if ylim is None: ylim = ax.get_ylim()
     
     ylo, yhi = ylim
@@ -54,7 +61,7 @@ def _set_ylim(ax, yscale=None, log=False, is_2d=False, **kwargs):
     if yhi is None: yhi = ax.get_ylim()[1]
 
     kwargs['ylim'] = (ylo, yhi)
-    if log: ax.set_yscale('log')
+    if log or logy: ax.set_yscale('log')
     return kwargs
 
 def _set_xlabel(ax, xlabel=None, **kwargs):
@@ -65,6 +72,11 @@ def _set_xlabel(ax, xlabel=None, **kwargs):
     ax.set_xticks(range(len(xlabel)))
     rotation = -45 if isinstance(xlabel[0],str) else 0
     ax.set_xticklabels(xlabel, rotation=rotation)
+    return kwargs
+
+def _set_xlim(ax, logx=False, **kwargs):
+    if logx: ax.set_xscale('log')
+
     return kwargs
 
 def _set_grid(ax, grid=False, **kwargs):

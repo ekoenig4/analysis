@@ -252,8 +252,22 @@ class Ratio(Graph):
         if callable(num_transform): num_y = num_transform(num_y)
         if callable(den_transform): den_y = den_transform(den_y)
 
+        
+        if method == 'sumd':
+            den_y = num_y + den_y
+            den_yerr = np.sqrt(num_yerr**2 + den_yerr**2)
+
+        if method == 'rootd':
+            den_y = np.sqrt(den_y)
+            den_yerr = 0.5*(den_yerr/den_y)
+
         ratio = safe_divide(num_y, den_y, np.nan)
         error = ratio * np.sqrt( safe_divide(num_yerr, num_y, np.nan)**2 + safe_divide(den_yerr, den_y, np.nan)**2 )
+
+
+            # r_mean = np.sum(num_y)/np.sqrt( np.sum(den_y) )
+            # ratio /= r_mean
+            # error /= r_mean
 
         if method == 'g-test':
             error = np.abs(error/ratio)
