@@ -1,3 +1,5 @@
+from .. import study
+
 def get_studies(signals, bkgs, modules):
   use_bkg = any((any(bkg) for bkg in bkgs))
   h_linestyle = [':','--','-'] if len(modules) == 3 else [':','-']
@@ -24,7 +26,7 @@ def get_studies(signals, bkgs, modules):
     if not bkg: return
 
     study.quick_region(
-      *bkgs, legend=True,
+      *bkgs, legend=True, stacked=False,
       h_color=['grey']*3,
       label=label,
       h_linestyle=h_linestyle,
@@ -54,7 +56,7 @@ def get_studies(signals, bkgs, modules):
         text=(0.0,1.0, label[i]),
         text_style=dict(ha='left',va='bottom'),
         efficiency=efficiency,
-        figax=(fig,axs),
+        figax=(fig,ax),
         **kwargs,
       )
   return compare_modules, compare_samples

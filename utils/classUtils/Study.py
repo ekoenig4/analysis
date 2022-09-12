@@ -1,11 +1,12 @@
 from datetime import date
-import os, re
+import os
+import re
 from inspect import signature
 
 from ..utils import *
 from ..testUtils import is_iter
 from ..varConfig import varinfo
-from ..classUtils import TreeIter,ObjIter
+from ..classUtils import TreeIter, ObjIter
 
 date_tag = date.today().strftime("%Y%m%d")
 
@@ -27,37 +28,48 @@ def save_fig(fig, directory, saveas, base=GIT_WD):
     fig.savefig(f"{outfn}.png", format="png", dpi=400)
     # fig.savefig(f"{outfn}.png", format="png")
 
-def format_var(var, bins=None, xlabel=None):
-    if hasattr(var, '__name__'): xlabel = var.__name__
-    if hasattr(var, 'xlabel'): xlabel = var.xlabel
-    if hasattr(var, 'bins'): bins = var.bins
 
+def format_var(var, bins=None, xlabel=None):
     info = varinfo.find(var)
-    if bins is None and info:
-        bins = info.bins
+    if info and bins is None:
+        bins = info.get('bins', None)
     if info and xlabel is None:
-        xlabel = info.get('xlabel',var)
-    if xlabel is None: xlabel = var
+        xlabel = info.get('xlabel', var)
+    if xlabel is None:
+        xlabel = var
+
+    if isinstance(xlabel, str) and any(re.findall(r'\[.*\]', xlabel)):
+        slice = re.findall(r'\[.*\]', xlabel)[0]
+        place = int(next(idx for idx in slice[1:-1].split(',') if idx != ':'))
+        xlabel = f'{ordinal(place+1)} {xlabel.replace(slice,"")}'
+
     return bins, xlabel
 
+
 def _scale_items(self, items):
-    def scale_item(item,selection,mask):
-        if mask is None: return item 
-        if callable(mask): mask = mask(selection)
-        if isinstance(mask, str): mask = selection[mask]
+    def scale_item(item, selection, mask):
+        if mask is None:
+            return item
+        if callable(mask):
+            mask = mask(selection)
+        if isinstance(mask, str):
+            mask = selection[mask]
         return mask*item
 
     if callable(self.scales):
-        items = [ scale_item(item, selection, self.scales) for item, selection in zip(
+        items = [scale_item(item, selection, self.scales) for item, selection in zip(
             items, self.selections)]
     else:
-        items = [ scale_item(item,selection,mask) for item, selection, mask in zip(items, self.selections,self.scales)]
+        items = [scale_item(item, selection, mask) for item, selection, mask in zip(
+            items, self.selections, self.scales)]
     return items
 
-def _index_items(self,items):
-    def index_item(item,selection,mask):
-        if mask is None: return item 
-        if callable(mask): 
+
+def _index_items(self, items):
+    def index_item(item, selection, mask):
+        if mask is None:
+            return item
+        if callable(mask):
             sign = signature(mask)
             if len(sign.parameters) == 1:
                 mask = mask(selection)
@@ -67,40 +79,49 @@ def _index_items(self,items):
         return item[mask]
 
     if callable(self.indicies):
-        items = [ index_item(item, selection, self.indicies) for item, selection in zip(
+        items = [index_item(item, selection, self.indicies) for item, selection in zip(
             items, self.selections)]
     else:
-        items = [ index_item(item,selection,mask) for item, selection, mask in zip(items, self.selections,self.indicies)]
+        items = [index_item(item, selection, mask) for item, selection, mask in zip(
+            items, self.selections, self.indicies)]
     return items
 
-def _mask_items(self,items):
-    def mask_item(item,selection,mask):
-        if mask is None: return item 
-        if callable(mask): mask = mask(selection)
-        if item is 'n_mask': item = ak.sum(mask, axis=-1)
+
+def _mask_items(self, items):
+    def mask_item(item, selection, mask):
+        if mask is None:
+            return item
+        if callable(mask):
+            mask = mask(selection)
+        if item is 'n_mask':
+            item = ak.sum(mask, axis=-1)
 
         if ak.count(item) == ak.count(mask):
             return item[mask]
         return item
 
     if callable(self.masks):
-        items = [ mask_item(item, selection, self.masks) for item, selection in zip(
+        items = [mask_item(item, selection, self.masks) for item, selection in zip(
             items, self.selections)]
     else:
-        items = [ mask_item(item,selection,mask) for item, selection, mask in zip(items, self.selections,self.masks)]
+        items = [mask_item(item, selection, mask) for item, selection, mask in zip(
+            items, self.selections, self.masks)]
     return items
 
-def _transform_items(self,items):
+
+def _transform_items(self, items):
     if callable(self.transforms):
-        items = [ self.transforms(item) for item, selection in zip(
+        items = [self.transforms(item) for item, selection in zip(
             items, self.selections)]
     else:
-        items = [ transform(item) if transform is not None else item for item, transform in zip(items, self.transforms)]
+        items = [transform(item) if transform is not None else item for item,
+                 transform in zip(items, self.transforms)]
     return items
-    
+
 
 class Study:
-    def __init__(self, selections, label=None, density=0, log=0, ratio=0, stacked=0, lumi=2018, sumw2=True, title=None, saveas=None, masks=None, transforms=None, indicies=None, return_figax=False, return_store=False, scale=None, **kwargs):
+    def __init__(self, selections, label=None, density=0, log=0, ratio=0, stacked=0, lumi=2018, sumw2=True, title=None,
+                 saveas=None, masks=None, transforms=None, indicies=None, return_figax=False, return_store=False, scale=None, **kwargs):
         if str(type(selections)) == str(TreeIter):
             selections = selections.trees
         elif str(type(selections)) == str(ObjIter):
@@ -132,24 +153,27 @@ class Study:
             h_sumw2=sumw2,
             **kwargs,
         )
-        
+
         self.title = title
         self.saveas = saveas
         self.return_figax = return_figax
         self.return_store = return_store
 
     def get(self, key, transform=True, indicies=True, scale=False):
-        def _get_item(selection,key, ie=None):
-            if key == 'n_mask': return 'n_mask'
-            if callable(key): return key(selection)
+        def _get_item(selection, key, ie=None):
+            if key == 'n_mask':
+                return 'n_mask'
+            if callable(key):
+                return key(selection)
             slice = None
-            if any(re.findall(r'\[.*\]',key)):
-                slice = re.findall(r'\[.*\]',key)[0]
+            if any(re.findall(r'\[.*\]', key)):
+                slice = re.findall(r'\[.*\]', key)[0]
                 key = key.replace(slice, "")
             item = selection[key]
-            if slice is not None: item = eval(f'item{slice}',{'item':item})
+            if slice is not None:
+                item = eval(f'item{slice}', {'item': item})
             return item
-        items = [_get_item(selection,key) for selection in self.selections]
+        items = [_get_item(selection, key) for selection in self.selections]
         if scale and self.scales is not None:
             items = _scale_items(self, items)
         if indicies and self.indicies is not None:
@@ -162,7 +186,8 @@ class Study:
 
     def get_scale(self, hists):
         scales = self.get('scale', transform=False, indicies=False, scale=True)
-        scales =  [ak.ones_like(hist) * scale for scale, hist in zip(scales, hists)]
+        scales = [ak.ones_like(hist) * scale for scale,
+                  hist in zip(scales, hists)]
         # scales =  [scale for scale, hist in zip(scales, hists)]
         return scales
 

@@ -66,7 +66,8 @@ def get_batch_ranges(total, batch_size):
 def init_attr(attr, init, size):
     if attr is None:
         return [init]*size
-    attr = list(attr)
+    if not isinstance(attr, list):
+        attr = [attr]
     return (attr + size*[init])[:size]
 
 

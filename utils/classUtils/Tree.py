@@ -126,6 +126,8 @@ def init_tree(self, use_gen=False, cache=None):
     self.cutflow = [ak.fill_none(ak.pad_none(
         fn.cutflow, ncutflow, axis=0, clip=True), 0).to_numpy() for fn in self.filelist]
 
+    self.systematics = None
+
 
 def init_selection(self):
     self.all_events_mask = ak.Array([True]*self.raw_events)
@@ -156,7 +158,7 @@ def _regex_field(self, regex):
     return item
 
 class Tree:
-    def __init__(self, filelist, allow_empty=False, use_gen=True, cache=None):
+    def __init__(self, filelist, allow_empty=False, use_gen=False, cache=None):
 
         init_files(self, filelist)
 
@@ -192,6 +194,20 @@ class Tree:
     def extend(self, *args, **kwargs):
         self.ttree = join_fields(self.ttree, *args, **kwargs)
         self.fields = self.ttree.fields
+
+    def reweight(self, rescale):
+        if callable(rescale): rescale = rescale(self)
+        if '_scale' not in self.fields:
+            self.extend(_scale=self.scale)
+        self.extend(scale=rescale*self.scale)
+
+    def set_systematics(self, systematics):
+        if not isinstance(systematics, list): systematics = [systematics]
+        self.systematics = systematics
+
+    def add_systematic(self, systematic):
+        if self.systematics is None: self.systematics = []
+        self.systematics.append(systematic)
 
     def copy(self):
         new_tree = CopyTree(self)

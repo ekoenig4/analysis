@@ -3,9 +3,12 @@
 
 from .studyUtils import *
 from ..plotUtils.plotUtils import graph_multi, boxplot_multi,  plot_barrel_display, plot_endcap_display
-from ..plotUtils.multi_plotter import hist_multi,hist2d_simple
+from ..plotUtils.multi_plotter import hist_multi
+from ..plotUtils.multi_plotter_2d import hist2d_simple, hist2d_multi
 from ..selectUtils import *
-from ..classUtils.Study import Study, save_fig, format_var
+# from ..classUtils.Study import Study, save_fig, format_var
+from ..classUtils.Study import save_fig, format_var
+from .study_args import _study_args as Study
 from ..varConfig import varinfo
 from ..utils import loop_iter
 
@@ -50,7 +53,7 @@ def get_figax(nvar=1, dim=(-1,-1), flip=False, size=(-1,-1)):
                         dpi=80)
 
 def cutflow(*args, size=(16, 8), log=1, h_label_stat=None,scale=True,density=False,lumi=2018, **kwargs):
-    study = Study(*args, sumw2=False, log=log,
+    study = Study(*args, h_sumw2=False, log=log,
                   h_label_stat=h_label_stat,scale=scale,lumi=lumi, **kwargs)
     def get_scaled_cutflow(tree): return ak.Array(
         [cutflow*(fn.scale if scale else 1) for cutflow, fn in zip(tree.cutflow, tree.filelist)])
@@ -99,16 +102,14 @@ def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False,
     for i, (var, bins, xlabel) in enumerate(varlist):
         if var is None: continue
 
-        bins, xlabel = study.format_var(var, bins, xlabel)
+        bins, xlabel = format_var(var, bins, xlabel)
         hists = study.get(var)
         weights = study.get_scale(hists)
 
-        if ncols == 1 and nrows == 1:
+        if not isinstance(axs, np.ndarray):
             ax = axs
-        elif bool(ncols > 1) != bool(nrows > 1):
-            ax = axs[i]
         else:
-            ax = axs[i//ncols, i % ncols]
+            ax = axs.flat[i]
 
         boxplot_multi(hists, bins=bins, xlabel=xlabel,
                       weights=weights, **study.attrs, figax=(fig, ax))
@@ -140,18 +141,16 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-
     fig, axs = figax
 
     for i, (var, bins, xlabel) in tqdm(enumerate(varlist),total=nvar):
-        if ncols == 1 and nrows == 1:
+        if not isinstance(axs, np.ndarray):
             ax = axs
-        elif bool(ncols > 1) != bool(nrows > 1):
-            ax = axs[i]
         else:
-            ax = axs[i//ncols, i % ncols]
+            ax = axs.flat[i]
             
         if var is None: 
             ax.set_visible(False)
             continue
         
-        bins, xlabel = study.format_var(var, bins, xlabel)
+        bins, xlabel = format_var(var, bins, xlabel)
         hists = study.get(var)
         weights = study.get_scale(hists)
         hist_multi(hists, bins=bins, xlabel=xlabel,
@@ -190,12 +189,10 @@ def overlay(tree, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1), xlabels=N
         # if labels is None:
         #     study.attrs['labels'] = group
 
-        if ncols == 1 and nrows == 1:
+        if not isinstance(axs, np.ndarray):
             ax = axs
-        elif bool(ncols > 1) != bool(nrows > 1):
-            ax = axs[i]
         else:
-            ax = axs[i//ncols, i % ncols]
+            ax = axs.flat[i]
         hist_multi(hists, bins=bins, weights=weights,
                    xlabel=xlabel, **study.attrs, figax=(fig, ax))
 
@@ -225,46 +222,61 @@ def quick2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlis
     xbinlist = init_attr(xbinlist, None, nplots)
     ybinlist = init_attr(ybinlist, None, nplots)
 
-    nrows, ncols = autodim(nvar*nplots, dim, flip)
-    xsize, ysize = autosize(size,(nrows,ncols))
+    # nrows, ncols = autodim(nplots, dim, flip)
+    # xsize, ysize = autosize(size,(nrows,ncols))
 
+    # if figax is None:
+    #     figax = plt.subplots(nrows=nrows, ncols=ncols,
+    #                             figsize=(int(xsize*ncols), ysize*nrows),
+    #                             dpi=80)
+    # fig, axs = figax
+    
+    nrows, ncols = autodim(nplots, (nplots, 1), flip)
+    ncols = min(nvar,4)
+    xsize, ysize = autosize(size,(nrows, ncols))
+    
     if figax is None:
-        figax = plt.subplots(nrows=nrows, ncols=ncols,
+        figax = plt.subplots(nrows=nrows, ncols=1,
                                 figsize=(int(xsize*ncols), ysize*nrows),
                                 dpi=80)
     fig, axs = figax
-    labels = study.attrs.pop("h_label")
+
+    # labels = study.attrs.pop("h_label")
 
     it1 = enumerate(zip(xvarlist, yvarlist, xbinlist, ybinlist))
     for i, (xvar, yvar, xbins, ybins) in tqdm(it1, total=nplots, position=0):
-        xbins, xlabel = study.format_var(xvar, bins=xbins, xlabel=xvar)
-        ybins, ylabel = study.format_var(yvar, bins=ybins, xlabel=yvar)
+        xbins, xlabel = format_var(xvar, bins=xbins, xlabel=xvar)
+        ybins, ylabel = format_var(yvar, bins=ybins, xlabel=yvar)
         info = dict(x_bins=xbins, xlabel=xlabel, y_bins=ybins, ylabel=ylabel)
 
         xhists = study.get(xvar)
         yhists = study.get(yvar)
-
         weights = study.get_scale(xhists)
 
-        it2 = enumerate(zip(xhists, yhists, weights, labels))
-        for j, (xhist, yhist, weight, label) in tqdm(it2, total=nvar, position=1, leave=False):
+        if not isinstance(axs, np.ndarray):
+            ax = axs
+        else:
+            ax = axs.flat[i]
+        hist2d_multi(xhists, yhists, weights=weights, **info, **study.attrs, figax=(fig,ax))
 
-            if nvar == ncols:
-                k = i*nvar + j
-            else:
-                k = j*nplots + i
+        # it2 = enumerate(zip(xhists, yhists, weights, labels))
+        # for j, (xhist, yhist, weight, label) in tqdm(it2, total=nvar, position=1, leave=False):
 
-            study.attrs["h_label"] = label
+        #     if nvar == ncols:
+        #         k = i*nvar + j
+        #     else:
+        #         k = j*nplots + i
 
-            if ncols == 1 and nrows == 1:
-                ax = axs
-            elif bool(ncols > 1) != bool(nrows > 1):
-                ax = axs[k]
-            else:
-                ax = axs[k//ncols, k % ncols]
+        #     study.attrs["h_label"] = label
 
-            hist2d_simple(xhist, yhist, weights=weight, **
-                        info, **study.attrs, figax=(fig, ax))
+        #     if not isinstance(axs, np.ndarray):
+        #         ax = axs
+        #     else:
+        #         ax = axs.flat[k]
+
+        #     hist2d_simple(xhist, yhist, weights=weight, **
+        #                 info, **study.attrs, figax=(fig, ax))
+
         fig.suptitle(study.title)
         fig.tight_layout()
     # plt.show()
@@ -300,8 +312,8 @@ def overlay2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinl
     labels = study.attrs.pop("h_label")
 
     for i, (xvar, yvar, xbins, ybins) in enumerate(zip(xvarlist, yvarlist, xbinlist, ybinlist)):
-        xbins, xlabel = study.format_var(xvar, bins=xbins, xlabel=xvar)
-        ybins, ylabel = study.format_var(yvar, bins=ybins, xlabel=yvar)
+        xbins, xlabel = format_var(xvar, bins=xbins, xlabel=xvar)
+        ybins, ylabel = format_var(yvar, bins=ybins, xlabel=yvar)
         info = dict(x_bins=xbins, xlabel=xlabel, y_bins=ybins, ylabel=ylabel)
 
         xhists = study.get(xvar)
@@ -321,12 +333,10 @@ def overlay2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinl
 
             study.attrs["h_label"] = label
 
-            if ncols == 1 and nrows == 1:
+            if not isinstance(axs, np.ndarray):
                 ax = axs
-            elif bool(ncols > 1) != bool(nrows > 1):
-                ax = axs[k]
             else:
-                ax = axs[k//ncols, k % ncols]
+                ax = axs.flat[k]
 
             hist2d_simple(xhist, yhist, weights=weight, **info, **study.attrs, cmap=next(cmapiter), figax=(fig, ax))
     fig.suptitle(study.title)
@@ -342,7 +352,7 @@ def quick_region(*rtrees, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), s
     ftrees = rtrees[0]
     for rt in rtrees[1:]:
         ftrees = ftrees + rt
-    study = Study(ftrees, **kwargs)
+    study = Study(ftrees, stacked=False, **kwargs)
 
     nr = [0] + [ len(rt) for rt in rtrees ]
     nr = np.cumsum(nr)
@@ -362,18 +372,16 @@ def quick_region(*rtrees, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), s
     fig, axs = figax
 
     for i, (var, bins, xlabel) in tqdm(enumerate(varlist), total=nvar):
-        if ncols == 1 and nrows == 1:
+        if not isinstance(axs, np.ndarray):
             ax = axs
-        elif bool(ncols > 1) != bool(nrows > 1):
-            ax = axs[i]
         else:
-            ax = axs[i//ncols, i % ncols]
+            ax = axs.flat[i]
             
         if var is None: 
             ax.set_visible(False)
             continue
         
-        bins, xlabel = study.format_var(var, bins, xlabel)
+        bins, xlabel = format_var(var, bins, xlabel)
         hists = study.get(var)
         weights = study.get_scale(hists)
 
@@ -425,8 +433,8 @@ def quick2d_region(*rtrees, varlist=None, binlist=None, xvarlist=[], yvarlist=[]
     labels = study.attrs.pop("h_label")
 
     for i, (xvar, yvar, xbins, ybins) in enumerate(zip(xvarlist, yvarlist, xbinlist, ybinlist)):
-        xbins, xlabel = study.format_var(xvar, bins=xbins, xlabel=xvar)
-        ybins, ylabel = study.format_var(yvar, bins=ybins, xlabel=yvar)
+        xbins, xlabel = format_var(xvar, bins=xbins, xlabel=xvar)
+        ybins, ylabel = format_var(yvar, bins=ybins, xlabel=yvar)
         info = dict(x_bins=xbins, xlabel=xlabel, y_bins=ybins, ylabel=ylabel)
 
         xhists = study.get(xvar)
@@ -446,12 +454,10 @@ def quick2d_region(*rtrees, varlist=None, binlist=None, xvarlist=[], yvarlist=[]
 
             study.attrs["h_label"] = label
 
-            if ncols == 1 and nrows == 1:
+            if not isinstance(axs, np.ndarray):
                 ax = axs
-            elif bool(ncols > 1) != bool(nrows > 1):
-                ax = axs[k]
             else:
-                ax = axs[k//ncols, k % ncols]
+                ax = axs.flat[k]
             
             hist2d_simple(xhist, yhist, weights=weight, **
                         info, **study.attrs, figax=(fig, ax))
