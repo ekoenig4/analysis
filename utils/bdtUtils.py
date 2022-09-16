@@ -3,12 +3,19 @@ import awkward as ak
 from typing import Callable
 
 from .classUtils import ObjIter
-from .utils import ak_stack
+from .utils import ak_stack, GIT_WD
 from .xsecUtils import lumiMap
+from .plotUtils import HistoList, Correlation
 
 from hep_ml import reweight
 
-class BDT:
+from sklearn.pipeline import Pipeline
+from hep_ml.preprocessing import IronTransformer
+from hep_ml.gradientboosting import UGradientBoostingClassifier, LogLossFunction
+
+import pickle, os
+
+class BDTReweighter:
   seed = 123456789
   def __init__(self, n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, gb_args={'subsample':0.4}, n_folds=2):
     np.random.seed(self.seed) #Fix any random seed using numpy arrays
@@ -33,7 +40,7 @@ class BDT:
   def scale(self, x, w):
     return self.k_factor*w/w
 
-class ABCD(BDT):
+class ABCD(BDTReweighter):
   def __init__(self, features: list = None, a: Callable = None, b: Callable = None, c: Callable = None, d: Callable = None, **kwargs):
     super().__init__(**kwargs)
     self.feature_names = features
@@ -86,7 +93,7 @@ class ABCD(BDT):
     X, W = self.get_features(treeiter)
     return self.scale(X, W)
 
-class DataMC_BDT(BDT):
+class DataMC_BDT(BDTReweighter):
   def __init__(self, features: list = None, a: Callable = None, b: Callable = None, **kwargs):
     super().__init__(**kwargs)
     self.feature_names = features
@@ -141,3 +148,86 @@ class DataMC_BDT(BDT):
   def scale_tree(self, treeiter: ObjIter):
     X, W = self.get_features(treeiter)
     return self.scale(X, W)
+
+
+class BDTClassifier:
+    def __init__(self, features, scaler='iron', loss='log', n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, **kwargs):
+        self.feature_names = features
+
+        scaler = dict(
+            iron=IronTransformer
+        ).get(scaler)()
+
+        loss = dict(
+            log=LogLossFunction
+        ).get(loss)()
+
+        self.classifier = Pipeline([
+            ('scaler', scaler),
+            ('bdt', UGradientBoostingClassifier(loss=loss,
+                                                n_estimators=n_estimators,
+                                                learning_rate=learning_rate,
+                                                max_depth=max_depth,
+                                                min_samples_leaf=min_samples_leaf,))
+        ])
+
+    def save(self, fname='bdt_classifier.pkl', path=f'{GIT_WD}/models'):
+        if not fname.endswith('.pkl'): fname += '.pkl'
+        fname = os.path.join(path, fname)
+
+        with open(fname, 'wb') as f:
+            pickle.dump(self, f)
+
+    @staticmethod
+    def load(fname, path=f'{GIT_WD}/models'):
+        if not fname.endswith('.pkl'): fname += '.pkl'
+        fname = os.path.join(path, fname)
+
+        with open(fname, 'rb') as f:
+            return pickle.load(f)
+
+
+    def get_features(self, treeiter : ObjIter):
+        if not isinstance(treeiter, ObjIter): treeiter = ObjIter([treeiter])
+
+        X = ak_stack([ treeiter[feature].cat for feature in self.feature_names ])
+        W = treeiter['scale'].cat
+        W = W/ak.mean(W)
+        
+        return X.to_numpy(), W.to_numpy()
+
+    def train(self, bkgiter : ObjIter, sigiter : ObjIter):
+        X_0, W_0 = self.get_features(bkgiter)
+        X_1, W_1 = self.get_features(sigiter)
+
+        X = np.concatenate([X_0, X_1])
+        W = np.concatenate([W_0, W_1])
+        Y = np.concatenate([np.zeros_like(W_0), np.ones_like(W_1)])
+
+        self.classifier.fit(X, Y, bdt__sample_weight=W)
+
+    def predict_tree(self, treeiter : ObjIter):
+        X, _ = self.get_features(treeiter)
+        return self.classifier.predict_proba(X)[:,1]
+
+    def results(self, bkgiter : ObjIter, sigiter : ObjIter):
+        X_0, W_0 = self.get_features(bkgiter)
+        X_1, W_1 = self.get_features(sigiter)
+
+        P_0 = self.classifier.predict_proba(X_0)[:,1]
+        P_1 = self.classifier.predict_proba(X_1)[:,1]
+
+        hs = HistoList([P_0,P_1], bins=(0,1,30), weights=[W_0,W_1])
+        es = hs.ecdf(sf=True)
+        roc = Correlation(es[0], es[1])
+
+        return dict(
+            auroc=roc.stats.area
+        )
+
+    def print_results(self, bkgiter : ObjIter, sigiter : ObjIter):
+        results = self.results(bkgiter, sigiter)
+        print(
+            "--- BDT Classifier Results ---\n"
+            f"AUROC = {results['auroc']:0.3f}"
+        )

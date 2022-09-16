@@ -158,7 +158,7 @@ def _regex_field(self, regex):
     return item
 
 class Tree:
-    def __init__(self, filelist, allow_empty=False, use_gen=False, cache=None):
+    def __init__(self, filelist, allow_empty=False, use_gen=True, cache=None):
 
         init_files(self, filelist)
 
@@ -182,7 +182,16 @@ class Tree:
         ]
         return "\n".join(sample_string)
 
-    def __getitem__(self, key): return self.ttree[key]
+    def __getitem__(self, key): 
+        slice = None
+        if isinstance(key,str) and any(re.findall(r'\[.*\]', key)):
+            slice = re.findall(r'\[.*\]', key)[0]
+            key = key.replace(slice, "")
+
+        item = self.ttree[key]
+        if slice is not None:
+            item = eval(f'item{slice}', {'item': item})
+        return item
     def __getattr__(self, key): return self[key]
     def __len__(self): return len(self.ttree)
     def get(self, key): return self[key]

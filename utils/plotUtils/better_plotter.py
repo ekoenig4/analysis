@@ -203,7 +203,7 @@ def plot_stack(stack, figax=None, fill_error=False, exe=None, **kwargs):
 
     if not stack.stack_fill:
         histo_sum = np.zeros(stack[0].histo.shape)
-        for i,histo in enumerate(stack):
+        for i,histo in enumerate( sorted(stack, key=lambda h:h.ndata) ):
             container = ax.bar(bin_centers, histo.histo, bin_widths,
                 bottom=histo_sum, **histo.kwargs)
             histo.kwargs['color'] = container[0].get_fc()

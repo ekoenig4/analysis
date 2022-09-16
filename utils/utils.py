@@ -275,7 +275,8 @@ def ak_stack(arrays, axis=1):
         axis=axis
     )
 
-
+def ak_rank(array, axis=1):
+   return ak.argsort(ak.argsort(array, axis=axis), axis=axis)
 
 def _chunks_(total_events, batches):
     k, m = divmod(total_events, batches)

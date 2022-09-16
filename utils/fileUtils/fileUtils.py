@@ -4,6 +4,10 @@ def check_accstudies(fn):
     if os.path.exists(fn): return fn
     return fn.replace("_accstudies.root","/ntuple.root")
 
+def check_ttjets(fn):
+  if os.path.exists(fn): return [fn]
+  return [ fn.replace('ntuple.root',f'ntuple_{i}.root') for i in range(2) ]
+
 def sample_files(path):
     NMSSM_XYY_YToHH_8b_MX_1200_MY_500 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1200_MY_500_accstudies.root")
     NMSSM_XYY_YToHH_8b_MX_1000_MY_300 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1000_MY_300_accstudies.root")
@@ -14,13 +18,19 @@ def sample_files(path):
     NMSSM_XYY_YToHH_8b_MX_900_MY_300 =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_300_accstudies.root")
     NMSSM_XYY_YToHH_8b_MX_900_MY_400 =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_400_accstudies.root")
 
-    signal_list = [
+    full_signal_list = [
         NMSSM_XYY_YToHH_8b_MX_700_MY_300,
         NMSSM_XYY_YToHH_8b_MX_800_MY_300,
         NMSSM_XYY_YToHH_8b_MX_800_MY_350,
         NMSSM_XYY_YToHH_8b_MX_900_MY_300,
         NMSSM_XYY_YToHH_8b_MX_900_MY_400,
         NMSSM_XYY_YToHH_8b_MX_1000_MY_300,
+        NMSSM_XYY_YToHH_8b_MX_1000_MY_450,
+        NMSSM_XYY_YToHH_8b_MX_1200_MY_500
+    ]
+
+    signal_list = [
+        NMSSM_XYY_YToHH_8b_MX_700_MY_300,
         NMSSM_XYY_YToHH_8b_MX_1000_MY_450,
         NMSSM_XYY_YToHH_8b_MX_1200_MY_500
     ]
@@ -51,9 +61,9 @@ def sample_files(path):
 
     QCD_B_List = QCD_bEn_List + QCD_bGf_List
 
-    TTJets = f"{path}/TTJets/TTJets/ntuple.root"
+    TTJets = check_ttjets(f"{path}/TTJets/TTJets/ntuple.root")
 
-    Bkg_MC_List = QCD_B_List + [TTJets]
+    Bkg_MC_List = QCD_B_List + TTJets
 
 
     JetHT_Run2018A_UL = f"{path}/JetHT_Data/JetHT_Run2018A/ntuple.root"
@@ -70,9 +80,7 @@ class FileCollection:
 
   def __init__(self, path='/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/'):
     self.path = os.path.abspath(path)
-
-    for key, value in sample_files(self.path).items():
-      setattr(self, key, value)
+    self.__dict__.update( sample_files(self.path) )
 
   def __getattr__(self, f):
     path = f'{self.path}/{f}'

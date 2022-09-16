@@ -16,6 +16,8 @@ import vector
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
+from .default_args import *
+
 
 def autodim(nvar, dim=None, flip=False):
     if dim == -1: dim = (-1, nvar)
