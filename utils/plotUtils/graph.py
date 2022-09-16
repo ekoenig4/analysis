@@ -203,10 +203,17 @@ def get_data(obj):
     if yerr is None: yerr = np.zeros_like(y)
 
     return x, y, xerr, yerr
+
+def _get_kwargs(num, den, **kwargs):
+    kwargs['color'] = kwargs.get('color',den.kwargs.get('color',None))
+    kwargs['linestyle'] = kwargs.get('linestyle',den.kwargs.get('linestyle',None))
+
+    return kwargs
+
         
 class Multiply(Graph):
     def __init__(self, num, den, inv=False, method=None, num_transform=None, den_transform=None, **kwargs):
-        kwargs['color'] = kwargs.get('color',den.kwargs.get('color',None))
+        kwargs = _get_kwargs(num, den, **kwargs)
 
         if inv: num, den = den, num
         num, den = _to_graph(num), _to_graph(den)
@@ -233,7 +240,7 @@ class Multiply(Graph):
 
 class Ratio(Graph):
     def __init__(self, num, den, inv=False, method=None, num_transform=None, den_transform=None, **kwargs):
-        kwargs['color'] = kwargs.get('color',den.kwargs.get('color',None))
+        kwargs = _get_kwargs(num, den, **kwargs)
 
         if inv: num, den = den, num
         num, den = _to_graph(num), _to_graph(den)
@@ -280,7 +287,7 @@ class Ratio(Graph):
 
 class Difference(Graph):
     def __init__(self, num, den, inv=False, method=None, **kwargs):
-        kwargs['color'] = kwargs.get('color',den.kwargs.get('color',None))
+        kwargs = _get_kwargs(num, den, **kwargs)
 
         if inv: num, den = den, num
         num, den = _to_graph(num), _to_graph(den)
@@ -336,7 +343,7 @@ class Difference(Graph):
 
 class Summation(Graph):
     def __init__(self, num, den, inv=False, method=None, **kwargs):
-        kwargs['color'] = kwargs.get('color',den.kwargs.get('color',None))
+        kwargs = _get_kwargs(num, den, **kwargs)
 
         if inv: num, den = den, num
         num, den = _to_graph(num), _to_graph(den)
@@ -359,7 +366,7 @@ class Summation(Graph):
 
 class Correlation(Graph):
     def __init__(self, num, den, inv=False, method=None, **kwargs):
-        kwargs['color'] = kwargs.get('color',den.kwargs.get('color',None))
+        kwargs = _get_kwargs(num, den, **kwargs)
 
         if inv: num, den = den, num
         num, den = _to_graph(num), _to_graph(den)
