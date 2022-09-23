@@ -2,6 +2,7 @@ from genericpath import isfile
 from ..selectUtils import *
 from ..xsecUtils import *
 from ..utils import *
+from ..fileUtils.fileUtils import eos
 
 import uproot as ut
 import awkward as ak
@@ -13,7 +14,16 @@ import subprocess
 
 def _check_file(fname):
     if os.path.isfile(fname): return fname
+    if eos.exists(fname): return eos.url+'/'+fname
     return None
+
+def _glob_files(pattern):
+    files = glob.glob(pattern)
+    if any(files): return files
+    files = eos.ls(pattern, with_path=True)
+    if any(files): return files
+    return []
+
 class SixBFile:
     def __init__(self, fname):
         self.fname = fname
@@ -36,30 +46,29 @@ class SixBFile:
 class LazySixBFile:
     def __init__(self, fname, use_cutflow=True):
         self.fname = _check_file(fname)
-
         self.raw_events = 0
         self.total_events = 0
 
         if self.fname is None: 
-            print(f'[WARNING] skipping {fname}, was not found.')
+            print(f'[WARNING] skipping {self.fname}, was not found.')
             return
         
         if use_cutflow:
 
             try:
-                ut.open(f'{fname}:h_cutflow')
+                ut.open(f'{self.fname}:h_cutflow')
             except ut.KeyInFileError:
                 return
 
-            with ut.open(f'{fname}:h_cutflow') as cutflow:
+            with ut.open(f'{self.fname}:h_cutflow') as cutflow:
                 self.cutflow_labels = cutflow.axis().labels()
                 if self.cutflow_labels is None: self.cutflow_labels = []
                 self.cutflow = cutflow.to_numpy()[0]
                 self.total_events = self.cutflow[0]
-        self.normtree = f'{fname}:NormWeightTree' 
+        self.normtree = f'{self.fname}:NormWeightTree' 
 
         self.sample, self.xsec = next(
-            ((key, value) for key, value in xsecMap.items() if key in fname), ("unk", 1))
+            ((key, value) for key, value in xsecMap.items() if key in self.fname), ("unk", 1))
         self.scale = self.xsec / \
             self.total_events if type(self.xsec) == float else 1
 
@@ -71,7 +80,7 @@ class LazySixBFile:
 def init_files(self, filelist):
     if type(filelist) == str:
         filelist = [filelist]
-    filelist = [ fn for flist in filelist for fn in glob.glob(flist) ]
+    filelist = [ fn for flist in filelist for fn in _glob_files(flist) ]
     # self.filelist = [SixBFile(fn) for fn in filelist]
     self.filelist = [LazySixBFile(fn) for fn in tqdm(filelist)]
     self.lazy = True

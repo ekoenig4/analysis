@@ -1,12 +1,34 @@
-import os
+import os, subprocess
+
+class eos:
+  url="root://cmseos.fnal.gov"
+
+  @staticmethod
+  def ls(path, with_path=False):
+    cmd = ['eos',eos.url,'ls',path]
+    stdout = subprocess.run([' '.join(cmd)], shell=True, capture_output=True).stdout.decode("utf-8")
+    dirlist = stdout.strip().split('\n')
+
+    if with_path:
+      path = os.path.dirname(path)
+      return [ f'{path}/{d}' for d in dirlist ]
+    return dirlist
+
+  @staticmethod
+  def exists(path):
+    cmd = ['eos', eos.url, 'ls', path]
+    stdout = subprocess.run([' '.join(cmd)], shell=True, capture_output=True).stdout.decode("utf-8")
+    stdout.strip()
+    return any(stdout)
 
 def check_accstudies(fn):
-    if os.path.exists(fn): return fn
+    if eos.exists(fn): return fn
     return fn.replace("_accstudies.root","/ntuple.root")
 
 def check_ttjets(fn):
-  if os.path.exists(fn): return [fn]
+  if eos.exists(fn): return [fn]
   return [ fn.replace('ntuple.root',f'ntuple_{i}.root') for i in range(2) ]
+
 
 def sample_files(path):
     NMSSM_XYY_YToHH_8b_MX_1200_MY_500 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1200_MY_500_accstudies.root")
@@ -76,20 +98,26 @@ def sample_files(path):
 
     return locals()
 
+
+
 class FileCollection:
 
-  def __init__(self, path='/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/'):
+  def __init__(self, path='/store/user/ekoenig/8BAnalysis/NTuples/2018/'):
     self.path = os.path.abspath(path)
+    self.contents = None
+
     self.__dict__.update( sample_files(self.path) )
 
   def __getattr__(self, f):
     path = f'{self.path}/{f}'
-    if not os.path.exists(path): raise AttributeError(f'{path} could not be found')
+    if not eos.exists(path): raise AttributeError(f'{path} could not be found')
     return FileCollection(path)
 
   @property
   def ls(self):
-    return os.listdir(self.path)
+    if self.contents is None:
+      self.contents = eos.ls(self.path)
+    return self.contents
 
   def __str__(self): return self.path
   def __repr__(self): 
