@@ -3,15 +3,15 @@ from matplotlib import patheffects
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..classUtils import ObjTransform
+from ..classUtils import ObjTransform, ObjIter
 from .better_plotter import *
 
-
 class obj_store:
-    def __init__(self, objs=[]):
-        self.objs = objs
+    def __init__(self):
+        self.objs = []
     def __getitem__(self, key): return self.objs[key]
     def __iter__(self): return iter(self.objs)
+    def __repr__(self): return repr(self.objs)
     def append(self, objs):
         self.objs.append(objs)
 

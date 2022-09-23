@@ -7,6 +7,7 @@ from ..utils import *
 from ..testUtils import is_iter
 from ..varConfig import varinfo
 from ..classUtils import TreeIter, ObjIter
+from matplotlib.transforms import Bbox
 
 date_tag = date.today().strftime("%Y%m%d")
 
@@ -17,15 +18,33 @@ def save_scores(score, saveas):
         os.makedirs(directory)
     score.savetex(f"{directory}/{saveas}")
 
+def full_extent(fig, ax, pad=0.0):
+    """Get the full extent of an axes, including axes labels, tick labels, and
+    titles."""
 
-def save_fig(fig, directory, saveas, base=GIT_WD):
-    outfn = f"{base}/plots/{date_tag}_plots/{directory}/{saveas}"
+    def get_items(ax):
+        return [ax, ax.title] + ax.get_xticklabels()
+
+    items = get_items(ax)
+    while( hasattr(ax, 'sub_ax') ):
+        items += get_items(ax.sub_ax)     
+        ax = ax.sub_ax   
+
+    bbox = Bbox.union([item.get_window_extent() for item in items])
+    extent = bbox.expanded(1.0 + pad, 1.0 + pad).transformed(fig.dpi_scale_trans.inverted())
+
+    return extent
+
+def save_fig(fig, directory="plots/{date_tag}_plots", saveas=None, base=GIT_WD, fmt=['pdf','png']):
+    outfn = os.path.join(base, directory, saveas)
     directory = '/'.join(outfn.split('/')[:-1])
     if not os.path.isdir(directory):
         os.makedirs(directory)
 
-    fig.savefig(f"{outfn}.pdf", format="pdf")
-    fig.savefig(f"{outfn}.png", format="png", dpi=400)
+    if 'pdf' in fmt:
+        fig.savefig(f"{outfn}.pdf", format="pdf")
+    if 'png' in fmt:
+        fig.savefig(f"{outfn}.png", format="png", dpi=400)
     # fig.savefig(f"{outfn}.png", format="png")
 
 

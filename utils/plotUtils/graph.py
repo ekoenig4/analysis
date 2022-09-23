@@ -382,7 +382,19 @@ class Correlation(Graph):
         num_x, num_y, num_xerr, num_yerr = get_data(num)
         den_x, den_y, den_xerr, den_yerr = get_data(den)
 
-        x, y = num_y, den_y
+        if method is 'roc':
+            x = np.sort(num_y)
+            y = np.sort(den_y)
+
+            x = np.pad(num_y, 1)
+            y = np.pad(den_y, 1)
+            x[-1] = y[-1] = 1
+
+            area = np.abs(np.trapz(y, x))
+            if area < 0.5:
+                x = 1 - x
+                y = 1 - y
+            
 
         if method is 'ad':
             x = (num.ndata*num_y + den.ndata*den_y)/(num.ndata + den.ndata)
@@ -391,5 +403,5 @@ class Correlation(Graph):
             y = y**2 / (x * (1 - x))
 
         
-        super().__init__(num_y, den_y, **kwargs)
+        super().__init__(x , y, **kwargs)
 

@@ -159,7 +159,8 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-
                    weights=weights, **study.attrs, figax=(fig, ax))
     fig.suptitle(study.title)
     fig.tight_layout()
-        
+    fig.canvas.draw()
+
     # plt.show()
     if study.saveas:
         save_fig(fig, "", study.saveas)
@@ -472,6 +473,28 @@ def quick2d_region(*rtrees, varlist=None, binlist=None, xvarlist=[], yvarlist=[]
     if study.return_figax:
         return fig,axs
 
+
+def table(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-1), flip=False, figax=None,tablef=None, **kwargs):
+    study = Study(*args, table=True, tablef=tablef, **kwargs)
+
+    nvar = len(varlist)
+    binlist = init_attr(binlist, None, nvar)
+    xlabels = init_attr(xlabels, None, nvar)
+    varlist = zip(varlist, binlist, xlabels)
+
+    xsize, ysize = autosize(size,(1,1))
+
+    for i, (var, bins, xlabel) in tqdm(enumerate(varlist),total=nvar):
+        fig, ax = plt.subplots(figsize=(int(xsize), int(ysize)))
+        
+        bins, xlabel = format_var(var, bins, xlabel)
+        hists = study.get(var)
+        weights = study.get_scale(hists)
+        hist_multi(hists, bins=bins, xlabel=xlabel,
+                   weights=weights, **study.attrs, figax=(fig, ax))
+        fig.canvas.draw()
+        study.table(var, xlabel, figax=(fig,ax), **study.attrs)
+    plt.close()
 
 def njets(*args, **kwargs):
     study = Study(*args, **kwargs)

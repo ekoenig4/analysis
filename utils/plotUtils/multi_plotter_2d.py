@@ -76,7 +76,7 @@ def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None,
         y_bins = histos[0].y_bins
         plotobjs.append(histos)
 
-    store = obj_store(plotobjs)
+    # store = obj_store(plotobjs)
 
     histo2ds = list(_flatten_plotobjs(plotobjs))
     total = len(histo2ds)
@@ -84,7 +84,7 @@ def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None,
     for i, plotobj in enumerate(histo2ds):
         _plot_objects((fig,ax), [plotobj], **kwargs['remaining'])
     
-    ax.store = store
+    # ax.store = store
     return fig, ax
 
 def hist2d_simple(x_array, y_array, 

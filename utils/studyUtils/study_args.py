@@ -3,6 +3,8 @@ import awkward as ak
 import re
 
 from ..utils import init_attr
+from .variable_table import VariableTable
+from ..varConfig import varinfo
 
 
 def _get_item_from_tree(tree, key):
@@ -64,7 +66,7 @@ def _scale_item_from_tree(tree, item, scale):
 
 class _study_args:
     def __init__(self, treelist, masks=None, indices=None, transforms=None, scale=None, stacked=True, lumi=2018, label=None,
-                 saveas=None, return_figax=False, suptitle=None, **kwargs):
+                 saveas=None, return_figax=False, suptitle=None, table=None, tablef=None, **kwargs):
         if not isinstance(treelist, list):
             treelist = list(treelist)
 
@@ -103,6 +105,27 @@ class _study_args:
         self.return_figax = return_figax
         self.suptitle = suptitle
         self.title = suptitle
+
+        if table:
+            if isinstance(table, bool):
+                table = None
+
+            self.tablev = VariableTable(table)
+            self.tablef = tablef
+
+    def table(self, var, xlabel, figax, **kwargs):
+        if not hasattr(self, 'tablev'): return
+
+        key = xlabel.replace(' ','_')
+        info = varinfo.find(var)
+        if info is None: info = dict()
+        define = info.get('define', None)
+        comments = info.get('comments',None)
+        extra = self.tablef(**kwargs) if self.tablef else dict()
+        
+        self.tablev.add(
+            key, define, comments, figax=figax, **extra
+        )
 
     def get(self, key, indices=True, transforms=True, scale=False):
         items = [_get_item_from_tree(tree, key) for tree in self.treelist]

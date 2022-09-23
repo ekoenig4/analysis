@@ -19,6 +19,17 @@ class AttrDict:
     def __getitem__(self, key): return getattr(self, key)
     def __setitem__(self, key, value): setattr(self, key, value)
 
+    def update(self, *args, **kwargs):
+        values = dict()
+        if isinstance(args, dict):
+            values.update(args)
+        else:
+            for d in args:
+                values.update(d)
+        values.update(**kwargs)
+
+        for key,value in values.items():
+            setattr(self, key, value)
     def get(self, key, default=None): return self.__dict__.get(key, default)
     def clear(self): 
         keys = self.__dict__.keys()
@@ -80,9 +91,9 @@ varinfo.dijet_phi = dict(bins=np.linspace(-3.14, 3.14, 30), xlabel="DiJet Phi")
 varinfo.n_higgs = dict(bins=np.arange(12), xlabel="N DiJets")
 varinfo.jet_btagsum = dict(bins=np.linspace(2, 6, 30), xlabel="6 Jet Btag Sum")
 varinfo.event_y23 = dict(xlabel="Event y23", bins=np.linspace(0, 0.25, 30))
-varinfo.M_eig_w1 = dict(xlabel="Momentum Tensor W1", bins=np.linspace(0, 1, 30))
-varinfo.M_eig_w2 = dict(xlabel="Momentum Tensor W2", bins=np.linspace(0, 1, 30))
-varinfo.M_eig_w3 = dict(xlabel="Momentum Tensor W3", bins=np.linspace(0, 1, 30))
+# varinfo.M_eig_w1 = dict(xlabel="Momentum Tensor W1", bins=np.linspace(0, 1, 30))
+# varinfo.M_eig_w2 = dict(xlabel="Momentum Tensor W2", bins=np.linspace(0, 1, 30))
+# varinfo.M_eig_w3 = dict(xlabel="Momentum Tensor W3", bins=np.linspace(0, 1, 30))
 varinfo.event_S = dict(xlabel="Event S", bins=np.linspace(0, 1, 30))
 varinfo.event_St = dict(xlabel="Event S_T", bins=np.linspace(0, 1, 30))
 varinfo.event_F = dict(xlabel="Event W2/W1", bins=np.linspace(0, 1, 30))

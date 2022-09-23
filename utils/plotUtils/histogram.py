@@ -70,9 +70,10 @@ def apply_systematic(histo, error, systematic):
 class Histo:
     def __init__(self, array, bins=None, weights=None, efficiency=False, density=False, cumulative=False, lumi=None, restrict=False,
                  label_stat='events', is_data=False, is_signal=False, is_model=False, sumw2=True, scale=1, __id__=None, fit=None,
-                 continous=False, ndata=None, nbins=30, systematics=None,
+                 continous=False, ndata=None, nbins=30, systematics=None, transform=None,
                  **kwargs):
         self.__id__ = __id__
+        if transform is not None: array = transform(array)
 
         self.array = flatten(array)
         self.counts = len(self.array)
@@ -184,6 +185,12 @@ class Histo:
 
         x = self.array[order]
         weights = self.weights[order]
+
+        if np.issubdtype(x.dtype, np.integer):
+            discrete_x = np.unique(x)
+            discrete_w = ((x == discrete_x[:,None]) * weights).sum(axis=-1)
+
+            x, weights = discrete_x, discrete_w
 
         x, weights = restrict_array(x, self.bins, weights=weights)
 

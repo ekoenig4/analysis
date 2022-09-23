@@ -278,6 +278,17 @@ def ak_stack(arrays, axis=1):
 def ak_rank(array, axis=1):
    return ak.argsort(ak.argsort(array, axis=axis), axis=axis)
 
+def ak_binned(array, bins, axis=1, overflow=False):
+    lo_edges, hi_edges = bins[:-1], bins[1:]
+
+    if overflow:
+        centers = (hi_edges+lo_edges)/2
+        array = np.clip(array, centers[0], centers[-1])
+
+    binned = [ ( array >= lo ) & ( array < hi ) for lo, hi in zip(lo_edges, hi_edges)]
+
+    return 1*ak_stack(binned, axis=axis)
+
 def _chunks_(total_events, batches):
     k, m = divmod(total_events, batches)
     for i in range(batches):
