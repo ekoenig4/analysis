@@ -24,6 +24,10 @@ class Graph:
         x_array = flatten(x_array)
         y_array = flatten(y_array)
 
+        if x_array.dtype.type is np.str_:
+            xlabels = list(x_array)
+            x_array = np.arange(len(xlabels))
+
         mask_inf = np.isinf(x_array) | np.isinf(y_array) | np.isnan(x_array) | np.isnan(y_array)
         x_array, y_array = x_array[~mask_inf], y_array[~mask_inf]
         if xerr is not None: 
@@ -170,10 +174,12 @@ class GraphList(ObjIter):
     def __init__(self, x_arrays, y_arrays,  **kwargs):
         x_arrays = np.array(x_arrays)
         y_arrays = np.array(y_arrays)
-        narrays = len(y_arrays)
 
-        if x_arrays.shape != y_arrays.shape:
-            x_arrays = np.array( init_attr(None,x_arrays,narrays))        
+        if x_arrays.ndim == 1:
+            x_arrays = np.array([x_arrays]*y_arrays.shape[0])
+        elif y_arrays.ndim == 1:
+            y_arrays = np.array([y_arrays]*x_arrays.shape[0])
+        narrays = len(y_arrays)
         
         for key,value in kwargs.items(): 
             if not isinstance(value,list): value = init_attr(None,value,narrays)
@@ -306,6 +312,10 @@ class Difference(Graph):
         difference = num_y - den_y
         error = np.sqrt( num_yerr**2 + den_yerr**2 )
 
+        if method is 'percerr':
+            difference = 1 - den_y/num_y
+            error = difference*np.sqrt( (num_yerr/num_y)**2 + (den_yerr/den_y)**2 )
+
         if method is 'normalize':
             mean = (num_y+den_y)/2
             difference = difference/mean
@@ -381,6 +391,8 @@ class Correlation(Graph):
 
         num_x, num_y, num_xerr, num_yerr = get_data(num)
         den_x, den_y, den_xerr, den_yerr = get_data(den)
+
+        x, y = num_y, den_y
 
         if method is 'roc':
             x = np.sort(num_y)

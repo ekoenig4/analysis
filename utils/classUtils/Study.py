@@ -35,8 +35,8 @@ def full_extent(fig, ax, pad=0.0):
 
     return extent
 
-def save_fig(fig, directory="plots/{date_tag}_plots", saveas=None, base=GIT_WD, fmt=['pdf','png']):
-    outfn = os.path.join(base, directory, saveas)
+def save_fig(fig, saveas=None, base=f"{GIT_WD}/plots/{date_tag}_plots", fmt=['png']):
+    outfn = os.path.join(base, saveas)
     directory = '/'.join(outfn.split('/')[:-1])
     if not os.path.isdir(directory):
         os.makedirs(directory)

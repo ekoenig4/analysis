@@ -27,7 +27,9 @@ def check_accstudies(fn):
 
 def check_ttjets(fn):
   if eos.exists(fn): return [fn]
-  return [ fn.replace('ntuple.root',f'ntuple_{i}.root') for i in range(2) ]
+  return [ fn.replace('ntuple.root',f'ntuple_{i}.root') for i in range(1) ]
+  # return [ fn.replace('ntuple.root',f'ntuple_{i}.root') for i in range(2) ]
+  # return [ fn.replace('ntuple.root',f'ntuple_{i}.root') for i in range(8) ]
 
 
 def sample_files(path):
@@ -83,7 +85,12 @@ def sample_files(path):
 
     QCD_B_List = QCD_bEn_List + QCD_bGf_List
 
-    TTJets = check_ttjets(f"{path}/TTJets/TTJets/ntuple.root")
+    TTJets_old = check_ttjets(f"{path}/TTJets/TTJets/ntuple.root")
+    TTJets = check_ttjets(f"{path}/TTJets/TTJets_TuneCP5_13TeV-amcatnloFXFX-pythia8/ntuple.root")
+    TTTo2L2Nu = check_ttjets(f"{path}/TTJets/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/ntuple.root")
+    TTToSemiLeptonic = check_ttjets(f"{path}/TTJets/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/ntuple.root")
+
+    TT = TTTo2L2Nu + TTToSemiLeptonic
 
     Bkg_MC_List = QCD_B_List + TTJets
 
@@ -108,7 +115,7 @@ class FileCollection:
 
     self.__dict__.update( sample_files(self.path) )
 
-  def __getattr__(self, f):
+  def __getattr__(self, f): 
     path = f'{self.path}/{f}'
     if not eos.exists(path): raise AttributeError(f'{path} could not be found')
     return FileCollection(path)
@@ -118,6 +125,16 @@ class FileCollection:
     if self.contents is None:
       self.contents = eos.ls(self.path)
     return self.contents
+
+  @property
+  def Run2_UL18(self):
+    path = os.path.join(self.path, 'Run2_UL', 'RunIISummer20UL18NanoAODv9')
+    return FileCollection(path)
+    
+  @property
+  def Run2_Au18(self):
+    path = os.path.join(self.path, 'Run2_Autumn18')
+    return FileCollection(path)
 
   def __str__(self): return self.path
   def __repr__(self): 

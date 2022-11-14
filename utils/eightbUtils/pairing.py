@@ -25,7 +25,47 @@ def get_quadH_pairings(njets=8,pair_index=True):
                     quad_h.append(pair)
     return quad_h
 
-quadh_index = get_quadH_pairings()
+# quadh_index = get_quadH_pairings()
+quadh_index = combinations(8, [2,2,2,2])
+
+def to_pair_index(j1_index, j2_index):
+    i, j = j1_index, j2_index
+    k = (-0.5*i*i + (8-0.5)*i + j - i - 1).astype(int)
+    return k
+
+def mass_fit(h, hid, mfit=125):
+    return ak.sum((h.m-mfit)**2,axis=-1)
+    
+def quadh_score(tree, quadh_index=quadh_index, operator=mass_fit, report=True):
+    jets = get_collection(tree, 'jet', named=False)
+    jet_p4 = build_p4(jets, use_regressed=True)
+    
+    j1_p4, j2_p4 = ak.unzip(ak.combinations( jet_p4, 2, axis=-1))
+    jid = 'genHflag' if 'genHflag' in jets.fields else 'signalId'
+    j1_id, j2_id = ak.unzip(ak.combinations( jets[jid], 2, axis=-1))
+    higgs_p4 = j1_p4 + j2_p4
+
+    j1_hid = (j1_id+2)//2
+    j2_hid = (j2_id+2)//2
+    higgs_id = j1_hid * ( j1_hid == j2_hid ) - 1
+    higgs_index = to_pair_index(quadh_index[:,:,0], quadh_index[:,:,1])
+
+    def _quadh_score(index):
+        h = higgs_p4[:, index]
+        hid = higgs_id[:,index]
+        return operator(h, hid)
+
+    if report: it = tqdm(higgs_index)
+    else: it = higgs_index
+    scores = ak_stack([ _quadh_score(comb) for i, comb in enumerate(it) ])
+    return scores
+
+def select_quadh(tree, quadh_index=quadh_index, operator=mass_fit, report=True):
+    scores = quadh_score(tree, quadh_index, operator, report)
+    quadh_score = ak.min(scores, axis=-1)
+    quadh_index = ak.from_regular(quadh_index[ak.argmin(scores,axis=-1)],axis=-2)
+    build_all_dijets(tree, pairs=quadh_index)
+    tree.extend(quadh_score=quadh_score)
 
 def mass_diff(dijets):
     ms = dijets.m[:,quadh_index]
@@ -33,6 +73,12 @@ def mass_diff(dijets):
     maxim,minim = np.max(ms_numpy,axis=-1),np.min(ms_numpy,axis=-1)
     m_asym = (maxim-minim)/(maxim+minim)
     return m_asym.reshape(-1,105)
+
+# def mass_fit(dijets, mfit=125):
+#     ms = dijets.m[:,quadh_index]
+#     ms_numpy = ms.to_numpy().reshape(-1,4)
+#     r2 = np.sum((ms_numpy - mfit)**2, axis=-1)
+#     return r2
 
 def pair_higgs(tree,operator=mass_diff,nsave=4):
     dijets = get_collection(tree,'dijet',False)
@@ -147,10 +193,7 @@ def build_all_ys(tree):
     tree.extend(h1y1,h2y1,h1y2,h2y2)
 
 def load_weaver_output(tree, model=None, fields=['scores']):
-  if tree.is_signal:
-    rgxs = ["*" + tree.sample+"*.awkd"]
-  else:
-    rgxs = [ os.path.basename(os.path.dirname(fn.fname))+".awkd" for fn in tree.filelist ]
+  rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname)+".awkd" for fn in tree.filelist ]
   toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
 
   fields = {
@@ -161,14 +204,13 @@ def load_weaver_output(tree, model=None, fields=['scores']):
   
 quadh_index = combinations(8, [2,2,2,2])
 def load_quadh(tree, model=None, quadh_index=quadh_index):
-  events = len(tree.n_jet)
-  scores = load_weaver_output(tree, model)['scores'].reshape(events, -1)
-  maxarg = scores.argmax(axis=-1)
-  scores = ak.from_regular(scores.max(axis=-1))
-  tree.extend(quadh_score=scores)
+  ranker = load_weaver_output(tree, model, fields=['maxcomb','maxscore'])
+
+  score, index = ranker['maxscore'], ranker['maxcomb']
+  tree.extend(quadh_score=score)
   
-  quadh_index = ak.from_regular(quadh_index[maxarg])
-  build_all_dijets(tree, pairs=quadh_index)
+  quadh_index = ak.from_regular( index.astype(int) )
+  build_all_dijets(tree, pairs=quadh_index, ordered='pt', name='higgs')
 
 def load_jet_quadh(tree, model, quadh_index=quadh_index):
   events = len(tree.n_jet)

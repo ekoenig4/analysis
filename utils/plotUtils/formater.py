@@ -1,12 +1,14 @@
 import warnings
 warnings.filterwarnings("ignore")
 
+import numpy as np
+
 def group_kwargs(prefix, **kwargs):
     grouped_kwargs = { key[len(prefix):]:value for key,value in kwargs.items() if key.startswith(prefix) }
     remaining_kwargs = { key:value for key,value in kwargs.items() if not key.startswith(prefix) }
     return grouped_kwargs, remaining_kwargs
 
-def _set_text(ax, text=None, text_style=None, **kwargs):
+def _set_text(ax, text=None, text_style={}, **kwargs):
     if text is not None:
         style = dict(transform=ax.transAxes, va="center")
         style.update(**text_style)
@@ -69,7 +71,7 @@ def _set_xlabel(ax, xlabel=None, **kwargs):
         kwargs['xlabel'] = xlabel 
         return kwargs 
     
-    ax.set_xticks(range(len(xlabel)))
+    ax.set_xticks(np.arange(len(xlabel))+0.5)
     rotation = -45 if isinstance(xlabel[0],str) else 0
     ax.set_xticklabels(xlabel, rotation=rotation)
     return kwargs

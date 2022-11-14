@@ -116,6 +116,9 @@ def calc_dr(eta_1, phi_1, eta_2, phi_2):
     dr = np.sqrt(deta**2 + dphi**2)
     return dr
 
+def calc_dr_p4(a_p4, b_p4):
+    return calc_dr(a_p4.eta, a_p4.phi, b_p4.eta, b_p4.phi)
+
 
 def get_ext_dr(eta_1, phi_1, eta_2, phi_2):
     dr = calc_dr(eta_1, phi_1, eta_2, phi_2)
@@ -405,7 +408,7 @@ def optimize_var_cut(selections, variable, varmin=None, varmax=None, method=min,
     return f_min
 
 
-def build_all_dijets(tree, pairs=None):
+def build_all_dijets(tree, pairs=None, ordered=None, name='dijet'):
     """Build all possible dijet pairings with the jet collection
 
     Args:
@@ -445,19 +448,35 @@ def build_all_dijets(tree, pairs=None):
     
     signalId = ak.min(ak.concatenate([j1_id[:,:,None],j2_id[:,:,None]],axis=-1),axis=-1)//2
     signalId = ak.where(paired,signalId,-1)
-    
+
+    dijet = dict( 
+        m=dijet.m,
+        dm=np.abs(dijet.m-125),
+        pt=dijet.pt,
+        eta=dijet.eta,
+        phi=dijet.phi,
+        deta=deta,
+        dphi=dphi,
+        dr=dr,
+        btagsum=j1_btag+j2_btag,
+        signalId=signalId,
+        j1Idx=j1_idx,
+        j2Idx=j2_idx,
+        localId=ak.local_index(dijet.m,axis=-1)
+    )
+
+    if ordered and ordered in dijet:
+        order = ak.argsort(-dijet[ordered], axis=-1)
+        dijet = { 
+            key:value[order]
+            for key, value in dijet.items()
+        }
+
     tree.extend(
-        dijet_m=dijet.m,
-        dijet_dm=np.abs(dijet.m-125),
-        dijet_pt=dijet.pt,
-        dijet_eta=dijet.eta,
-        dijet_phi=dijet.phi,
-        dijet_dr=dr,
-        dijet_btagsum=j1_btag+j2_btag,
-        dijet_signalId=signalId,
-        dijet_j1Idx=j1_idx,
-        dijet_j2Idx=j2_idx,
-        dijet_localId=ak.local_index(dijet.m,axis=-1)
+        **{
+            f'{name}_{key}':value
+            for key,value in dijet.items()
+        }
     )
 
 

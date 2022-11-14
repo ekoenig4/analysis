@@ -26,7 +26,7 @@ def get_studies(signals, bkgs, modules):
     if not bkg: return
 
     study.quick_region(
-      *bkgs, legend=True, stacked=False,
+      *bkgs, legend=True, 
       h_color=['grey']*3,
       label=label,
       h_linestyle=h_linestyle,

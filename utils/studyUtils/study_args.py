@@ -49,6 +49,8 @@ def _mask_item_from_tree(tree, item, mask):
     if item is 'n_mask':
         return ak.sum(mask, axis=-1)
 
+    # if ak.count(item) != ak.count(mask):
+    #     return item
     return item[mask]
 
 def _scale_tree(tree, scale):
@@ -66,7 +68,7 @@ def _scale_item_from_tree(tree, item, scale):
 
 class _study_args:
     def __init__(self, treelist, masks=None, indices=None, transforms=None, scale=None, stacked=True, lumi=2018, label=None,
-                 saveas=None, return_figax=False, suptitle=None, table=None, tablef=None, **kwargs):
+                 saveas=None, return_figax=False, suptitle=None, table=None, tablef=None, report=True, **kwargs):
         if not isinstance(treelist, list):
             treelist = list(treelist)
 
@@ -105,6 +107,8 @@ class _study_args:
         self.return_figax = return_figax
         self.suptitle = suptitle
         self.title = suptitle
+
+        self.report = report
 
         if table:
             if isinstance(table, bool):

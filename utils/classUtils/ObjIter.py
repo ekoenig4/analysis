@@ -82,6 +82,9 @@ class ObjIter:
     def __add__(self,other):
         if type(other) == list: other = ObjIter(other)
         return ObjIter(self.objs+other.objs)
+
+    def __format__(self, spec):
+        return '['+', '.join([ format(value, spec) for value in self.objs ]) + ']'
     
     @property
     def numpy(self): return np.array(self.objs) 
@@ -95,6 +98,8 @@ class ObjIter:
     def list(self): return self.objs
     @property
     def cat(self): return ak.concatenate(self.objs)
+
+
 
     def zip(self, other):
         return ObjIter(list(zip(self.objs, other.objs)))

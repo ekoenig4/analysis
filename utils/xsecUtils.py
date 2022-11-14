@@ -16,16 +16,16 @@ tagMap = {
     "QCD": "QCD",
     "NMSSM_XYH_YToHH_6b": "X$\\rightarrow$ YH$\\rightarrow$3H$\\rightarrow$6b",
     "NMSSM_XYY_YToHH_8b": "X$\\rightarrow$ YY$\\rightarrow$4H$\\rightarrow$8b",
-    "TTJets": "TTJets",
+    "TT": "TTJets",
     "Data": "Data",
 }
 
 
 colorMap = {    
-    "QCD": "blue",
     "X$\\rightarrow$ YH$\\rightarrow$3H$\\rightarrow$6b": "orange",
     "X$\\rightarrow$ YY$\\rightarrow$4H$\\rightarrow$8b": iter(cycle(['tomato', 'royalblue', 'mediumorchid'])),
-    "TTJets": "green",
+    "QCD": "lightblue",
+    "TTJets": "darkseagreen",
     "Data": "black",
     "MC-Bkg": "grey"
 }
@@ -75,5 +75,8 @@ xsecMap = {
     "QCD_HT1500to2000_BGenFilter": 13.61,
     "QCD_HT2000toInf_BGenFilter": 2.92,
 
-    "TTJets": 831.76,
+    "TTTo2L2Nu":687.1,
+    "TTToSemiLeptonic":687.1,
+    # "TTJets": 831.76,
+    "TTJets": 750.5,
 }

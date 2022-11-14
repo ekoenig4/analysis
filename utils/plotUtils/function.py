@@ -32,6 +32,9 @@ class Function:
     self.spec = spec
     return str(self)
 
+  def evaluate(self, x):
+    return self.func(x)
+
   def plot(self, x):
     self.x_array, self.xerr = x, None
     self.y_array, self.yerr = self.func(x), None
@@ -225,6 +228,21 @@ class quadratic(Function):
   @staticmethod
   def func(x, c0=1, c1=1, c2=1): return c2*x*x + c1*x + c0 
   def _func(self, x): return quadratic.func(x, self.c0, self.c1, self.c2)
+
+class exponential(Function):
+  def __init__(self, x=np.array([0]), a=1, b=1, **kwargs):
+    super().__init__(x, dict(a=a, b=b), **kwargs)
+
+  def __str__(self):
+    if not hasattr(self,"spec"):
+      fvar = lambda v : str(v)
+    else: 
+      fvar = lambda v : f'{v:{self.spec}}'
+    return f"${fvar(self.a)} * \exp( {fvar(self.b)} * x )$"
+
+  @staticmethod
+  def func(x, a=1, b=1): return a*np.exp(b*x)
+  def _func(self, x): return exponential.func(x, self.a, self.b)
 
 class custom_pdf(f_stats.rv_continuous):
   def __init__(self, histo=None, bins=None):

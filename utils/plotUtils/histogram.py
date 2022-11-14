@@ -69,7 +69,7 @@ def apply_systematic(histo, error, systematic):
 
 class Histo:
     def __init__(self, array, bins=None, weights=None, efficiency=False, density=False, cumulative=False, lumi=None, restrict=False,
-                 label_stat='events', is_data=False, is_signal=False, is_model=False, sumw2=True, scale=1, __id__=None, fit=None,
+                 label_stat='events', is_data=False, is_signal=False, is_model=False, sumw2=True, scale=1, plot_scale=1, __id__=None, fit=None,
                  continous=False, ndata=None, nbins=30, systematics=None, transform=None,
                  **kwargs):
         self.__id__ = __id__
@@ -99,6 +99,9 @@ class Histo:
         fit_kwargs = { key[4:]:value for key,value in kwargs.items() if key.startswith('fit_') }
         self.kwargs = { key:value for key,value in kwargs.items() if not key.startswith('fit_') }
         self.label = kwargs.get('label',None)
+
+        if plot_scale != 1:
+            self.label = f"{self.label}($\\times${plot_scale})"
         
         self.is_data = is_data 
         self.is_signal = is_signal 
@@ -113,7 +116,7 @@ class Histo:
         self.cumulative = cumulative
         self.efficiency = efficiency
         self.continous = continous
-
+        self.plot_scale = plot_scale
         # if not (scale is None or is_iter(scale)):
         #     self.weights = scale*self.weights
 
@@ -138,9 +141,6 @@ class Histo:
 
             self.weights = scale * self.weights
         
-            # if scale != 1 and not is_iter(scale) and isinstance(scale,int):
-            #     self.label = f'{self.label} x {scale}'
-                
         self.histo, self.error = histogram(self.array, self.bins, self.weights, sumw2=self.sumw2)
 
         self.add_systematics()

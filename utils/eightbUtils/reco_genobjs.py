@@ -32,54 +32,67 @@ ylist = [
     for y in ('Y1','Y2')
 ]
 
+scalarlist = ['X'] + ylist + higgslist
+esmlist = ['X'] + ylist
+
 def reco_genH(tree, higgs, use_regressed=True):
-    get_var = {'pt':'ptRegressed' if use_regressed else 'pt','m':'mRegressed' if use_regressed else 'm'}
-    b1_p4 = vector.obj(**{var: tree[f'{higgs}_b1_recojet_{get_var.get(var,var)}']
-                       for var in ('pt', 'eta', 'phi', 'm')})
-    b2_p4 = vector.obj(**{var: tree[f'{higgs}_b2_recojet_{get_var.get(var,var)}']
-                       for var in ('pt', 'eta', 'phi', 'm')})
+    b1_p4 = build_p4(tree, prefix=f'{higgs}_b1_recojet', use_regressed=use_regressed)
+    b2_p4 = build_p4(tree, prefix=f'{higgs}_b2_recojet', use_regressed=use_regressed)
     h_p4 = b1_p4 + b2_p4
+    h_dr = calc_dr_p4(b1_p4, b2_p4)
+
+    matched = (tree[f'{higgs}_b1_recojet_pt'] > 0) & (tree[f'{higgs}_b2_recojet_pt'] > 0)
+
     return dict(
         **{
-            f'{higgs}_reco_{var}': getattr(h_p4, var)
+            f'{higgs}_reco_{var}': matched*getattr(h_p4, var) + (~matched)*(-999)
             for var in ('pt', 'eta', 'phi', 'm')
         },
         **{
-            f'{higgs}_reco_matched': (tree[f'{higgs}_b1_recojet_pt'] > 0) & (tree[f'{higgs}_b2_recojet_pt'] > 0)
+            f'{higgs}_reco_dr': matched*h_dr + (~matched)*(-999)
+        },
+        **{
+            f'{higgs}_reco_matched': matched
         }
     )
 
 
 def reco_genY(tree, y):
-    h1_p4 = vector.obj(**{var: tree[f'{y.replace("gen_","gen_H1")}_reco_{var}']
-                       for var in ('pt', 'eta', 'phi', 'm')})
-    h2_p4 = vector.obj(**{var: tree[f'{y.replace("gen_","gen_H2")}_reco_{var}']
-                       for var in ('pt', 'eta', 'phi', 'm')})
+    h1_p4 = build_p4(tree, prefix=f'{y.replace("gen_","gen_H1")}_reco')
+    h2_p4 = build_p4(tree, prefix=f'{y.replace("gen_","gen_H2")}_reco')
     y_p4 = h1_p4 + h2_p4
+    y_dr = calc_dr_p4(h1_p4, h2_p4)
+    matched = (tree[f'{y.replace("gen_","gen_H1")}_reco_matched'] & tree[f'{y.replace("gen_","gen_H2")}_reco_matched'])
     return dict(
         **{
-            f'{y}_reco_{var}': getattr(y_p4, var)
+            f'{y}_reco_{var}': matched*getattr(y_p4, var) + (~matched)*(-999)
             for var in ('pt', 'eta', 'phi', 'm')
         },
         **{
-            f'{y}_reco_matched': (tree[f'{y.replace("gen_","gen_H1")}_reco_matched'] & tree[f'{y.replace("gen_","gen_H2")}_reco_matched'])
+            f'{y}_reco_dr': matched*y_dr + (~matched)*(-999)
+        },
+        **{
+            f'{y}_reco_matched': matched
         }
     )
 
 
 def reco_genX(tree):
-    y1_p4 = vector.obj(**{var: tree[f'gen_Y1_reco_{var}']
-                       for var in ('pt', 'eta', 'phi', 'm')})
-    y2_p4 = vector.obj(**{var: tree[f'gen_Y2_reco_{var}']
-                       for var in ('pt', 'eta', 'phi', 'm')})
+    y1_p4 = build_p4(tree, prefix='gen_Y1_reco')
+    y2_p4 = build_p4(tree, prefix='gen_Y2_reco')
     x_p4 = y1_p4 + y2_p4
+    x_dr = calc_dr_p4(y1_p4, y2_p4)
+    matched = (tree[f'gen_Y1_reco_matched'] & tree[f'gen_Y2_reco_matched'])
     return dict(
         **{
-            f'gen_X_reco_{var}': getattr(x_p4, var)
+            f'gen_X_reco_{var}': matched*getattr(x_p4, var) + (~matched)*(-999)
             for var in ('pt', 'eta', 'phi', 'm')
         },
         **{
-            'gen_X_reco_matched': (tree[f'gen_Y1_reco_matched'] & tree[f'gen_Y2_reco_matched'])
+            f'gen_X_reco_dr': matched*x_dr + (~matched)*(-999)
+        },
+        **{
+            'gen_X_reco_matched': matched
         }
     )
 

@@ -22,7 +22,7 @@ methods = {'min': lambda a, v: a > v, 'max': lambda a, v: a < v,
 
 def update_cutflow(tree, tag):
     tree.cutflow_labels = tree.cutflow_labels+[tag]
-    new_cutflow = [np.append(cutflow, ak.sum(tree['sample_id'] == i))
+    new_cutflow = [np.append(cutflow, ak.sum(tree['genWeight'][tree['sample_id'] == i]))
                    for i, cutflow in enumerate(tree.cutflow)]
     tree.cutflow = new_cutflow
 

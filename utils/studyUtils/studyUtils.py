@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+from collections import defaultdict
 from .studyUtils import *
 from ..plotUtils.plotUtils import graph_multi, boxplot_multi,  plot_barrel_display, plot_endcap_display
 from ..plotUtils.multi_plotter import hist_multi
@@ -67,7 +68,7 @@ def cutflow(*args, size=(16, 8), log=1, h_label_stat=None,scale=True,density=Fal
     ncutflow = len(cutflow_labels)+1
     flatten_cutflows = [ ak.sum(ak.fill_none(ak.pad_none(cutflow,len(cutflow_labels),axis=-1),0),axis=0) for cutflow in scaled_cutflows ]
     
-    bins = np.arange(ncutflow)-0.5
+    bins = np.arange(ncutflow)
     cutflow_bins = [ak.local_index(cutflow, axis=-1)
                     for cutflow in flatten_cutflows]
     
@@ -84,7 +85,7 @@ def cutflow(*args, size=(16, 8), log=1, h_label_stat=None,scale=True,density=Fal
     fig.tight_layout()
     plt.show()
     if study.saveas:
-        save_fig(fig, "cutflow", study.saveas)
+        save_fig(fig, f"cutflow/{study.saveas}")
     
     if study.return_figax:
         return fig,ax
@@ -119,7 +120,7 @@ def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False,
     fig.tight_layout()
     plt.show()
     if study.saveas:
-        save_fig(fig, "", study.saveas)
+        save_fig(fig, study.saveas)
     
     if study.return_figax:
         return fig,axs
@@ -142,7 +143,8 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-
                                 dpi=80)
     fig, axs = figax
 
-    for i, (var, bins, xlabel) in tqdm(enumerate(varlist),total=nvar):
+    it = tqdm(enumerate(varlist),total=nvar) if study.report else enumerate(varlist)
+    for i, (var, bins, xlabel) in it:
         if not isinstance(axs, np.ndarray):
             ax = axs
         else:
@@ -163,7 +165,7 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-
 
     # plt.show()
     if study.saveas:
-        save_fig(fig, "", study.saveas)
+        save_fig(fig, study.saveas)
         
     if study.return_figax:
         return fig,axs
@@ -186,7 +188,8 @@ def overlay(tree, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1), xlabels=N
                                 dpi=80)
     fig, axs = figax
 
-    for i, (group, bins, xlabel) in enumerate(varlist):
+    it = tqdm(enumerate(varlist),total=nvar) if study.report else enumerate(varlist)
+    for i, (group, bins, xlabel) in it:
         hists = [study.get(var)[0] for var in group]
         weights = [study.get_scale(hists)[0] for var in group]
         # if labels is None:
@@ -203,8 +206,162 @@ def overlay(tree, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1), xlabels=N
     fig.tight_layout()
     plt.show()
     if study.saveas:
-        save_fig(fig, "", study.saveas)
+        save_fig(fig, study.saveas)
     
+    if study.return_figax:
+        return fig,axs
+
+def compare_masks(treelist, bkg=None, varlist=[], masks=[], label=[], h_linestyle=["-","-.","--",":"], figax=None, saveas=None, **kwargs):
+    n = len(treelist) + (1 if bkg is not None else 0)
+    if figax is None:
+      figax = get_figax(n*len(varlist), dim=(-1,n))
+    fig, axs = figax
+
+    nmasks = len(masks)
+    _kwargs = defaultdict(list)
+    for i,mask in enumerate(masks):
+        _kwargs['label'].append(
+                    label[i%len(masks)] if any(label)
+                    else getattr(mask, '__name__', str(mask))
+                    )
+        _kwargs['h_linestyle'].append(h_linestyle[i%len(masks)])
+    kwargs.update(**_kwargs)
+
+    def get_ax(i, axs=axs):
+        if not isinstance(axs, np.ndarray): return axs
+        if axs.ndim == 2 and n > 1: return axs[:,i]
+        return axs
+
+    for i, sample in enumerate(treelist):
+      quick(
+          [sample]*nmasks,
+          masks=masks,
+          varlist=varlist,
+          text=(0.0, 1.0, sample.sample),
+          text_style=dict(ha='left', va='bottom'),
+          figax=(fig, get_ax(i)),
+          **kwargs,
+      )
+
+    if bkg is not None:
+        _masks = []
+        for mask in masks:
+            _masks += [mask]*len(bkg)
+        masks = _masks
+
+        quick_region(
+        *([bkg]*nmasks),
+            masks=masks,    
+            varlist=varlist,
+            text=(0.0,1.0,'MC-Bkg'),
+            text_style=dict(ha='left',va='bottom'),
+            figax=(fig, get_ax(-1)),
+            **dict(kwargs, h_color=['grey']*len(bkg)*nmasks),
+        )
+    
+    if saveas:
+        save_fig(fig, saveas)
+
+
+def compare_masks_by_sample(treelist, bkg=None, varlist=[], masks=[], label=[], figax=None, saveas=None, **kwargs):
+    n = len(masks)
+    if figax is None:
+      figax = get_figax(n*len(varlist), dim=(-1,n))
+    fig, axs = figax
+
+    nmasks = len(masks)
+    get_ax = lambda i : axs[:,i] if axs.ndim == 2 else axs[i]
+
+    if bkg is not None:
+        treelist = treelist + bkg
+
+    for i, mask in enumerate(masks):
+        mask_label = label[i % len(masks)] if any(label) \
+                     else getattr(mask, '__name__', str(mask))
+        quick(
+            treelist,
+            masks=mask,
+            varlist=varlist,
+            text=(0.0, 1.0, mask_label),
+            text_style=dict(ha='left', va='bottom'),
+            figax=(fig, get_ax(i)),
+            **kwargs,
+        )
+    
+    if saveas:
+        save_fig(fig, saveas)
+
+def compare_masks_v2(treelist, masks=[], label=[], varlist=[], h_linestyle=["-","-.","--",":"], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-1), flip=False, figax=None, **kwargs):
+
+    _treelist = []
+    _kwargs = defaultdict(list)
+    for i, mask in enumerate(masks):
+        for tree in treelist:
+            _treelist.append(tree)
+            _kwargs['masks'].append(mask)
+            _kwargs['h_linestyle'].append(h_linestyle[i%len(h_linestyle)])
+            _kwargs['label'].append(
+                label[i%len(masks)] if any(label)
+                else getattr(mask, '__name__', str(mask))
+                )
+    kwargs.update(**_kwargs)
+
+    study = Study(_treelist, **kwargs)
+
+    ntrees = len(treelist)
+    samples = [tree.sample for tree in treelist]
+    nmasks = len(masks)
+    nvar = len(varlist)
+    binlist = init_attr(binlist, None, nvar)
+    xlabels = init_attr(xlabels, None, nvar)
+    varlist = zip(varlist, binlist, xlabels)
+
+    nrows, ncols = autodim(nvar, (nvar, 1), flip)
+    ncols = min(nvar,4)
+    xsize, ysize = autosize(size,(nrows, ncols))
+    
+    if figax is None:
+        figax = plt.subplots(nrows=nrows, ncols=1,
+                                figsize=(int(ntrees*xsize*ncols), ysize*nrows),
+                                dpi=80)
+    fig, axs = figax
+
+    for i, (var, bins, xlabel) in tqdm(enumerate(varlist),total=nvar):
+        if not isinstance(axs, np.ndarray):
+            ax = axs
+        else:
+            ax = axs.flat[i]
+            
+        if var is None: 
+            ax.set_visible(False)
+            continue
+        
+        bins, xlabel = format_var(var, bins, xlabel)
+
+        hists = study.get(var)
+        weights = study.get_scale(hists)
+        attrs = study.attrs
+
+        for j, sample in enumerate(samples):
+            _hists = hists[j::ntrees]
+            _weights = weights[j::ntrees]
+            get_attr = lambda value : value[j::ntrees] if isinstance(value, list) else value
+            _attrs = { key:get_attr(value) for key, value in attrs.items() }
+            _attrs.update(
+                    text=(0.0,1.0, sample),
+                    text_style=dict(ha='left',va='bottom'),
+            )
+
+            hist_multi(_hists, bins=bins, xlabel=xlabel,
+                    weights=_weights, **_attrs, figax=(fig, ax), as_new_plot=True)
+    fig.suptitle(study.title)
+    fig.tight_layout()
+    fig.canvas.draw()
+
+    # plt.show()
+    if study.saveas:
+        save_fig(fig, study.saveas)
+        
     if study.return_figax:
         return fig,axs
 
@@ -284,7 +441,7 @@ def quick2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlis
         fig.tight_layout()
     # plt.show()
     if study.saveas:
-        save_fig(fig, "", study.saveas)
+        save_fig(fig, study.saveas)
     
     if study.return_figax:
         return fig,axs
@@ -346,7 +503,7 @@ def overlay2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinl
     fig.tight_layout()
     # plt.show()
     if study.saveas:
-        save_fig(fig, "", study.saveas)
+        save_fig(fig, study.saveas)
     
     if study.return_figax:
         return fig,axs
@@ -398,7 +555,7 @@ def quick_region(*rtrees, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), s
         
     # plt.show()
     if study.saveas:
-        save_fig(fig, "", study.saveas)
+        save_fig(fig, study.saveas)
         
     if study.return_figax:
         return fig,axs
@@ -468,7 +625,7 @@ def quick2d_region(*rtrees, varlist=None, binlist=None, xvarlist=[], yvarlist=[]
     fig.tight_layout()
     # plt.show()
     if study.saveas:
-        save_fig(fig, "", study.saveas)
+        save_fig(fig, study.saveas)
     
     if study.return_figax:
         return fig,axs

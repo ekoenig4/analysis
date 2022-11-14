@@ -11,6 +11,7 @@ import re, glob, os
 
 from tqdm import tqdm
 import subprocess
+from collections import defaultdict
 
 def _check_file(fname):
     if os.path.isfile(fname): return fname
@@ -37,6 +38,7 @@ class SixBFile:
 
         self.sample, self.xsec = next(
             ((key, value) for key, value in xsecMap.items() if key in fname), ("unk", 1))
+
         self.scale = self.xsec / \
             self.total_events if type(self.xsec) == float else 1
 
@@ -69,6 +71,7 @@ class LazySixBFile:
 
         self.sample, self.xsec = next(
             ((key, value) for key, value in xsecMap.items() if key in self.fname), ("unk", 1))
+
         self.scale = self.xsec / \
             self.total_events if type(self.xsec) == float else 1
 
@@ -83,9 +86,20 @@ def init_files(self, filelist):
     filelist = [ fn for flist in filelist for fn in _glob_files(flist) ]
     # self.filelist = [SixBFile(fn) for fn in filelist]
     self.filelist = [LazySixBFile(fn) for fn in tqdm(filelist)]
+    self.filelist = [ fn for fn in self.filelist if fn.total_events > 0 ]
+    # Fix normalization when using multiple files of the same sample
+    samples = defaultdict(lambda:0)
+    for f in self.filelist:
+        samples[f.sample] += f.total_events
+
+    for f in self.filelist:
+        f.total_events = samples[f.sample]
+        f.scale = f.xsec / \
+            f.total_events if type(f.xsec) == float else 1
+
     self.lazy = True
 
-    self.filelist = [ fn for fn in self.filelist if fn.raw_events > 0 ]
+    # self.filelist = [ fn for fn in self.filelist if fn.raw_events > 0 ]
 
 def init_sample(self):  # Helper Method For Tree Class
     self.is_data = any("Data" in fn.fname for fn in self.filelist)

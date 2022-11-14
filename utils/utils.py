@@ -197,7 +197,7 @@ def reorder_collection(collection, order):
     return collection[order]
 
 
-def build_collection(tree, pattern, name, ptordered=False, replace=False):
+def build_collection(tree, pattern, name, ordered=None, ptordered=False, replace=False):
     fields = list(filter(lambda field: re.match(pattern, field), tree.fields))
     components = dict.fromkeys([re.search(pattern, field)[0]
                                for field in fields if re.search(pattern, field)]).keys()
@@ -212,8 +212,12 @@ def build_collection(tree, pattern, name, ptordered=False, replace=False):
         [component[field][:, None] for component in components], axis=-1) for field in shared_fields}
 
     if ptordered:
-        order = ak.argsort(-collection[f'{name}_pt'], axis=-1)
+        ordered = "pt"
+        
+    if ordered:
+        order = ak.argsort(-collection[f'{name}_{ordered}'], axis=-1)
         collection = {key: array[order] for key, array in collection.items()}
+        collection.update(**{f'{name}_localid':order})
 
     tree.extend(**collection)
     # return collection

@@ -132,18 +132,23 @@ def plot_histo(histo, errors=True, fill_error=False, figax=None, exe=None, **kwa
     if histo.continous: 
         return graph_histo(histo, errors=errors, figax=(fig,ax), **kwargs)
 
-    bin_centers = get_bin_centers(histo.bins)
+    bins = histo.bins 
+    x = get_bin_centers(histo.bins)
+    y = histo.histo * histo.plot_scale
+    yerr = histo.error * histo.plot_scale
     
-    _,_,container = ax.hist(bin_centers, bins=histo.bins, weights=histo.histo, **histo.kwargs)
+    _,_,container = ax.hist(x, bins=bins, weights=y, **histo.kwargs)
     histo.kwargs['color'] = container[0].get_ec() if container[0].get_ec() != (0.,0.,0.,0.) else container[0].get_fc()
     color = histo.kwargs['color'] if histo.kwargs.get('histtype',False) else 'black'
     
     if errors:
+        yerr = np.where( (y-yerr)>0, yerr, y)
+
         if not fill_error:
-            ax.errorbar(bin_centers, histo.histo, yerr=histo.error,fmt='none', color=color, capsize=1)
+            ax.errorbar(x, y, yerr=yerr,fmt='none', color=color, capsize=1)
         else:
             for nstd in range(1, int(fill_error)+1 ):
-                ax.fill_between(bin_centers, histo.histo-nstd*histo.error, histo.histo+nstd*histo.error, color=histo.kwargs['color'], alpha=0.25/nstd, step='mid')
+                ax.fill_between(x, y-nstd*yerr, y+nstd*yerr, color=histo.kwargs['color'], alpha=0.25/nstd, step='mid')
 
     if getattr(histo, 'fit', None) is not None:
         if histo.fit.show:
@@ -195,22 +200,27 @@ def histo_arrays(arrays, bins=None, weights=None, density = False,
     
     return fig,ax
 
-def plot_stack(stack, figax=None, fill_error=False, exe=None, **kwargs):
+def plot_stack(stack, figax=None, fill_error=False, exe=None, sort='largest', **kwargs):
     fig, ax = get_figax(figax=(figax))
+
+    sorting = dict(
+        smallest=lambda h:h.ndata,
+        largest=lambda h:-h.ndata,
+    ).get(sort)
     
     bin_centers = get_bin_centers(stack.bins)
     bin_widths = 2*get_bin_widths(stack.bins)
 
     if not stack.stack_fill:
         histo_sum = np.zeros(stack[0].histo.shape)
-        for i,histo in enumerate( sorted(stack, key=lambda h:h.ndata) ):
+        for i,histo in enumerate( sorted(stack, key=sorting) ):
             container = ax.bar(bin_centers, histo.histo, bin_widths,
                 bottom=histo_sum, **histo.kwargs)
             histo.kwargs['color'] = container[0].get_fc()
             histo_sum = histo_sum + histo.histo
 
         error = np.sqrt((stack.error.npy**2).sum(axis=0))
-
+        error = np.where( (histo_sum-error)>0, error, histo_sum)
         if not fill_error:
             ax.errorbar(bin_centers, histo_sum, yerr=error,
                         fmt='none', color='black', capsize=1)
