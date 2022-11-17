@@ -1,25 +1,27 @@
 import os, subprocess
 
-class eos:
-  url="root://cmseos.fnal.gov"
+from .eos import *
 
-  @staticmethod
-  def ls(path, with_path=False):
-    cmd = ['eos',eos.url,'ls',path]
-    stdout = subprocess.run([' '.join(cmd)], shell=True, capture_output=True).stdout.decode("utf-8")
-    dirlist = stdout.strip().split('\n')
+# class eos:
+#   url="root://cmseos.fnal.gov"
 
-    if with_path:
-      path = os.path.dirname(path)
-      return [ f'{path}/{d}' for d in dirlist ]
-    return dirlist
+#   @staticmethod
+#   def ls(path, with_path=False):
+#     cmd = ['eos',eos.url,'ls',path]
+#     stdout = subprocess.run([' '.join(cmd)], shell=True, capture_output=True).stdout.decode("utf-8")
+#     dirlist = stdout.strip().split('\n')
 
-  @staticmethod
-  def exists(path):
-    cmd = ['eos', eos.url, 'ls', path]
-    stdout = subprocess.run([' '.join(cmd)], shell=True, capture_output=True).stdout.decode("utf-8")
-    stdout.strip()
-    return any(stdout)
+#     if with_path:
+#       path = os.path.dirname(path)
+#       return [ f'{path}/{d}' for d in dirlist ]
+#     return dirlist
+
+#   @staticmethod
+#   def exists(path):
+#     cmd = ['eos', eos.url, 'ls', path]
+#     stdout = subprocess.run([' '.join(cmd)], shell=True, capture_output=True).stdout.decode("utf-8")
+#     stdout.strip()
+#     return any(stdout)
 
 def check_accstudies(fn):
     if eos.exists(fn): return fn
@@ -114,6 +116,20 @@ class FileCollection:
     self.contents = None
 
     self.__dict__.update( sample_files(self.path) )
+
+  @property
+  def eos(self):
+    if self.path.startswith('/store/user/'):
+      path = os.path.join('/eos/uscms/', self.path)
+      return FileCollection(path)
+    return self
+
+  @property
+  def store(self):
+    if self.path.startswith('/eos/uscms/'):
+      path = self.path.replace('/eos/uscms/','/store/user/')
+      return FileCollection(path)
+    return self
 
   def __getattr__(self, f): 
     path = f'{self.path}/{f}'

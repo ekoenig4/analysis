@@ -3,7 +3,7 @@
 
 from collections import defaultdict
 from .studyUtils import *
-from ..plotUtils.plotUtils import graph_multi, boxplot_multi,  plot_barrel_display, plot_endcap_display
+# from ..plotUtils.plotUtils import graph_multi, boxplot_multi,  plot_barrel_display, plot_endcap_display
 from ..plotUtils.multi_plotter import hist_multi
 from ..plotUtils.multi_plotter_2d import hist2d_simple, hist2d_multi
 from ..selectUtils import *
@@ -78,7 +78,7 @@ def cutflow(*args, size=(16, 8), log=1, h_label_stat=None,scale=True,density=Fal
     if scale is False:
         if density: 
             flatten_cutflows = [ cutflow/cutflow[0] for cutflow in flatten_cutflows ]
-        fig,ax = graph_multi(cutflow_labels,flatten_cutflows,xlabel=cutflow_labels,**study.attrs,figax=figax)
+        fig,ax = graph_arrays(cutflow_labels,flatten_cutflows,xlabel=cutflow_labels,**study.attrs,figax=figax)
     else:
         fig, ax = hist_multi(cutflow_bins, bins=bins, weights=flatten_cutflows, xlabel=cutflow_labels, h_histtype=[
                         "step"]*len(study.selections), **study.attrs, figax=figax)
@@ -114,8 +114,9 @@ def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False,
         else:
             ax = axs.flat[i]
 
-        boxplot_multi(hists, bins=bins, xlabel=xlabel,
-                      weights=weights, **study.attrs, figax=(fig, ax))
+        raise NotImplemented("boxplot multi not implemeted yet bud")
+        # boxplot_multi(hists, bins=bins, xlabel=xlabel,
+        #               weights=weights, **study.attrs, figax=(fig, ax))
     fig.suptitle(study.title)
     fig.tight_layout()
     plt.show()

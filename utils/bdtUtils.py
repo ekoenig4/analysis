@@ -17,7 +17,7 @@ import pickle, os
 
 class BDTReweighter:
   seed = 123456789
-  def __init__(self, n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, gb_args={'subsample':0.4}, n_folds=2):
+  def __init__(self, n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, gb_args={'subsample':0.4}, n_folds=2, verbose=False):
     np.random.seed(self.seed) #Fix any random seed using numpy arrays
 
     reweighter_base = reweight.GBReweighter(
@@ -27,7 +27,7 @@ class BDTReweighter:
         min_samples_leaf=min_samples_leaf,
         gb_args=gb_args)
 
-    self.reweighter = reweight.FoldingReweighter(reweighter_base, random_state=self.seed, n_folds=n_folds, verbose=False)
+    self.reweighter = reweight.FoldingReweighter(reweighter_base, random_state=self.seed, n_folds=n_folds, verbose=verbose)
 
   def train(self, targ_x, targ_w, estm_x, estm_w, reweight=True):
     self.k_factor = ak.sum(targ_w)/ak.sum(estm_w)
@@ -83,7 +83,6 @@ class ABCD(BDTReweighter):
       k_factor_score=self.k_factor*(b_T/a_T)-1,
       bdt_score=b_R/a_T-1
     )
-
 
   def reweight_tree(self, treeiter: ObjIter):
     X, W = self.get_features(treeiter)

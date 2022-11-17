@@ -2,7 +2,7 @@ from genericpath import isfile
 from ..selectUtils import *
 from ..xsecUtils import *
 from ..utils import *
-from ..fileUtils.fileUtils import eos
+from ..fileUtils.eos import *
 
 import uproot as ut
 import awkward as ak
@@ -79,6 +79,26 @@ class LazySixBFile:
         self.raw_events = len(tree)
         self.fields = tree.fields
         del tree
+
+    def write(self, output, retry=2, **kwargs):
+        dirname, basename = os.path.dirname(self.fname), os.path.basename(self.fname)
+        dirname = dirname.replace(eos.url, '')
+        output = os.path.join(dirname, output.format(base=basename))
+
+        tmp_output = '_'.join(output.split('/'))
+
+        print(f'Writing {output}')
+        for i in range(retry):
+            try:
+                with ut.recreate(tmp_output) as f:
+                    for key, value in kwargs.items():
+                        f[key] = value
+                break
+            except ValueError:
+                ...
+
+        copy_to_eos(tmp_output, output)
+        os.remove(tmp_output)
 
 def init_files(self, filelist):
     if type(filelist) == str:
@@ -285,6 +305,21 @@ class Tree:
             remaining += cache.current
         freed = total - remaining
         return freed 
+
+    def asmodel(self, name='model', color='lavender'):
+        tree = self.copy()
+        tree.is_model = True 
+        tree.sample = name
+        tree.color = color
+        return tree
+
+    
+    def write(self, output='new_{base}', retry=2):
+
+        for i,file in enumerate(self.filelist):
+            tree = unzip_records(self.ttree[ self.sample_id == i ])
+            cutflow = (self.cutflow[i], np.arange(self.cutflow[i].shape[0]+1))
+            file.write(output, retry=retry, sixBtree=tree, h_cutflow=cutflow)
 
 class CopyTree(Tree):
     def __init__(self, tree):

@@ -27,6 +27,13 @@ def combinations(nitems, ks):
    combs = list(_combinations(np.arange(nitems), ks))
    return np.array(combs)
 
+def to_pair_combinations(o1_index, o2_index, nobjs=None):
+    if nobjs is None:
+      nobjs = max( np.max(o1_index), np.max(o2_index) )+1
+    i, j = o1_index, o2_index
+    k = (-0.5*i*i + (nobjs-0.5)*i + j - i - 1).astype(int)
+    return k
+
 def get_jet_index_mask(jets, index):
     """ Generate jet mask for a list of indicies """
     if hasattr(jets, 'ttree'):
