@@ -71,7 +71,8 @@ def _set_xlabel(ax, xlabel=None, **kwargs):
         kwargs['xlabel'] = xlabel 
         return kwargs 
     
-    ax.set_xticks(np.arange(len(xlabel))+0.5)
+    ax.set_xticks(np.arange(len(xlabel)))
+    # ax.set_xticks(np.arange(len(xlabel))+0.5)
     rotation = -45 if isinstance(xlabel[0],str) else 0
     ax.set_xticklabels(xlabel, rotation=rotation)
     return kwargs

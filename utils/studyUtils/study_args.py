@@ -42,8 +42,8 @@ def _mask_item_from_tree(tree, item, mask):
     if mask is None:
         return item
     if callable(mask):
-        if len(signature(mask).parameters) > 1:
-            return mask(tree, item)
+        # if len(signature(mask).parameters) > 1:
+        #     return mask(tree, item)
         mask = mask(tree)
 
     if item is 'n_mask':
@@ -131,7 +131,16 @@ class _study_args:
             key, define, comments, figax=figax, **extra
         )
 
-    def get(self, key, indices=True, transforms=True, scale=False):
+    def get_histogram(self, key):
+        items = [ tree.histograms[key] for tree in self.treelist ]
+
+        counts = [ item.histo for item in items ]
+        bins = [ item.bins for item in items ]
+        errors = [ item.error for item in items ]
+
+        return counts, bins, errors
+
+    def get_array(self, key, indices=True, transforms=True, scale=False):
         items = [_get_item_from_tree(tree, key) for tree in self.treelist]
         if indices and any(self.indices):
             items = [_index_item_from_tree(tree, item, index) for tree, item, index in zip(
@@ -144,11 +153,10 @@ class _study_args:
         if any(value is not None for value in self.masks):
             items = [_mask_item_from_tree(tree, item, mask) for tree, item, mask in zip(
                 self.treelist, items, self.masks)]
-
         return items
 
     def get_scale(self, items):
-        scales = self.get('scale', indices=False, transforms=False, scale=True)
+        scales = self.get_array('scale', indices=False, transforms=False, scale=True)
         scales = [
             scale if ak.count(scale) == ak.count(
                 item) else ak.ones_like(item)*scale

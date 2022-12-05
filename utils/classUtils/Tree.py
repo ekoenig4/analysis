@@ -1,4 +1,3 @@
-from genericpath import isfile
 from ..selectUtils import *
 from ..xsecUtils import *
 from ..utils import *
@@ -8,6 +7,7 @@ import uproot as ut
 import awkward as ak
 import numpy as np
 import re, glob, os
+import functools
 
 from tqdm import tqdm
 import subprocess
@@ -56,18 +56,20 @@ class LazySixBFile:
             return
         
         if use_cutflow:
-
             try:
-                ut.open(f'{self.fname}:h_cutflow')
+                with ut.open(f'{self.fname}:h_cutflow') as cutflow:
+                    self.cutflow_labels = cutflow.axis().labels()
+                    self.cutflow = cutflow
+                    if self.cutflow_labels is None: self.cutflow_labels = []
+                    self.total_events = self.cutflow.counts()[0]
             except ut.KeyInFileError:
                 return
 
-            with ut.open(f'{self.fname}:h_cutflow') as cutflow:
-                self.cutflow_labels = cutflow.axis().labels()
-                if self.cutflow_labels is None: self.cutflow_labels = []
-                self.cutflow = cutflow.to_numpy()[0]
-                self.total_events = self.cutflow[0]
         self.normtree = f'{self.fname}:NormWeightTree' 
+        with ut.open(self.fname) as f:
+            keys = [ key[:-2] for key in f.keys() ]
+            histograms = [ key for key in keys if key not in ('sixBtree','h_cutflow','h_cutflow_unweighted','NormWeightTree') ]
+            self.histograms = { key : f[key] for key in histograms }
 
         self.sample, self.xsec = next(
             ((key, value) for key, value in xsecMap.items() if key in self.fname), ("unk", 1))
@@ -80,12 +82,13 @@ class LazySixBFile:
         self.fields = tree.fields
         del tree
 
-    def write(self, output, retry=2, **kwargs):
+    def write(self, altfile, retry=2, tree=None, types=None, **kwargs):
         dirname, basename = os.path.dirname(self.fname), os.path.basename(self.fname)
         dirname = dirname.replace(eos.url, '')
-        output = os.path.join(dirname, output.format(base=basename))
+        output = os.path.join(dirname, altfile.format(base=basename))
 
         tmp_output = '_'.join(output.split('/'))
+        kwargs.update( **self.histograms )
 
         print(f'Writing {output}')
         for i in range(retry):
@@ -93,33 +96,50 @@ class LazySixBFile:
                 with ut.recreate(tmp_output) as f:
                     for key, value in kwargs.items():
                         f[key] = value
+
+                    f.mktree('sixBtree', types)
+                    f['sixBtree'].extend(tree)
                 break
             except ValueError:
                 ...
 
-        copy_to_eos(tmp_output, output)
-        os.remove(tmp_output)
+        move_to_eos(tmp_output, output)
 
-def init_files(self, filelist):
+def init_files(self, filelist, altfile="{base}", report=True):
     if type(filelist) == str:
         filelist = [filelist]
-    filelist = [ fn for flist in filelist for fn in _glob_files(flist) ]
+
+    def use_altfile(f):
+        dirname, basename = os.path.dirname(f), os.path.basename(f)
+        basename = altfile.format(base=basename)
+        return os.path.join(dirname, basename)
+
+    filelist = [ use_altfile(fn) for flist in filelist for fn in _glob_files(flist) ]
     # self.filelist = [SixBFile(fn) for fn in filelist]
-    self.filelist = [LazySixBFile(fn) for fn in tqdm(filelist)]
+
+    it = tqdm(filelist) if report else iter(filelist)
+    self.filelist = [LazySixBFile(fn) for fn in it]
     self.filelist = [ fn for fn in self.filelist if fn.total_events > 0 ]
     # Fix normalization when using multiple files of the same sample
     samples = defaultdict(lambda:0)
     for f in self.filelist:
         samples[f.sample] += f.total_events
 
+    histograms = defaultdict(list)
     for f in self.filelist:
         f.total_events = samples[f.sample]
         f.scale = f.xsec / \
             f.total_events if type(f.xsec) == float else 1
-
+        
+        for key, histogram in f.histograms.items():
+            from ..plotUtils import Histo
+            histograms[key].append( Histo.from_th1d(histogram, scale=f.scale) )
+        
+    self.histograms = {
+        key: functools.reduce(Histo.add, histogram)
+        for key, histogram in histograms.items()
+    }
     self.lazy = True
-
-    # self.filelist = [ fn for fn in self.filelist if fn.raw_events > 0 ]
 
 def init_sample(self):  # Helper Method For Tree Class
     self.is_data = any("Data" in fn.fname for fn in self.filelist)
@@ -135,14 +155,14 @@ def init_sample(self):  # Helper Method For Tree Class
 
     if self.is_data:
         self.sample = "Data"
-        
-    self.color = colorMap.get(self.sample, None)
-    if not isinstance(self.color, str): self.color = next(self.color)
 
     if self.is_signal:
         points = [ re.findall('MX_\d+_MY_\d+',fn.fname)[0] for fn in self.filelist ]
         if len(set(points)) == 1:
             self.sample = points[0]
+        
+    self.color = colorMap.get(self.sample, None)
+    if self.color is not None and not isinstance(self.color, str): self.color = next(self.color)
 
 
 def init_tree(self, use_gen=False, cache=None):
@@ -165,9 +185,26 @@ def init_tree(self, use_gen=False, cache=None):
 
     self.raw_events = sum(fn.raw_events for fn in self.filelist)
     self.cutflow_labels = max(map(lambda fn : fn.cutflow_labels,self.filelist))
-    ncutflow = len(self.cutflow_labels) if self.cutflow_labels else 0
-    self.cutflow = [ak.fill_none(ak.pad_none(
-        fn.cutflow, ncutflow, axis=0, clip=True), 0).to_numpy() for fn in self.filelist]
+    if not any(self.cutflow_labels):
+        self.cutflow_labels = max(map(lambda fn : np.arange(len(fn.cutflow.counts())).astype(str).tolist(), self.filelist))
+    ncutflow = len(self.cutflow_labels) if any(self.cutflow_labels) else 0
+
+    def pad_cutflow(cutflow):
+        from ..plotUtils import Histo
+        cutflow = Histo.from_th1d(cutflow)
+
+        pad = max(0, ncutflow - len(cutflow.histo))
+        if pad > 0: 
+            cutflow.histo = np.pad( cutflow.histo, (0, pad), constant_values=0 )
+            cutflow.error = np.pad( cutflow.error, (0, pad), constant_values=0 )
+        else:
+            cutflow.histo = cutflow.histo[:ncutflow]
+            cutflow.error = cutflow.error[:ncutflow]
+
+        cutflow.bins = np.arange(ncutflow+1)
+        return cutflow
+
+    self.cutflow = [ pad_cutflow(fn.cutflow) for fn in self.filelist]
 
     self.systematics = None
 
@@ -201,9 +238,9 @@ def _regex_field(self, regex):
     return item
 
 class Tree:
-    def __init__(self, filelist, allow_empty=False, use_gen=True, cache=None):
+    def __init__(self, filelist, altfile="{base}", report=True, use_gen=True, cache=None):
 
-        init_files(self, filelist)
+        init_files(self, filelist, altfile, report)
 
         if not any(self.filelist):
             print('[WARNING] unable to open any files.')
@@ -213,6 +250,7 @@ class Tree:
 
         init_sample(self)
         init_tree(self, use_gen, cache)
+
         # init_selection(self)
 
         # self.reco_XY()
@@ -312,14 +350,43 @@ class Tree:
         tree.sample = name
         tree.color = color
         return tree
-
     
-    def write(self, output='new_{base}', retry=2):
+    def write(self, altfile='new_{base}', retry=2):
 
-        for i,file in enumerate(self.filelist):
-            tree = unzip_records(self.ttree[ self.sample_id == i ])
-            cutflow = (self.cutflow[i], np.arange(self.cutflow[i].shape[0]+1))
-            file.write(output, retry=retry, sixBtree=tree, h_cutflow=cutflow)
+        def _prep_to_write_(tree):
+            fields = tree.fields
+
+            types = dict()
+            option_fields = []
+            for field in fields:
+                types[field] = tree.type.type[field]
+                
+                if "?" in str(types[field]):
+                    option_fields.append(field)
+
+            if any(option_fields):
+                option_fields = {
+                    field: ak.from_numpy(tree[field].to_numpy().data)
+                    for field in option_fields
+                }
+                tree = join_fields(tree, **option_fields)
+
+                types.update({
+                    field:tree.type.type[field]
+                    for field in option_fields
+                })
+                
+            return tree, types
+
+        full_tree, types = _prep_to_write_(self.ttree)
+
+        for i, file in tqdm(enumerate(self.filelist), total=len(self.filelist)):
+            file_mask = self.sample_id == i
+            if ak.sum(file_mask) == 0: continue
+
+            tree = unzip_records(full_tree[ file_mask ])
+            cutflow = (self.cutflow[i].histo, self.cutflow[i].bins)
+            file.write(altfile, retry=retry, tree=tree, types=types, h_cutflow=cutflow)
 
 class CopyTree(Tree):
     def __init__(self, tree):

@@ -24,6 +24,9 @@ tagMap = {
 colorMap = {    
     "X$\\rightarrow$ YH$\\rightarrow$3H$\\rightarrow$6b": "orange",
     "X$\\rightarrow$ YY$\\rightarrow$4H$\\rightarrow$8b": iter(cycle(['tomato', 'royalblue', 'mediumorchid'])),
+    "MX_700_MY_300": 'tomato',
+    "MX_1000_MY_450": 'royalblue',
+    "MX_1200_MY_500": 'mediumorchid',
     "QCD": "lightblue",
     "TTJets": "darkseagreen",
     "Data": "black",

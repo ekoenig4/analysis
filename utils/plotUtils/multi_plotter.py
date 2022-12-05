@@ -129,14 +129,14 @@ def _add_limits(figax, plotobjs, xy=(0.05,0.95), xycoords='axes fraction', poi=n
         elif plotobj.is_bkg:    h_bkgs.append(plotobj)
         elif plotobj.is_data:   h_data = plotobj
 
-    models = [ Model(h_sig, h_bkgs, h_data) for h_sig in h_sigs ]       
+    models = [ Model(h_sig, h_bkgs, h_data) for h_sig in h_sigs ]
 
     for model in models:
         model.upperlimit(poi=poi)
         model.h_sig.set_label('exp_lim')
+        if saveas:
+            model.export_to_root(saveas=saveas)
         
-    if saveas:
-        model.export_to_root(saveas=saveas)
 
     
 def _add_ratio(figax, plotobjs, store=None, show=True, ylim=(0.1, 1.9), ylabel=None, size='20%', sharex=True, grid=True, inv=False, group=None, method=None, label_stat=None, num_transform=None, den_transform=None, histo=False, **kwargs):
@@ -375,7 +375,7 @@ def hist_multi(arrays, bins=None, weights=None, density = False, efficiency=Fals
     if len(datas) > 0: 
         data_kwargs = datas.unzip(datas.fields[1:])
         data_kwargs.update(dict(color='black', marker='o', linestyle='None'))
-        datas = DataList(datas.arrays, bins=bins, density=density, cumulative=cumulative, efficiency=efficiency, **data_kwargs)
+        datas = DataList.from_arrays(datas.arrays, bins=bins, density=density, cumulative=cumulative, efficiency=efficiency, **data_kwargs)
         bins = datas[0].bins
         plotobjs.append(datas)
 
@@ -383,14 +383,14 @@ def hist_multi(arrays, bins=None, weights=None, density = False, efficiency=Fals
         bkgs,attrs = attrs.split(lambda h : not h.is_signal)
         if len(bkgs) > 0:
             bkg_kwargs = bkgs.unzip(bkgs.fields[1:])
-            stack = Stack(bkgs.arrays, bins=bins, density=density, cumulative=cumulative, efficiency=efficiency, stack_fill=stack_fill, **bkg_kwargs)
+            stack = Stack.from_arrays(bkgs.arrays, bins=bins, density=density, cumulative=cumulative, efficiency=efficiency, stack_fill=stack_fill, **bkg_kwargs)
             bins = stack[0].bins
             plotobjs.append(stack)
         
     if len(attrs) > 0:
         histo_kwargs = attrs.unzip(attrs.fields[1:])
         histo_kwargs.update(dict(histtype='step',linewidth=2))
-        histos = HistoList(attrs.arrays, bins=bins, density=density, cumulative=cumulative, efficiency=efficiency, plot_scale=plot_scale, **histo_kwargs)
+        histos = HistoList.from_arrays(attrs.arrays, bins=bins, density=density, cumulative=cumulative, efficiency=efficiency, plot_scale=plot_scale, **histo_kwargs)
         bins = histos[0].bins
         plotobjs.append(histos)
         
@@ -402,4 +402,58 @@ def hist_multi(arrays, bins=None, weights=None, density = False, efficiency=Fals
     if (histo): _plot_objects((fig,ax), plotobjs, as_new_plot=as_new_plot, **kwargs['remaining'])
     _multi_driver(plotobjs, kwargs, histo=False, ratio=ratio, difference=difference, empirical=empirical, correlation=correlation, figax=(fig,ax))
 
-    return fig, ax
+    return fig, ax, plotobjs
+
+
+def count_multi(counts, bins=None, error=None, density = False, efficiency=False,
+                cumulative=False, scale=None, lumi=None, plot_scale=1, store=None,
+                is_data=False, is_signal=False, is_model=False, stacked=False, stack_fill=False,
+                histo=True, ratio=False, correlation=False, difference=False, empirical=False, limits=False, 
+                as_new_plot=False, figax=None, **kwargs):
+    fig, ax = get_figax(figax)
+    
+    # --- Configure kwargs ---
+    kwargs = _configure_kwargs(**kwargs)
+
+    kwargs['hist'].update(dict(scale=scale,lumi=lumi))
+    kwargs['ratio'].update(dict(xlabel=kwargs['ratio'].get('xlabel', kwargs['remaining'].get('xlabel', None))))
+    kwargs['difference'].update(dict(xlabel=kwargs['difference'].get('xlabel', kwargs['remaining'].get('xlabel', None))))
+    kwargs['empirical'].update(dict(xlabel=kwargs['empirical'].get('xlabel', kwargs['remaining'].get('xlabel', None))))
+    kwargs['correlation'].update(dict(label_stat=kwargs['correlation'].get('label_stat','area')))
+    kwargs['remaining'].update(dict(density=density, cumulative=cumulative, efficiency=efficiency, scale=scale, lumi=lumi))
+    
+    attrs = AttrArray(counts=counts,error=error, is_data=is_data,is_signal=is_signal, is_model=is_model, **kwargs['hist']) 
+    plotobjs = []
+    
+    datas,attrs = attrs.split(lambda h : h.is_data and not h.is_model)
+    if len(datas) > 0: 
+        data_kwargs = datas.unzip(datas.fields[1:])
+        data_kwargs.update(dict(color='black', marker='o', linestyle='None'))
+        datas = DataList.from_counts(datas.counts, bins=bins, density=density, cumulative=cumulative, efficiency=efficiency, **data_kwargs)
+        bins = datas[0].bins
+        plotobjs.append(datas)
+
+    if stacked: 
+        bkgs,attrs = attrs.split(lambda h : not h.is_signal)
+        if len(bkgs) > 0:
+            bkg_kwargs = bkgs.unzip(bkgs.fields[1:])
+            stack = Stack.from_counts(bkgs.counts, bins=bins, density=density, cumulative=cumulative, efficiency=efficiency, stack_fill=stack_fill, **bkg_kwargs)
+            bins = stack[0].bins
+            plotobjs.append(stack)
+        
+    if len(attrs) > 0:
+        histo_kwargs = attrs.unzip(attrs.fields[1:])
+        histo_kwargs.update(dict(histtype='step',linewidth=2))
+        histos = HistoList.from_counts(attrs.counts, bins=bins, density=density, cumulative=cumulative, efficiency=efficiency, plot_scale=plot_scale, **histo_kwargs)
+        bins = histos[0].bins
+        plotobjs.append(histos)
+        
+        
+    if (limits): 
+        _add_limits((fig,ax), plotobjs, **kwargs['limits'])
+    _store_objects(store, plotobjs)
+
+    if (histo): _plot_objects((fig,ax), plotobjs, as_new_plot=as_new_plot, **kwargs['remaining'])
+    _multi_driver(plotobjs, kwargs, histo=False, ratio=ratio, difference=difference, empirical=empirical, correlation=correlation, figax=(fig,ax))
+
+    return fig, ax, plotobjs

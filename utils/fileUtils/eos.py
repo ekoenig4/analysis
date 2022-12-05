@@ -89,6 +89,11 @@ def copy_to_eos(src, dest):
 def copy_from_eos(src, dest):
     return eos.copy(eos.fullpath(src), dest)
 
+def move_to_eos(src, dest):
+    result = copy_to_eos(src, dest)
+    os.remove(src)
+    return result
+
 def fullpath(path):
     if os.path.exists(path):
         return os.path.abspath(path)

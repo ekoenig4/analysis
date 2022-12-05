@@ -30,7 +30,9 @@ class Model:
       )
     except FailedMinimization:
       obs_limit, exp_limit = np.nan, np.array(5*[np.nan])
+    norm_obs_limit, norm_exp_limit = obs_limit, [ lim for lim in exp_limit ]
     obs_limit, exp_limit = self.norm*obs_limit, [ self.norm*lim for lim in exp_limit ]
+    self.h_sig.stats.norm_obs_limit, self.h_sig.stats.norm_exp_limits = norm_obs_limit, norm_exp_limit
     self.h_sig.stats.obs_limit, self.h_sig.stats.exp_limits = obs_limit, exp_limit
     return obs_limit, exp_limit
 
@@ -39,24 +41,24 @@ class Model:
     import ROOT
     ROOT.gROOT.SetBatch(True)
 
-    def to_th1d(histo, name=None, title=None):
+
+    def to_th1d(histo, name=None, title=None, norm=1):
         if name is None: name = histo.label
         if title is None: title = ""
 
         th1d = ROOT.TH1D(name, title, len(histo.bins)-1, array('d', histo.bins))
         for i, (n, e) in enumerate( zip(histo.histo,histo.error) ):
-            th1d.SetBinContent(i+1, n)
-            th1d.SetBinError(i+1, e)
+            th1d.SetBinContent(i+1, norm*n)
+            th1d.SetBinError(i+1, norm*e)
         return th1d
 
+    saveas = saveas.format(**vars(self))
     tfile = ROOT.TFile(saveas, "recreate")
     tfile.cd()
 
     t_data = to_th1d(self.h_data,"data_obs",";;Events")
     t_bkg = to_th1d(self.h_bkg, "bkg",";;Events")
-    t_sig = to_th1d(self.h_sig, "nmssm",";;Events")
-
-    print(f"Norm: {self.norm}")
+    t_sig = to_th1d(self.h_sig, "nmssm",f"norm={self.norm};;Events", norm=self.norm)
         
     t_data.Write()
     t_bkg.Write()

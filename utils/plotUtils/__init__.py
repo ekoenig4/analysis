@@ -12,4 +12,4 @@ from . import function
 
 plt.style.use(['science','no-latex'])
 plt.rcParams["figure.figsize"] = (6.5,6.5)
-plt.rcParams['font.size'] =  15
+plt.rcParams['font.size'] =  11

@@ -36,6 +36,7 @@ class draw_abcd:
             plt.Rectangle((x_lo, y_lo), x_mi-x_lo, y_mi-y_lo, **style),
         ]
         regions = { region:box for region, box in zip(self.regions, regions) }
+        nevents = histo2d.stats.nevents
 
         def _get_eff(obj):
             x, y = obj.get_xy()
@@ -43,14 +44,13 @@ class draw_abcd:
             x_mask = (histo2d.x_array >= x) & (histo2d.x_array < x + w)
             y_mask = (histo2d.y_array >= y) & (histo2d.y_array < y + h)
 
-            total = histo2d.stats.nevents
             count = np.sum(histo2d.weights[x_mask & y_mask])
-            return count/total
+            return count, count/nevents
 
-        r_eff = {}
+        r_info = {}
         for r, obj in regions.items():
-            eff = _get_eff(obj)
-            r_eff[r] = eff
+            yields, eff = _get_eff(obj)
+            r_info[r] = {'yields':yields,'eff':eff}
             x, y = obj.get_xy()
             h, w = obj.get_height(), obj.get_width()
 
@@ -61,19 +61,43 @@ class draw_abcd:
             ty = y + h - 0.035*winh
             if ty < y:
                 ty = y + h/2
-
-            txt = ax.text(tx, ty, f'{r}: {eff:0.2}', va="center", fontsize=10)
+            txt = ax.text(tx, ty, r, va="center", fontsize=12)
             txt.set_path_effects(
                 [patheffects.withStroke(linewidth=2, foreground='w')])
             ax.add_patch(obj)
-        self.store.append(r_eff)
+
+        region_total = sum( info['yields'] for info in r_info.values() )
+        sr_total = sum( r_info[r]['yields'] for r in ('A','B') )
+        cr_total = sum( r_info[r]['yields'] for r in ('C','D') )
+
+        lines = [
+        f"Total: {region_total:0.2e} ({region_total/nevents:0.2%})",
+        f"SR   : {sr_total:0.2e} ({sr_total/nevents:0.2%})",
+        f"CR   : {cr_total:0.2e} ({cr_total/nevents:0.2%})",
+        ] 
+
+        lines2 = [
+            f"{r}    : {r_info[r]['yields']:0.2e} ({r_info[r]['eff']:0.2%})"
+            for r in ("A","B","C","D")
+        ]
+
+        max_columns = max( len(line) for line in lines+lines2 )
+        lines = [ line.ljust(max_columns) for line in lines + ['-'*max_columns] + lines2 ]
+
+        label = '\n'.join(lines)
+
+        txt = ax.text( 0.9, 1.05, label, ha="center", va="top", fontsize=10, transform=ax.transAxes, color='w' )
+        txt.set_bbox(dict(facecolor='k', alpha=0.75, edgecolor='k'))
+        self.store.append(r_info)
 
 
 class draw_circle:
-    def __init__(self, x, y, r, text=(0, 1), color='k', fill=False, **style):
+    def __init__(self, x, y, r, efficiency=False, label=None, text=(0, 1), color='k', fill=False, **style):
         self.x, self.y, self.r = x, y, r
         self.style = dict(color=color, fill=fill, **style)
         self.tx, self.ty = text
+        self.efficiency = efficiency
+        self.label = label
 
     def __call__(self, fig, ax, histo2d, **kwargs):
         xlim, ylim = ax.get_xlim(), ax.get_ylim()
@@ -85,18 +109,30 @@ class draw_circle:
             ((histo2d.y_array-self.y)/self.r)**2 < 1
         total = histo2d.stats.nevents
         count = np.sum(histo2d.weights[mask])
-        eff = count/total
+
+        if self.label is None:
+            if self.efficiency:
+                label = f"{count/total:0.3}"
+            else:
+                label = f"{count:0.3}"
+        else:
+            label = self.label.format(**locals())
 
         tx, ty = (self.tx+0.01), (self.ty-0.035)
-        ax.text(tx, ty, f'{eff:0.2}', va="center",
+        txt = ax.text(tx, ty, label, va="center",
                 fontsize=10, transform=ax.transAxes)
+        txt.set_path_effects(
+                [patheffects.withStroke(linewidth=2, foreground='w')])
 
 
 class draw_concentric:
-    def __init__(self, x, y, r1, r2, text=(0, 0.95), color='k', fill=False, **style):
+    def __init__(self, x, y, r1, r2, efficiency=False, label=None, text=(0, 0.95), textstyle=dict(), color='k', fill=False, **style):
         self.x, self.y, self.r1, self.r2 = x, y, r1, r2
         self.style = dict(color=color, fill=fill, **style)
+        self.textstyle = textstyle
         self.tx, self.ty = text
+        self.label = label
+        self.efficiency = efficiency
 
     def __call__(self, fig, ax, histo2d, **kwargs):
         xlim, ylim = ax.get_xlim(), ax.get_ylim()
@@ -106,19 +142,36 @@ class draw_concentric:
         ax.add_patch(inner)
         ax.add_patch(outer)
 
-        def _get_eff(x, y, r):
+        total = histo2d.stats.nevents 
+        def _get_count(x, y, r):
             mask = ((histo2d.x_array-x)/r)**2 + ((histo2d.y_array-y)/r)**2 < 1
-            total = histo2d.stats.nevents
             count = np.sum(histo2d.weights[mask])
-            eff = count/total
-            return eff
+            return count
 
-        inner_eff = _get_eff(self.x, self.y, self.r1)
-        outer_eff = _get_eff(self.x, self.y, self.r2) - inner_eff
+        total_count = _get_count(self.x, self.y, self.r2)
+        inner_count = _get_count(self.x, self.y, self.r1)
+        outer_count = total_count - inner_count
+
+        total_eff = total_count/total 
+        inner_eff = inner_count/total 
+        outer_eff = outer_count/total
+
+        
+        if self.label is None:
+            if self.efficiency:
+                label = f'TOT: {total_eff:0.2%}\nINN: {inner_eff:0.2%}\nOUT: {outer_eff:0.2%}'
+            else:
+                label = f'TOT: {total_count:0.2e}\nINN: {inner_count:0.2e}\nOUT: {outer_count:0.2e}'
+        else:
+            label = self.label.format(**locals())
+
 
         tx, ty = (self.tx+0.01), (self.ty-0.035)
-        ax.text(tx, ty, f'IN : {inner_eff:0.2}\nOUT: {outer_eff:0.2}',
-                va="center", fontsize=10, transform=ax.transAxes)
+        txt = ax.text(tx, ty, label,
+                va="center", fontsize=10, transform=ax.transAxes, color='w')
+        # txt.set_path_effects(
+        #         [patheffects.withStroke(linewidth=2, foreground='w')])
+        txt.set_bbox(dict(facecolor=self.style['color'], alpha=0.75, edgecolor=self.style['color']))
 
 
 class draw_ellipse:

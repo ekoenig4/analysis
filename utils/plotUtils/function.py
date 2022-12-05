@@ -115,14 +115,15 @@ class Function:
     x = get_bin_centers(histo.bins)
     fit = cls.fit(x, histo.histo, yerr=histo.error, n_obs=histo.ndata, **kwargs)
 
-    histo.stats.ks, histo.stats.ks_pvalue = fit.ks(histo)
+    if getattr(histo, 'array', None) is not None:
+      histo.stats.ks, histo.stats.ks_pvalue = fit.ks(histo)
     histo.stats.chi2, histo.stats.chi2_pvalue = fit.chi2_histo(histo)
     histo.stats.r2 = fit.r2_histo(histo)
 
-    if histo.cumulative == 1:
-      fit.y_array = fit.cdf(fit.x_array)
-    if histo.cumulative == -1:
-      fit.y_array = fit.sf(fit.x_array)
+    # if histo.cumulative == 1:
+    #   fit.y_array = fit.cdf(fit.x_array)
+    # if histo.cumulative == -1:
+    #   fit.y_array = fit.sf(fit.x_array)
 
     return fit
 

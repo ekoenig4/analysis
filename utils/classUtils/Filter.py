@@ -28,7 +28,13 @@ def update_cutflow(tree, tag):
             return tree['genWeight']*(tree['sample_id']==i)
         return tree['sample_id']==i
 
-    new_cutflow = [np.append(cutflow, ak.sum( event_weight(tree, i) ))
+    def _update_cutflow(cutflow, weights):
+        cutflow.histo = np.append(cutflow.histo, np.sum(weights))
+        cutflow.error = np.append(cutflow.error, np.sqrt( np.sum(weights**2) ))
+        cutflow.bins = np.arange( len(cutflow.histo)+1 )
+        return cutflow
+
+    new_cutflow = [_update_cutflow(cutflow, event_weight(tree, i))
                    for i, cutflow in enumerate(tree.cutflow)]
     tree.cutflow = new_cutflow
 

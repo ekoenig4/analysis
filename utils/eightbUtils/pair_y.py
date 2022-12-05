@@ -41,15 +41,20 @@ def pair_y_from_higgs(t, higgs='higgs', operator=y_min_mass_asym):
     y2 = ys[:,y_higgs_pair_index[:,1]]
     
     ys = ak_stack((y1, y2), axis=2)
-    ys = ys[ak.argsort(ys.pt,axis=-1, ascending=False)]
+    y_pt_order = ak.argsort(ys.pt,axis=-1, ascending=False)
+    ys = ys[y_pt_order]
 
     order = operator(ys)
-    ys = ys[order]
+    ys = ys[order][:,0]
+    y_pt_order = y_pt_order[order][:,0]
+    h1_idx = ak.from_regular(y_higgs_index[order[:,0]][:,:,0])[y_pt_order]
+    h2_idx = ak.from_regular(y_higgs_index[order[:,0]][:,:,1])[y_pt_order]
+    ys = join_fields(ys, h1Idx=h1_idx, h2Idx=h2_idx)
 
     t.extend(
         **{
             f'Y{i+1}_{var}':ys[var][:,i]
             for i in range(2)
-            for var in ('pt','m','eta','phi','dr')
+            for var in ys.fields
         },
     )

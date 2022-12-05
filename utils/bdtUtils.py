@@ -2,7 +2,7 @@ import numpy as np
 import awkward as ak
 from typing import Callable
 
-from .classUtils import ObjIter
+from .classUtils import ObjIter, Tree
 from .utils import ak_stack, GIT_WD
 from .xsecUtils import lumiMap
 from .plotUtils import HistoList, Correlation
@@ -17,7 +17,7 @@ import pickle, os
 
 class BDTReweighter:
   seed = 123456789
-  def __init__(self, n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, gb_args={'subsample':0.4}, n_folds=2, verbose=False):
+  def __init__(self, n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, gb_args={'subsample':0.4}, n_folds=2, verbose=True):
     np.random.seed(self.seed) #Fix any random seed using numpy arrays
 
     reweighter_base = reweight.GBReweighter(
@@ -27,11 +27,16 @@ class BDTReweighter:
         min_samples_leaf=min_samples_leaf,
         gb_args=gb_args)
 
-    self.reweighter = reweight.FoldingReweighter(reweighter_base, random_state=self.seed, n_folds=n_folds, verbose=verbose)
+    self.verbose = verbose
+    self.reweighter = reweight.FoldingReweighter(reweighter_base, random_state=self.seed, n_folds=n_folds, verbose=False)
 
   def train(self, targ_x, targ_w, estm_x, estm_w, reweight=True):
+    if self.verbose:
+      print('... calculating k factor')
     self.k_factor = ak.sum(targ_w)/ak.sum(estm_w)
     if reweight:
+      if self.verbose:
+        print('... fitting reweighter')
       self.reweighter.fit(estm_x, targ_x, self.k_factor*estm_w, targ_w)
 
   def reweight(self, x, w):
@@ -45,22 +50,92 @@ class ABCD(BDTReweighter):
     super().__init__(**kwargs)
     self.feature_names = features
     self.a, self.b, self.c, self.d = a, b, c, d
+    self.sr = lambda t : self.a(t) | self.b(t)
+    self.cr = lambda t : self.c(t) | self.d(t)
 
-  def get_features(self, treeiter: ObjIter, mask=None):
+  def yields(self, treeiter : ObjIter, lumi=None):
+    if not isinstance(treeiter, ObjIter): treeiter = ObjIter([treeiter])
+
+    masks = { r: treeiter.apply( getattr(self, r) ).cat for r in ('a','b','c','d') }
+    lumi = lumiMap[lumi][0]
+    scale = lumi*treeiter.scale.cat
+    yields = { r:ak.sum(scale[mask]) for r, mask in masks.items() }
+    yields.update(total=ak.sum(scale))
+
+    return yields
+
+  def print_yields(self, treeiter : ObjIter, lumi=None, return_lines=False):
+    if not isinstance(treeiter, ObjIter): treeiter = ObjIter([treeiter])
+    yields = self.yields(treeiter, lumi=lumi)
+
+    nevents=  yields['total']
+    sr_total = sum( yields[r] for r in ('a','b') )
+    cr_total = sum( yields[r] for r in ('c','d') )
+    region_total = sr_total + cr_total
+
+    a_total = f'{yields["a"]:0.2e}'.center(8)
+    a_effic = f'{yields["a"]/nevents:0.2%}'.center(8)
+
+    b_total = f'{yields["b"]:0.2e}'.center(8)
+    b_effic = f'{yields["b"]/nevents:0.2%}'.center(8)
+
+    c_total = f'{yields["c"]:0.2e}'.center(8)
+    c_effic = f'{yields["c"]/nevents:0.2%}'.center(8)
+    
+    d_total = f'{yields["d"]:0.2e}'.center(8)
+    d_effic = f'{yields["d"]/nevents:0.2%}'.center(8)
+
+    sample = treeiter.sample.list
+
+    if len(set(sample)) == 1:
+      sample = sample[0]
+    else:
+      sample = 'MC-Bkg'
+
+    lines = [
+      f"--- ABCD {sample} Yields ---".center(48),
+      f"Total: {region_total:0.2e} ({region_total/nevents:0.2%})".ljust(48),
+      f"SR   : {sr_total:0.2e} ({sr_total/nevents:0.2%})".ljust(48),
+      f"CR   : {cr_total:0.2e} ({cr_total/nevents:0.2%})".ljust(48),
+      f"------------------------------------------------",
+      f"|           A          |           B           |",
+      f"|       {a_total}       |       {b_total}        |",
+      f"|       {a_effic}       |       {b_effic}        |",
+      f"------------------------------------------------",
+      f"|           C          |           D           |",
+      f"|       {c_total}       |       {d_total}        |",
+      f"|       {c_effic}       |       {d_effic}        |",
+      f"------------------------------------------------"]
+    if return_lines:
+      return lines
+    print('\n'.join(lines))
+
+  def get_features(self, treeiter: ObjIter, masks=None):
     if not isinstance(treeiter, ObjIter): treeiter = ObjIter([treeiter])
 
     X = ak_stack([ treeiter[feature].cat for feature in self.feature_names ])
     W = treeiter['scale'].cat
     
-    if mask is not None:
-      mask = treeiter.apply(mask).cat   
-      return X[mask], W[mask]
+    if masks is not None:
+      if not isinstance(masks, list): masks = [masks]
+      masks = [ treeiter.apply(mask).cat for mask in masks ]
+      return X, W, masks
     return X, W
 
   def train(self, treeiter: ObjIter, **kwargs):
-    c_X, c_W = self.get_features(treeiter, self.c)
-    d_X, d_W = self.get_features(treeiter, self.d)
+    if self.verbose:
+      print('... fetching features')
+    X, W, (mask_c, mask_d) = self.get_features(treeiter, masks=[self.c, self.d])
+
+    if self.verbose:
+        print('... splitting features')
+    c_X, c_W = X[mask_c], W[mask_c]
+    d_X, d_W = X[mask_d], W[mask_d]
+
     super().train(c_X, c_W, d_X, d_W, **kwargs)
+
+    self.hash = f"__abcd_reweight_{hash(self)}__{hash(self.reweighter)}__"
+
 
   def print_results(self, treeiter: ObjIter):
     results = self.results(treeiter)
@@ -72,8 +147,10 @@ class ABCD(BDTReweighter):
     )
 
   def results(self, treeiter: ObjIter):
-    _, a_W = self.get_features(treeiter, self.a)
-    b_X, b_W = self.get_features(treeiter, self.b)
+    X, W, (mask_a, mask_b) = self.get_features(treeiter, masks=[self.a, self.b])
+
+    _, a_W = X[mask_a], W[mask_a]
+    b_X, b_W = X[mask_b], W[mask_b]
     
     a_T, b_T = [ np.sum(W) for W in (a_W, b_W,) ]
     b_R = np.sum(b_W*self.reweight(b_X, b_W))
@@ -84,12 +161,18 @@ class ABCD(BDTReweighter):
       bdt_score=b_R/a_T-1
     )
 
-  def reweight_tree(self, treeiter: ObjIter):
-    X, W = self.get_features(treeiter)
-    return self.reweight(X, W)
+  def reweight_tree(self, tree: Tree):
+    if self.hash in tree.fields:
+      return tree[self.hash]
 
-  def scale_tree(self, treeiter: ObjIter):
-    X, W = self.get_features(treeiter)
+    X, W = self.get_features(tree)
+    reweight = self.reweight(X, W)
+    tree.extend(**{self.hash:reweight})
+    return reweight
+
+
+  def scale_tree(self, tree: Tree):
+    X, W = self.get_features(tree)
     return self.scale(X, W)
 
 class DataMC_BDT(BDTReweighter):

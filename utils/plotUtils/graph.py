@@ -19,6 +19,15 @@ class Stats:
         return '\n'.join([ f'{key}={float(value):0.3e}' for key,value in vars(self).items() ])
 
 class Graph:
+
+    @classmethod
+    def from_th1d(cls, th1d, scale=1, **kwargs):
+        bins = th1d.axis().edges()
+        x, xerr = get_bin_centers(bins), get_bin_widths(bins)
+        y, yerr = scale*th1d.counts(), scale*th1d.errors()
+
+        return cls(x, y, xerr=xerr, yerr=yerr, **kwargs)
+
     def __init__(self, x_array, y_array, weights=None, xerr=None, yerr=None, order='x', ndata=None, label_stat=None, inv=False, smooth=False, fit=None, histtype=None, **kwargs):
         if inv: x_array, y_array = y_array, x_array
         x_array = flatten(x_array)

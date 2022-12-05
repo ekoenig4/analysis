@@ -39,26 +39,32 @@ def plot_function(function, figax=None, exe=None, **kwargs):
     if any(kwargs): format_axes(ax, **kwargs)
     return fig,ax
 
-def plot_graph(graph, errors=True, fill_error=False, figax=None, exe=None, **kwargs):
+def plot_graph(graph, errors=True, bar=False, fill_error=False, fill_alpha=0.25, figax=None, exe=None, **kwargs):
     fig, ax = get_figax(figax=figax)
     xerr, yerr = (graph.xerr, graph.yerr) if errors else (None,None)
 
     if not fill_error:
         fill_error = (graph.x_array.shape[0] >= 30) and (yerr is not None)
 
-    if not fill_error:
+    if bar:
+        container = ax.errorbar(graph.x_array,graph.y_array, yerr=yerr, **dict(graph.kwargs, marker=None, linewidth=0))
+        graph.kwargs['color'] = container[0].get_color()
+
+        ax.bar(graph.x_array, graph.y_array, width=2*xerr,  fill=not bar == 'step', edgecolor=graph.kwargs['color'])
+
+    elif not fill_error:
         container = ax.errorbar(graph.x_array,graph.y_array, xerr=xerr, yerr=yerr, **graph.kwargs)
         graph.kwargs['color'] = container[0].get_color()
     elif yerr is not None:
         container = ax.errorbar(graph.x_array, graph.y_array, xerr=xerr, **graph.kwargs)
         graph.kwargs['color'] = container[0].get_color()
         for nstd in range(1, int(fill_error)+1 ):
-            ax.fill_between(graph.x_array, graph.y_array-nstd*yerr, graph.y_array+nstd*yerr, color=graph.kwargs['color'], alpha=0.25/nstd)
+            ax.fill_between(graph.x_array, graph.y_array-nstd*yerr, graph.y_array+nstd*yerr, color=graph.kwargs['color'], alpha=fill_alpha/nstd)
     elif xerr is not None:
         container = ax.errorbar(graph.x_array, graph.y_array, yerr=yerr, **graph.kwargs)
         graph.kwargs['color'] = container[0].get_color()
         for nstd in range(1, int(fill_error)+1 ):
-            ax.fill_betweenx(graph.y_array, graph.x_array-nstd*xerr, graph.x_array+nstd*xerr, color=graph.kwargs['color'], alpha=0.25/nstd)
+            ax.fill_betweenx(graph.y_array, graph.x_array-nstd*xerr, graph.x_array+nstd*xerr, color=graph.kwargs['color'], alpha=fill_alpha/nstd)
 
 
     if getattr(graph, 'fit', None) is not None:
@@ -70,9 +76,9 @@ def plot_graph(graph, errors=True, fill_error=False, figax=None, exe=None, **kwa
     if any(kwargs): format_axes(ax, **kwargs)
     return fig,ax
 
-def plot_graphs(graphs, figax=None, errors=True, fill_error=False, exe=None, **kwargs):
+def plot_graphs(graphs, figax=None, errors=True, fill_error=False, fill_alpha=0.25, exe=None, **kwargs):
     fig, ax = get_figax(figax=figax)
-    for graph in graphs: plot_graph(graph, errors=errors, fill_error=fill_error, figax=(fig,ax))
+    for graph in graphs: plot_graph(graph, errors=errors, fill_error=fill_error, fill_alpha=fill_alpha, figax=(fig,ax))
     kwargs['ylabel'] = kwargs.get('ylabel', None)
     
     if exe: execute(**locals())
@@ -178,7 +184,7 @@ def histo_array(array, bins=None, weights=None, density = False,
     kwargs = { key:value for key,value in kwargs.items() if not key.startswith('h_') }
     kwargs.update(ext_kwargs)
     
-    histo = Histo(array,bins=bins,weights=weights,**hist_kwargs)
+    histo = Histo.from_array(array,bins=bins,weights=weights,**hist_kwargs)
     plot_histo(histo, figax=(fig,ax), **kwargs)
     
     return fig,ax

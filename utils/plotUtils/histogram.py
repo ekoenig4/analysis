@@ -11,11 +11,18 @@ import copy
 
 class Stats:
     def __init__(self,histo):
-        self.nevents = np.sum(histo.weights)
-        self.ess = np.sum(histo.weights)**2/np.sum(histo.weights**2)
+        self.nevents = np.sum(histo.histo)
+        self.ess = self.nevents**2/np.sum(histo.error**2)
         if self.nevents > 0:
-            self.mean, self.stdv = get_avg_std(histo.array,histo.weights,histo.bins)
-            self.minim, self.maxim = np.min(histo.array), np.max(histo.array)
+
+            if histo.array is not None:
+                self.mean, self.stdv = get_avg_std(histo.array,histo.weights,histo.bins)
+                self.minim, self.maxim = np.min(histo.array), np.max(histo.array)
+            else:
+                x = get_bin_centers(histo.bins)
+                self.mean = np.sum(x*histo.histo)/self.nevents
+                self.stdv = np.sqrt( np.sum( (histo.histo*(x - self.mean))**2 )/self.nevents )
+                self.minim, self.maxim = x[histo.histo > 0][0], x[histo.histo > 0][-1]
         else:
             self.mean = self.stdv = self.minim = self.maxim = 0
         
@@ -68,81 +75,163 @@ def apply_systematic(histo, error, systematic):
     return error
 
 class Histo:
-    def __init__(self, array, bins=None, weights=None, efficiency=False, density=False, cumulative=False, lumi=None, restrict=False,
-                 label_stat='events', is_data=False, is_signal=False, is_model=False, sumw2=True, scale=1, plot_scale=1, __id__=None, fit=None,
-                 continous=False, ndata=None, nbins=30, systematics=None, transform=None,
-                 **kwargs):
-        self.__id__ = __id__
-        if transform is not None: array = transform(array)
+    @staticmethod
+    def add(this, that):
+        try:
+            np.testing.assert_allclose(this.bins, that.bins)
+        except AssertionError:
+            raise Warning("Unable to add histograms together")
 
-        self.array = flatten(array)
-        self.counts = len(self.array)
-        self.ndata = self.counts if ndata is None else ndata
+        counts = this.histo + that.histo
+        error = np.sqrt( this.error**2 + that.error**2 )
+
+        return Histo(counts, this.bins, error)
+
+    @classmethod
+    def from_th1d(cls, th1d, scale=1, **kwargs):
+        counts = scale*th1d.counts()
+        error = scale*th1d.errors()
+        bins = th1d.axis().edges()
+
+        return cls(counts, bins, error, **kwargs)
+
+    @classmethod
+    def from_graph(cls, graph, **kwargs):
+        y = graph.y_array 
+        yerr = graph.yerr 
+        
+        x = graph.x_array 
+        xerr = graph.xerr
+
+        hi_edges = (x + xerr)
+        lo_edges = (x - xerr)
+        
+        # n = (y/(yerr+1e-12))**2
+        # n = n.round().astype(int)
+
+        # w = yerr**2/(y+1e-12)
+        
+        bins = np.concatenate([lo_edges[:1], hi_edges])
+        return cls(y, bins, yerr, **kwargs)
+
+    @classmethod 
+    def from_array(cls, array, bins=None, weights=None, nbins=30, rebin=None, restrict=False, sumw2=True, **kwargs):
+        array = flatten(array)
 
         if weights is not None:
-            self.weights = flatten(weights)
-            if self.weights.shape != self.array.shape:
-                self.weights = flatten(ak.ones_like(array)*weights)
+            weights = flatten(weights)
+            if weights.shape != array.shape:
+                weights = flatten(ak.ones_like(array)*weights)
         else:
-            self.weights= np.ones((self.counts,))
-
-        self.systematics = systematics
-        self.ndata = self.weights.sum()
+            weights= np.ones(array.shape)
         
-        self.bins = autobin(self.array, bins=bins, nbins=nbins)
-        
-        self.sumw2 = sumw2
+        bins = autobin(array, bins=bins, nbins=nbins)
+        if rebin:
+            bins = np.linspace(bins[0], bins[-1], rebin)
 
         if restrict:
-            self.array, self.weights = restrict_array(self.array, bins=self.bins, weights=self.weights)
-        
-        fit_kwargs = { key[4:]:value for key,value in kwargs.items() if key.startswith('fit_') }
-        self.kwargs = { key:value for key,value in kwargs.items() if not key.startswith('fit_') }
-        self.label = kwargs.get('label',None)
+            array, weights = restrict_array(array, bins=bins, weights=weights)
 
-        if plot_scale != 1:
-            self.label = f"{self.label}($\\times${plot_scale})"
+        counts, error = histogram(array, bins, weights, sumw2=sumw2)
+
+        histo = cls(counts, bins, error=error, array=array, weights=weights, **kwargs)
+        return histo
+
+    def to_th1d(self, name="", title="", bin_labels=None):
+        from array import array
+        import ROOT 
+
+        th1d = ROOT.TH1D(name, title, len(self.bins)-1, array('d', self.bins))
+        for i, (n, e) in enumerate( zip(self.histo, self.error) ):
+            th1d.SetBinContent(i+1, n)
+            th1d.SetBinError(i+1, e)
+
+            if bin_labels is not None:
+                th1d.GetXaxis().SetBinLabel(i+1, bin_labels[i])
         
+
+        return th1d
+
+
+    def __init__(self, counts, bins, error=None, array=None, weights=None,
+                       efficiency=False, density=False, cumulative=False, lumi=None, scale=1, plot_scale=1,
+                       is_data=False, is_signal=False, is_model=False, fit=None, continous=False, ndata=None, 
+                       systematics=None, label_stat='events', __id__=None, **kwargs):
+        self.__id__ = __id__
+
+        self.histo = counts 
+        self.bins = bins 
+
+        self.error = error
+        if error is None:
+            self.error = np.sqrt(counts)
+        self.systematics = systematics
+
+        self.array = array 
+        self.weights = weights
+
+        self.ndata = ndata 
+        if ndata is None:
+            self.ndata = np.sum(self.histo)
+            
         self.is_data = is_data 
         self.is_signal = is_signal 
         self.is_bkg = not (is_data or is_signal)
         self.is_model = is_model
-        
+
         lumi,_ = lumiMap.get(lumi,(lumi,None))
         self.lumi = lumi
-        if not is_data: self.weights = lumi * self.weights
+        if not self.is_data: 
+            self.histo = lumi*self.histo 
+            self.error = lumi*self.error
+            if self.weights is not None:
+                self.weights = lumi*self.weights
             
-        self.density = density 
-        self.cumulative = cumulative
-        self.efficiency = efficiency
         self.continous = continous
-        self.plot_scale = plot_scale
-        # if not (scale is None or is_iter(scale)):
-        #     self.weights = scale*self.weights
+        
+        self.stats = Stats(self)
+        self.rescale(scale, efficiency=efficiency, density=density)
 
-        self.stats = Stats(self)      
-        if scale is 'xs': scale = scale/lumi
-        # if density or efficiency or cumulative: scale = 1/np.sum(self.weights)
-        if density or efficiency: scale = 1/np.sum(self.weights)
-        self.rescale(scale)
-
+        fit_kwargs = { key[4:]:value for key,value in kwargs.items() if key.startswith('fit_') }
+        self.kwargs = { key:value for key,value in kwargs.items() if not key.startswith('fit_') }
         self.fit = vars(function).get(fit, None)
         if self.fit is not None:
             self.fit = self.fit.fit_histo(self, **fit_kwargs)
 
         self.cdf(cumulative)
-        
-        self.set_label(label_stat)  
-        
-    def rescale(self,scale):
-        if scale is not None:
-            if is_iter(scale): 
-                scale = flatten(scale)      
+        self.set_attrs(label_stat=label_stat, plot_scale=plot_scale)
 
-            self.weights = scale * self.weights
-        
-        self.histo, self.error = histogram(self.array, self.bins, self.weights, sumw2=self.sumw2)
 
+    def set_attrs(self, label_stat=None, plot_scale=1, systematics=None, **kwargs):
+        if systematics is not None:
+            self.add_systematics(systematics)
+
+        kwargs = dict(self.kwargs, **kwargs)
+        
+        self.label = kwargs.get('label',None)
+        self.plot_scale = plot_scale
+        
+        if self.plot_scale != 1:
+            self.label = f"{self.label}($\\times${self.plot_scale})"
+
+        self.kwargs = kwargs
+        if label_stat is not None:
+            self.set_label(label_stat)
+        return self
+    
+    def rescale(self, scale=None, efficiency=False, density=False):
+        if scale is None: scale = 1
+
+        self.density = density 
+        self.efficiency = efficiency
+        self.scale = scale
+
+        # if scale is 'xs': scale = scale/lumi
+        # if density or efficiency or cumulative: scale = 1/np.sum(self.weights)
+        if density or efficiency: scale = 1/np.sum(self.histo)
+
+        self.histo = scale*self.histo
+        self.error = scale*self.error
         self.add_systematics()
 
         if np.any( self.histo < 0 ):
@@ -153,6 +242,98 @@ class Histo:
             self.widths = get_bin_widths(self.bins)
             self.histo /= self.widths 
             self.error /= self.widths
+        return self
+
+
+    # def __init__(self, array, bins=None, weights=None, efficiency=False, density=False, cumulative=False, lumi=None, restrict=False,
+    #              label_stat='events', is_data=False, is_signal=False, is_model=False, sumw2=True, scale=1, plot_scale=1, __id__=None, fit=None,
+    #              continous=False, ndata=None, nbins=30, rebin=None, systematics=None, transform=None,
+    #              **kwargs):
+    #     if transform is not None: array = transform(array)
+
+    #     self.array = flatten(array)
+    #     self.counts = len(self.array)
+    #     self.ndata = self.counts if ndata is None else ndata
+
+    #     if weights is not None:
+    #         self.weights = flatten(weights)
+    #         if self.weights.shape != self.array.shape:
+    #             self.weights = flatten(ak.ones_like(array)*weights)
+    #     else:
+    #         self.weights= np.ones((self.counts,))
+
+    #     self.systematics = systematics
+    #     self.ndata = self.weights.sum()
+        
+    #     self.bins = autobin(self.array, bins=bins, nbins=nbins)
+    #     if rebin:
+    #         self.bins = np.linspace(self.bins[0], self.bins[-1], rebin)
+        
+    #     self.sumw2 = sumw2
+
+    #     if restrict:
+    #         self.array, self.weights = restrict_array(self.array, bins=self.bins, weights=self.weights)
+        
+    #     fit_kwargs = { key[4:]:value for key,value in kwargs.items() if key.startswith('fit_') }
+    #     self.kwargs = { key:value for key,value in kwargs.items() if not key.startswith('fit_') }
+    #     self.label = kwargs.get('label',None)
+
+    #     if plot_scale != 1:
+    #         self.label = f"{self.label}($\\times${plot_scale})"
+        
+    #     self.is_data = is_data 
+    #     self.is_signal = is_signal 
+    #     self.is_bkg = not (is_data or is_signal)
+    #     self.is_model = is_model
+        
+    #     lumi,_ = lumiMap.get(lumi,(lumi,None))
+    #     self.lumi = lumi
+    #     if not is_data: self.weights = lumi * self.weights
+            
+    #     self.density = density 
+    #     self.cumulative = cumulative
+    #     self.efficiency = efficiency
+    #     self.continous = continous
+    #     self.plot_scale = plot_scale
+    #     # if not (scale is None or is_iter(scale)):
+    #     #     self.weights = scale*self.weights
+
+    #     self.stats = Stats(self)      
+    #     if scale is 'xs': scale = scale/lumi
+    #     # if density or efficiency or cumulative: scale = 1/np.sum(self.weights)
+    #     if density or efficiency: scale = 1/np.sum(self.weights)
+    #     self.rescale(scale)
+
+    #     self.fit = vars(function).get(fit, None)
+    #     if self.fit is not None:
+    #         self.fit = self.fit.fit_histo(self, **fit_kwargs)
+
+    #     self.cdf(cumulative)
+        
+    #     self.set_label(label_stat)  
+
+    # def __repr__(self):
+    #     return f"<Histogram: {self.sample}>"
+        
+    # def rescale(self,scale):
+    #     if scale is not None:
+    #         if is_iter(scale): 
+    #             scale = flatten(scale)
+
+    #         self.weights = scale * self.weights
+        
+    #     self.histo, self.error = histogram(self.array, self.bins, self.weights, sumw2=self.sumw2)
+
+    #     self.add_systematics()
+
+    #     if np.any( self.histo < 0 ):
+    #         self.error = np.where(self.histo < 0, 0, self.error)
+    #         self.histo = np.where(self.histo < 0, 0, self.histo)
+
+    #     if self.density:
+    #         self.widths = get_bin_widths(self.bins)
+    #         self.histo /= self.widths 
+    #         self.error /= self.widths
 
     def add_systematics(self, systematics=None):
         if systematics is None: systematics = self.systematics
@@ -164,6 +345,10 @@ class Histo:
 
                 
     def cdf(self, cumulative):
+        if hasattr(self, 'cumulative'): return self
+
+        self.cumulative = cumulative
+
         if cumulative == 1: # CDF Below 
             if self.density: 
                 self.histo *= self.widths
@@ -176,6 +361,7 @@ class Histo:
                 self.error *= self.widths
             self.histo = np.cumsum(self.histo[::-1])[::-1]
             self.error = np.sqrt(np.cumsum(self.error[::-1]**2))[::-1]
+        return self
 
     def ecdf(self, sf=False):
         order = np.argsort(self.array)
@@ -195,6 +381,7 @@ class Histo:
         x, weights = restrict_array(x, self.bins, weights=weights)
 
         y = weights.cumsum()/total
+        y = np.clip(y, 0, 1)
 
         # yerr = 2*np.stack([y*total_err/total,(1-y)*total_err/total]).min(axis=0)
 
@@ -213,7 +400,7 @@ class Histo:
 
         array = self.array[mask]
         weights = self.weights[mask] if self.weights is not None else None
-        return Histo(array, bins=self.bins, weights=weights)
+        return Histo.from_array(array, bins=self.bins, weights=weights)
                     
     def set_label(self, label_stat='events'):
         nevents = self.stats.nevents
@@ -237,7 +424,8 @@ class Histo:
             # label_stat = f'$\mu={mean:0.2e}\pm{stdv:0.2e}$'
         elif label_stat == 'exp_lim':
             if hasattr(self.stats, 'exp_limits'):
-                label_stat = f'CL$^{{95\%}}r<{self.stats.exp_limits[2]:0.3}$'
+                std_1 = max(self.stats.exp_limits[2+1]-self.stats.exp_limits[2], self.stats.exp_limits[2]-self.stats.exp_limits[2-1])
+                label_stat = f'CL$^{{95\%}}r<{self.stats.exp_limits[2]:0.3}\pm{std_1:0.3}$'
 
         else: label_stat = f'{getattr(self.stats,label_stat):0.2e}'
 
@@ -248,8 +436,26 @@ class Histo:
             else:
                 self.kwargs['label'] = f'{label_stat}'
 
+
 class HistoList(ObjIter):
-    def __init__(self, arrays, bins=None, **kwargs):
+
+    @classmethod 
+    def from_counts(cls, counts, bins=None, **kwargs):
+        attrs = AttrArray(counts=counts, **kwargs)
+        kwargs = attrs[attrs.fields[1:]]
+        
+        multi_binned = isinstance(bins, list)
+    
+        histolist = []
+        for i,count in enumerate(counts):
+            _bins = bins[i] if multi_binned else bins
+            histo = Histo(count,bins=_bins, **{ key:value[i] for key,value in kwargs.items() })
+            if bins is None: bins = histo.bins
+            histolist.append(histo)
+        return cls(histolist)
+
+    @classmethod
+    def from_arrays(cls, arrays, bins=None, **kwargs):
         attrs = AttrArray(arrays=arrays,**kwargs)
         kwargs = attrs[attrs.fields[1:]]
         
@@ -258,37 +464,98 @@ class HistoList(ObjIter):
         histolist = []
         for i,array in enumerate(arrays):
             _bins = bins[i] if multi_binned else bins
-            histo = Histo(array,bins=_bins, **{ key:value[i] for key,value in kwargs.items() })
-            if bins is None: bins = histo.bins
+            histo = Histo.from_array(array,bins=_bins, **{ key:value[i] for key,value in kwargs.items() })
+            if not isinstance(bins, np.ndarray): bins = histo.bins
             histolist.append(histo)
-        super().__init__(histolist)
+        return cls(histolist)
+
+    def __repr__(self): return f"HistoList<{repr(self.objs)}>"
             
 class DataList(HistoList):
-    def __init__(self, arrays, bins=None, histtype=None, **kwargs):
-        super().__init__(arrays,bins=bins,**kwargs)
+
+    @classmethod
+    def from_arrays(cls, arrays, bins=None, histtype=None, **kwargs):
+        return super(cls,cls).from_arrays(arrays, bins=bins, **kwargs)
+
+    
+    @classmethod
+    def from_counts(cls, counts, bins=None, histtype=None, **kwargs):
+        return super(cls,cls).from_counts(counts, bins=bins, **kwargs)
+
+    def __repr__(self): return f"DataList<{repr(self.objs)}>"
 
 class Stack(HistoList):
-    def __init__(self, arrays, bins=None, density=False, cumulative=False, efficiency=False, stack_fill=False, label_stat='events', histtype=None, **kwargs):
-        super().__init__(arrays, bins=bins, label_stat=label_stat, **kwargs)
+
+    @classmethod
+    def from_counts(cls, counts, bins=None, density=False, cumulative=False, efficiency=False, stack_fill=False, label_stat='events', histtype=None, **kwargs):
+        stack = super(cls,cls).from_counts(counts, bins=bins, label_stat=label_stat, **kwargs)
         if isinstance(label_stat, list): label_stat = label_stat[0]
 
-        self.stack_fill = stack_fill
-        self.bins = self[-1].bins
-        self.array = np.concatenate([ h.array for h in self ])
-        self.weights = np.concatenate([ h.weights for h in self ])
+        stack.stack_fill = stack_fill
+        stack.bins = stack[-1].bins
+        # stack.histo = sum([ h.histo for h in stack ])
+        # stack.error = np.sqrt(sum([ h.error**2 for h in stack ]))
 
-        self.opts = dict(density=density, efficiency=efficiency, cumulative=cumulative, label_stat=label_stat, color='grey', label='MC-Bkg')
+        stack.opts = dict(density=density, efficiency=efficiency, cumulative=cumulative, label_stat=label_stat, color='grey', label='MC-Bkg')
 
         if not stack_fill:
             # if density or cumulative or efficiency: 
             if density or efficiency: 
-                nevents = self.stats.nevents.npy.sum()
-                self.apply(lambda histo : histo.rescale(1/nevents))
+                nevents = stack.stats.nevents.npy.sum()
+                stack.apply(lambda histo : histo.rescale(1/nevents))
             if cumulative:
-                self.apply(lambda histo : histo.cdf(cumulative))
+                stack.apply(lambda histo : histo.cdf(cumulative))
+        return stack
+
+    @classmethod
+    def from_arrays(cls, arrays, bins=None, density=False, cumulative=False, efficiency=False, stack_fill=False, label_stat='events', histtype=None, **kwargs):
+        stack = super(cls,cls).from_arrays(arrays, bins=bins, label_stat=label_stat, **kwargs)
+        if isinstance(label_stat, list): label_stat = label_stat[0]
+
+        stack.stack_fill = stack_fill
+        stack.bins = stack[-1].bins
+        stack.array = np.concatenate([ h.array for h in stack ])
+        stack.weights = np.concatenate([ h.weights for h in stack ])
+
+        stack.opts = dict(density=density, efficiency=efficiency, cumulative=cumulative, label_stat=label_stat, color='grey', label='MC-Bkg')
+
+        if not stack_fill:
+            # if density or cumulative or efficiency: 
+            if density or efficiency: 
+                nevents = stack.stats.nevents.npy.sum()
+                stack.apply(lambda histo : histo.rescale(1/nevents))
+            if cumulative:
+                stack.apply(lambda histo : histo.cdf(cumulative))
+        return stack
+
+
+    # def __init__(self, arrays, bins=None, density=False, cumulative=False, efficiency=False, stack_fill=False, label_stat='events', histtype=None, **kwargs):
+    #     super().__init__(arrays, bins=bins, label_stat=label_stat, **kwargs)
+    #     if isinstance(label_stat, list): label_stat = label_stat[0]
+
+    #     self.stack_fill = stack_fill
+    #     self.bins = self[-1].bins
+    #     self.array = np.concatenate([ h.array for h in self ])
+    #     self.weights = np.concatenate([ h.weights for h in self ])
+
+    #     self.opts = dict(density=density, efficiency=efficiency, cumulative=cumulative, label_stat=label_stat, color='grey', label='MC-Bkg')
+
+    #     if not stack_fill:
+    #         # if density or cumulative or efficiency: 
+    #         if density or efficiency: 
+    #             nevents = self.stats.nevents.npy.sum()
+    #             self.apply(lambda histo : histo.rescale(1/nevents))
+    #         if cumulative:
+    #             self.apply(lambda histo : histo.cdf(cumulative))
 
     def get_histo(self):
-        return Histo(self.array, self.bins, self.weights, systematics=self[0].systematics, **self.opts)
+        if hasattr(self, 'array'):
+            return Histo.from_array(self.array, self.bins, self.weights, systematics=self[0].systematics, **self.opts)
+        
+        # stack.histo = sum([ h.histo for h in stack ])
+        # stack.error = np.sqrt(sum([ h.error**2 for h in stack ]))
+        return Histo(self.histo, self.bins, self.error, systematics=self[0].systematics, **self.opts)
+    def __repr__(self): return f"Stack<{repr(self.objs)}>"
         
 
 class HistoFromGraph(Histo):

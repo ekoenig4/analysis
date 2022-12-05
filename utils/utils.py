@@ -126,12 +126,14 @@ def _autobin_(data, nstd=3, nbins=30):
     return xlo, xhi, nbins, int(is_int)
 
 
-def autobin(data, bins=None, nstd=3, nbins=30):
-    if isinstance(bins, tuple):
+def autobin(data, bins=None, nstd=3, nbins=30, minim=None, maxim=None):
+    if isinstance(bins, dict):
+        return autobin(data, **bins)
+    elif isinstance(bins, tuple):
         return np.linspace(*bins)
-    if isinstance(bins, list):
+    elif isinstance(bins, list):
         return np.array(bins)
-    if bins is not None:
+    elif bins is not None:
         return bins
 
     if type(data) == list:
@@ -146,6 +148,12 @@ def autobin(data, bins=None, nstd=3, nbins=30):
         xlo, xhi, nbins, is_int = _autobin_(data, nstd, nbins)
     if is_int == 1:
         return np.arange(xlo, xhi+1)
+
+    if minim is not None:
+        xlo = minim
+    if maxim is not None:
+        xhi = maxim
+
     return np.linspace(xlo, xhi, nbins)
 
 

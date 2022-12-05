@@ -522,3 +522,65 @@ def select_higgs(tree, field='score', tag='gnn', nhiggs=3, ptordered=True):
     tree.extend(
         **unzip_records(higgs)
     )
+
+def X_m_hm_res_corrected(t, higgs='higgs', nhiggs=4):
+    """Correct X_m by subtracting off the measured higgs mass and adding the nominal mass (125)
+
+    Args:
+        t (Tree): Tree to operate on
+        higgs (str, list, optional): collection to use for higgs. Can be a list of higgs ["H1","H2",...], or just a string "higgs" refering to a list of higgs. Defaults to 'higgs'.
+    """
+    if isinstance(higgs, str):
+        higgs_m = t[f'{higgs}_m']
+    elif isinstance(higgs, list):
+        higgs_m = ak_stack([ t[f'{h}_m'] for h in higgs ])
+
+    higgs_m = higgs_m[:,:nhiggs]
+    higgs_m_res = higgs_m - 125
+    higgs_m_res_sum = ak.sum(higgs_m_res,axis=-1)
+    t.extend(
+        higgs_m_res_sum=higgs_m_res_sum,
+        X_m_hm_res_corr=t.X_m - higgs_m_res_sum
+    )
+
+def X_m_hp4_res_corrected(t, higgs='higgs', nhiggs=4):
+    """Correct X_m by scaling the measured p4 of the higgs to have the nominal mass(125)
+
+    Args:
+        t (Tree): Tree to operate on
+        higgs (str, list, optional): collection to use for higgs. Can be a list of higgs ["H1","H2",...], or just a string "higgs" refering to a list of higgs. Defaults to 'higgs'.
+    """
+    if isinstance(higgs, str):
+        higgs_p4 = build_p4(t, prefix=higgs)
+    elif isinstance(higgs, list):
+        higgs_p4 = ak_stack([ build_p4(t, prefix=h) for h in higgs ])
+
+    higgs_p4 = higgs_p4[:,:nhiggs]
+
+    higgs_p4_corr = (125/higgs_p4.m)*higgs_p4
+    X_p4_corr = higgs_p4_corr[:,0]
+    for i in range(1, 4):
+        X_p4_corr = X_p4_corr + higgs_p4_corr[:,i]
+
+    t.extend(
+        **{
+            f'X_{var}_hp4_res_corr':getattr(X_p4_corr, var)
+            for var in ('pt','m','eta','phi')
+        }
+    )
+    
+    if isinstance(higgs, str):
+        t.extend(
+            **{
+                f'higgs_{var}_corr':getattr(higgs_p4_corr, var)
+                for var in ('pt','m','eta','phi')
+            }
+        )
+    elif isinstance(higgs, list):
+        t.extend(
+            **{
+                f'{h}_{var}_corr':getattr(higgs_p4_corr,var)[:, i]
+                for var in ('pt','m','eta','phi')
+                for i, h in enumerate(higgs)
+            }
+        )
