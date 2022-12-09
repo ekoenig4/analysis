@@ -2,6 +2,48 @@ from ... import *
 from ... import eightbUtils as eightb
 
 class TestAnalysis(Analysis):
+    @classmethod
+    def _add_parser(self, parser):
+        
+        parser.add_argument('--dout', default='template',
+                            help='specify directory to save plots into')
+        parser.add_argument("--altfile", default=None,
+                            help="output file pattern to write file with. Use {base} to substitute existing file")
+        parser.add_argument('--ptwp', default='loose',
+                            help='Specify preset working point for pt cuts')
+        parser.add_argument('--ptcuts', type=float, nargs="*",
+                            help='List of jet pt cuts to apply to selected jets')
+        parser.add_argument('--use_regressed', default=False, action='store_true',
+                            help='Use ptRegressed for pt cuts instead of regular pt')
+        parser.add_argument('--btagwp', default='loose',
+                            help='Specify preset working point for btag cuts')
+        parser.add_argument('--btagcuts', type=int, nargs="*",
+                            help='List of jet btag wps cuts to apply to selected jets')
+        parser.add_argument('--ar-center', default=[125,125], type=float, nargs="*",
+                            help='Specify the higgs mass centers to use for the analysis region')
+        parser.add_argument('--vr-center', default=[210,210], type=float, nargs="*",
+                            help='Specify the higgs mass centers to use for the validation region')
+        parser.add_argument('--sr-r', default=50, type=float,
+                            help='Specify the radius to in higgs mass space for signal region')
+        parser.add_argument('--cr-r', default=70, type=float,
+                            help='Specify the radius to in higgs mass space for control region')
+        
+        bdt_features = [
+            'jet_ht','min_jet_deta','max_jet_deta','min_jet_dr','max_jet_dr'
+        ] + [
+            f'h{i+1}_{var}'
+            for var in ('pt','jet_dr')
+            for i in range(4)
+        ] + [
+            f'h{i+1}{j+1}_{var}'
+            for var in ('dphi','deta')
+            for i in range(4)
+            for j in range(i+1, 4)
+        ]
+        parser.add_argument('--bdt-features', nargs='+', default=bdt_features)
+
+        return parser
+
     def plot_n1_histos(self):
         study.h_quick( 
             self.signal[self.use_signal]+self.bkg,
@@ -15,14 +57,18 @@ class TestAnalysis(Analysis):
         self.bkg.reweight(2.3)
         self.bkg.set_systematics(0.2)
     
-    def jet_kin_cuts(self):
-        ptcut = eightb.selected_jet_pt()
-        btagcut = eightb.selected_jet_btagwp()
+    def jet_kin_pt_cuts(self):
+        if not self.ptcuts: self.ptcuts = self.ptwp
 
-        event_filter = FilterSequence(
-            ptcut, btagcut
-        )
+        event_filter = eightb.selected_jet_pt()
+        self.signal = self.signal.apply(event_filter)
+        self.bkg = self.bkg.apply(event_filter)
+        self.data = self.data.apply(event_filter)
 
+    def jet_kin_btag_cuts(self):
+        if not self.btagcuts: self.btagcuts = self.btagwp
+        
+        event_filter = eightb.selected_jet_btagwp()
         self.signal = self.signal.apply(event_filter)
         self.bkg = self.bkg.apply(event_filter)
         self.data = self.data.apply(event_filter)
@@ -46,10 +92,11 @@ class TestAnalysis(Analysis):
             legend=True,
             varlist=['nfound_select','nfound_paired_h'],
             xlabels=['N Higgs Jet','N Paired Higgs'],
+            efficiency=True, ylim=(0,0.85), grid=True,
             saveas=f'{self.dout}/signal_n_reco'
         )
 
-    def plot_kin(self):
+    def plot_kin_jet(self):
         for var in ('pt','btag','eta','phi',):
             study.quick( 
                 self.signal[self.use_signal]+self.bkg,
@@ -60,16 +107,8 @@ class TestAnalysis(Analysis):
                 dim=(-1, 4),
                 saveas=f'{self.dout}/kin/jet_kin_by_{var}'
             )
-        def renaming_variables(t):
-            y1_p4 = build_p4(t, prefix='Y1')
-            y2_p4 = build_p4(t, prefix='Y2')
-            t.extend(
-                higgs_jet_dr=t.higgs_dr,
-                Y1_higgs_dr=t.Y1_dr,
-                Y2_higgs_dr=t.Y2_dr,
-                X_y_dr=calc_dr_p4(y1_p4, y2_p4),
-            )
-        (self.signal+self.bkg+self.data).apply(renaming_variables)
+
+    def plot_kin_higgs(self):
 
         for var in ('pt','m','jet_dr','eta'):
             study.quick( 
@@ -81,6 +120,8 @@ class TestAnalysis(Analysis):
                 dim=(-1, 4),
                 saveas=f'{self.dout}/kin/higgs_kin_by_{var}'
             )
+
+    def plot_kin_y(self):
         
         for var in ('pt','m','higgs_dr','eta'):
             study.quick( 
@@ -92,6 +133,19 @@ class TestAnalysis(Analysis):
                 dim=(-1, 2),
                 saveas=f'{self.dout}/kin/y_kin_by_{var}'
             )
+
+    def plot_kin_x(self):
+
+        def renaming_variables(t):
+            y1_p4 = build_p4(t, prefix='Y1')
+            y2_p4 = build_p4(t, prefix='Y2')
+            t.extend(
+        #         higgs_jet_dr=t.higgs_dr,
+        #         Y1_higgs_dr=t.Y1_dr,
+        #         Y2_higgs_dr=t.Y2_dr,
+                X_y_dr=calc_dr_p4(y1_p4, y2_p4),
+            )
+        (self.signal+self.bkg+self.data).apply(renaming_variables)
 
         study.quick( 
             self.signal[self.use_signal]+self.bkg,

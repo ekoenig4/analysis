@@ -23,39 +23,21 @@ sys.path.append( git.Repo('.', search_parent_directories=True).working_tree_dir 
 from utils import *
 
 # %%
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
+_template = eightb.analysis.TestAnalysis()
 
-parser = ArgumentParser()
-parser.add_argument('--dout', default='ranked_quadh',
-                    help='specify directory to save plots into')
+parser = ArgumentParser(description=repr(_template), formatter_class=RawTextHelpFormatter)
 parser.add_argument('--altfile', default='ranked_quadh_{base}',
                     help='altfile pattern to use instead of just ntuple.root, you can use {base} to sub in existing file')
 
-parser.add_argument('--ptwp', default='loose',
-                    help='Specify preset working point for pt cuts')
-parser.add_argument('--ptcuts', type=float, nargs="*",
-                    help='List of jet pt cuts to apply to selected jets')
-parser.add_argument('--use_regressed', default=False, action='store_true',
-                    help='Use ptRegressed for pt cuts instead of regular pt')
-parser.add_argument('--btagwp', default='loose',
-                    help='Specify preset working point for btag cuts')
-parser.add_argument('--btagcuts', type=int, nargs="*",
-                    help='List of jet btag wps cuts to apply to selected jets')
-parser.add_argument('--ar-center', default=[125,125], type=float, nargs="*",
-                    help='Specify the higgs mass centers to use for the analysis region')
-parser.add_argument('--vr-center', default=[210,210], type=float, nargs="*",
-                    help='Specify the higgs mass centers to use for the validation region')
-parser.add_argument('--sr-r', default=50, type=float,
-                    help='Specify the radius to in higgs mass space for signal region')
-parser.add_argument('--cr-r', default=70, type=float,
-                    help='Specify the radius to in higgs mass space for control region')
+if hasattr(_template, '_add_parser'):
+    parser = _template._add_parser(parser)
 
-_template = eightb.analysis.TestAnalysis()
 method_list = _template.methods.keys
-parser.add_argument(f'--only', nargs="*", choices=method_list, help=f'Disable all other methods from run list', default=method_list)
-parser.add_argument(f'--disable', nargs="*", choices=method_list, help=f'Disable method from run list', default=[])
+parser.add_argument(f'--only', nargs="*", help=f'Disable all other methods from run list', default=method_list)
+parser.add_argument(f'--disable', nargs="*", help=f'Disable method from run list', default=[])
 
-args = parser.parse_args()
+args, _ = parser.parse_known_args()
 
 print("---Arguments---")
 for key, value in vars(args).items():
@@ -78,7 +60,9 @@ if not args.btagcuts: args.btagcuts = args.btagwp
 runlist = [method for method in method_list if ( method in args.only and not method in args.disable )]
 
 analysis = _template.__class__(
-    signal=signal, bkg=bkg, data=data,
+    signal=signal, 
+    bkg=bkg, 
+    data=data,
     use_signal=use_signal,
     dout=args.dout,
     ptcuts=args.ptcuts, btagcuts=args.btagcuts,
@@ -90,7 +74,7 @@ analysis = _template.__class__(
         'jet_ht','min_jet_deta','max_jet_deta','min_jet_dr','max_jet_dr'
     ] + [
         f'h{i+1}_{var}'
-        for var in ('pt','dr')
+        for var in ('pt','jet_dr')
         for i in range(4)
     ] + [
         f'h{i+1}{j+1}_{var}'

@@ -69,11 +69,15 @@ class draw_abcd:
         region_total = sum( info['yields'] for info in r_info.values() )
         sr_total = sum( r_info[r]['yields'] for r in ('A','B') )
         cr_total = sum( r_info[r]['yields'] for r in ('C','D') )
+        tr_total = sum( r_info[r]['yields'] for r in ('A','C') )
+        er_total = sum( r_info[r]['yields'] for r in ('B','D') )
 
         lines = [
         f"Total: {region_total:0.2e} ({region_total/nevents:0.2%})",
         f"SR   : {sr_total:0.2e} ({sr_total/nevents:0.2%})",
         f"CR   : {cr_total:0.2e} ({cr_total/nevents:0.2%})",
+        f"TR   : {tr_total:0.2e} ({tr_total/nevents:0.2%})",
+        f"ER   : {er_total:0.2e} ({er_total/nevents:0.2%})",
         ] 
 
         lines2 = [

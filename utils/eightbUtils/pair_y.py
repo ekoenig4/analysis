@@ -30,7 +30,7 @@ def pair_y_from_higgs(t, higgs='higgs', operator=y_min_mass_asym):
     ys = h1 + h2
     ys_dr = calc_dr_p4(h1, h2)
     ys = ak.zip(dict(
-        dr = ys_dr,
+        higgs_dr = ys_dr,
         **{
             var:getattr(ys,var)
             for var in ('pt','m','eta','phi')

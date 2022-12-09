@@ -3,6 +3,19 @@ import awkward as ak
 from tqdm import tqdm
 
 
+class Worker:
+    @staticmethod 
+    def start(worker):
+        return worker()
+
+    def __init__(self, obj, function):
+        self.obj = obj 
+        self.function = function
+
+    def __call__(self):
+        self.result = self.function( self.obj )
+        return self
+
 class ObjTransform:
     def __init__(self,**kwargs):
         self.__dict__.update(**kwargs)
@@ -111,11 +124,25 @@ class ObjIter:
         split_t = self.filter(obj_filter)
         split_f = self.filter(lambda obj : obj not in split_t)
         return split_t,split_f
-    
-    def apply(self,obj_function, report=False):
-        it = tqdm(self) if report else self
 
+    def parallel_apply(self, obj_function, jobs=2):
+        from multiprocessing import Pool
+
+        nitems = len(self.objs)
+        pool = Pool(processes=jobs)
+        workers = pool.map(Worker.start, [ Worker(obj, obj_function) for obj in self.objs ])
+        pool.close()
+        return workers
+
+    
+    def apply(self,obj_function, report=False, parallel=None):
+
+        if parallel:
+            return self._parallel_apply(obj_function, jobs=parallel)
+
+        it = tqdm(self) if report else self
         out = ObjIter([ obj_function(obj) for obj in it ])
+        
         return out
         
     def copy(self):

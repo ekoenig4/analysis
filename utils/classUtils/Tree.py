@@ -275,6 +275,10 @@ class Tree:
         return item
     def __getattr__(self, key): return self[key]
     def __len__(self): return len(self.ttree)
+    def __getstate__(self):
+        return self.__dict__
+    def __setstate__(self, d):
+        self.__dict__ = d
     def get(self, key): return self[key]
 
     def expected_events(self, lumikey=2018):

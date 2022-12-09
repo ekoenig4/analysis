@@ -36,7 +36,7 @@ def to_pair_index(j1_index, j2_index):
 def mass_fit(h, hid, mfit=125):
     return ak.sum((h.m-mfit)**2,axis=-1)
     
-def quadh_score(tree, quadh_index=quadh_index, operator=mass_fit, report=True):
+def get_quadh_score(tree, quadh_index=quadh_index, operator=mass_fit, report=True):
     jets = get_collection(tree, 'jet', named=False)
     jet_p4 = build_p4(jets, use_regressed=True)
     
@@ -61,10 +61,10 @@ def quadh_score(tree, quadh_index=quadh_index, operator=mass_fit, report=True):
     return scores
 
 def select_quadh(tree, quadh_index=quadh_index, operator=mass_fit, report=True):
-    scores = quadh_score(tree, quadh_index, operator, report)
+    scores = get_quadh_score(tree, quadh_index, operator, report)
     quadh_score = ak.min(scores, axis=-1)
     quadh_index = ak.from_regular(quadh_index[ak.argmin(scores,axis=-1)],axis=-2)
-    build_all_dijets(tree, pairs=quadh_index)
+    build_all_dijets(tree, pairs=quadh_index, name='higgs')
     tree.extend(quadh_score=quadh_score)
 
 def mass_diff(dijets):
