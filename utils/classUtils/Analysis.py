@@ -1,6 +1,7 @@
 import inspect
 from collections import defaultdict
 from .ObjIter import ObjIter
+from tqdm import tqdm
 
 import re
 def find_all_undeclared(object):
@@ -47,9 +48,8 @@ class MethodList:
             self.enabled = True
             return self()
 
-    def __init__(self, analysis, ignore_error=True, **methods):
+    def __init__(self, analysis, **methods):
         self.analysis = analysis
-        self.ignore_error = ignore_error
         self.methods = { key:self.AnalysisMethod(analysis, method) for key,method in methods.items() }
     @property
     def keys(self): return list(self.methods.keys())
@@ -60,6 +60,7 @@ class MethodList:
         return '<MethodList\n'+'\n'.join(lines)+'\n>'
     def __getiter__(self):
         return iter(self.methods.values())
+    def items(self): return self.methods.items()
     def __getitem__(self, key):
         if isinstance(key, str):
             return self.methods[key]
@@ -75,21 +76,6 @@ class MethodList:
         method_list.methods = methods
         return method_list
 
-    def run(self, runlist=None, **kwargs):
-        if runlist is None: runlist = self.keys
-        for i, (key, method) in enumerate(self.methods.items()): 
-            if key not in runlist: 
-                print(f'Skipping method: {key}')
-                continue
-            print(f'Running method: {key}')
-
-            if self.ignore_error:
-                try:
-                    method()
-                except Exception as e:
-                    print(f'[Error]: {e}')
-            else:
-                method()
 
 class Analysis:
     def __init__(self, name=None, runlist=None, ignore_error=True, signal=ObjIter([]), bkg=ObjIter([]), data=ObjIter([]), **kwargs):
@@ -102,14 +88,30 @@ class Analysis:
         self.bkg = bkg 
         self.data = data
 
+        self.trees = signal + bkg + data
+
         methods = { key : method for key, method in vars(self.__class__).items() if (not key.startswith('_') and callable(method)) }
-        self.methods = MethodList(self, ignore_error=ignore_error, **methods)
+        self.methods = MethodList(self, **methods)
+        self.ignore_error = ignore_error
 
         self.__dict__.update(**kwargs)
 
     def run(self, runlist=None, **kwargs):
-        if runlist is None: runlist = self.runlist
-        self.methods.run(runlist, **kwargs)
+        if runlist is None: runlist = self.keys
+        for i, (key, method) in enumerate(self.methods.items()): 
+            if key not in runlist: 
+                print(f'[Skipping] {key}')
+                continue
+            print(f'[Running] {key}')
+
+            if self.ignore_error:
+                try:
+                    method()
+                except Exception as e:
+                    print(f'[Error]: {e}\n')
+            else:
+                method()
+
 
     @classmethod
     def get_args(cls):

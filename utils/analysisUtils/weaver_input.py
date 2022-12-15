@@ -1,7 +1,6 @@
-from ... import *
-from ... import eightbUtils as eightb
+from .. import *
 
-class WeaverInput(Analysis):
+class weaver_input(Analysis):
     @staticmethod
     def _add_parser(parser):
         parser.add_argument("--altfile", required=True,

@@ -1,7 +1,6 @@
-from ... import *
-from ... import eightbUtils as eightb
+from .. import *
 
-class ReconstructResonance(Analysis):
+class reconstruct_resonances(Analysis):
     @staticmethod
     def _add_parser(parser):
         parser.add_argument("--altfile", required=True,
@@ -9,12 +8,23 @@ class ReconstructResonance(Analysis):
         parser.add_argument("--reco-algo", choices=["ranker","minmass"],
                             help="type of reconstruction method to apply")
 
+        path = '/uscms_data/d3/ekoenig/8BAnalysis/studies/weaver-multiH/weaver/models'
         model_paths = dict(
-            pn='/uscms_data/d3/ekoenig/8BAnalysis/studies/weaver-multiH/weaver/models/quadh_ranker/20221115_ranger_lr0.0047_batch512_m7m10m12/',
-            mp='/uscms_data/d3/ekoenig/8BAnalysis/studies/weaver-multiH/weaver/models/quadh_ranker_mp/20221124_ranger_lr0.0047_batch512_m7m10m12/',
-            mp300k='/uscms_data/d3/ekoenig/8BAnalysis/studies/weaver-multiH/weaver/models/quadh_ranker_mp/20221205_ranger_lr0.0047_batch512_m7m10m12_300k/',
-            mp500k='/uscms_data/d3/ekoenig/8BAnalysis/studies/weaver-multiH/weaver/models/quadh_ranker_mp/20221205_ranger_lr0.0047_batch512_m7m10m12_500k/',
-            mpbkg='/uscms_data/d3/ekoenig/8BAnalysis/studies/weaver-multiH/weaver/models/quadh_ranker_mp/20221208_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
+            pn=f'{path}/quadh_ranker/20221115_ranger_lr0.0047_batch512_m7m10m12/',
+
+            mp=f'{path}/quadh_ranker_mp/20221124_ranger_lr0.0047_batch512_m7m10m12/',
+            mp300k=f'{path}/quadh_ranker_mp/20221205_ranger_lr0.0047_batch512_m7m10m12_300k/',
+            mp500k=f'{path}/quadh_ranker_mp/20221205_ranger_lr0.0047_batch512_m7m10m12_500k/',
+
+            mpbkg00=f'{path}/quadh_ranker_mp/20221209_b72001172c5d04183ed7bb294252320b_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
+            mpbkg005=f'{path}/quadh_ranker_mp/20221212_293790a7fbfb752ded05771058bf5a25_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
+            mpbkg01=f'{path}/quadh_ranker_mp/20221209_be9efb5b61eb1c42aeb209728eec84d7_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
+
+            mpbkg01_hard25=f'{path}/quadh_ranker_mp/20221214_d595a9703289900d701416bb7274ab71_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
+            mpbkg01_hard50=f'{path}/quadh_ranker_mp/20221214_13676d884fa50cdaffb748fc057f180a_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
+
+            mpbkg01_exp=f'{path}/quadh_ranker_mp/20221214_2f889467cb0f6c7a9269c92e93c25c1d_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
+            mpbkg05_exp=f'{path}/quadh_ranker_mp/20221214_34452fc51690ae1d20a150a10c0bafa7_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
         )
         parser.add_argument("--model-path", type=lambda f : model_paths.get(f, f),
                             help="weaver model path for gnn reconstruction")

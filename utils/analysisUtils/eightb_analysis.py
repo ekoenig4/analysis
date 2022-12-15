@@ -1,7 +1,6 @@
-from ... import *
-from ... import eightbUtils as eightb
+from .. import *
 
-class TestAnalysis(Analysis):
+class eightb_analysis(Analysis):
     @classmethod
     def _add_parser(self, parser):
         
@@ -44,7 +43,7 @@ class TestAnalysis(Analysis):
 
         return parser
 
-    def plot_n1_histos(self):
+    def _plot_n1_histos(self):
         study.h_quick( 
             self.signal[self.use_signal]+self.bkg,
             legend=True,
@@ -73,7 +72,7 @@ class TestAnalysis(Analysis):
         self.bkg = self.bkg.apply(event_filter)
         self.data = self.data.apply(event_filter)
 
-    def cutflow(self):
+    def _cutflow(self):
         cutflow_labels = [
             "total", "trigger","met filters", "muon veto", "electron veto", "n_presel_jets >= 8", "selected_jets", "selected_jets_pt", "selected_jets_btag"
         ]
@@ -188,9 +187,31 @@ class TestAnalysis(Analysis):
             t.extend(val_higgs_dm = dm)
         (self.signal+self.bkg+self.data).apply(val_higgs_dm)
 
+    def build_abcd(self):
+        self.ar_bdt = ABCD(
+            features=self.bdt_features,
+            a = lambda t : (t.n_medium_btag >  4) & (t.higgs_dm < self.sr_r),
+            b = lambda t : (t.n_medium_btag <= 4) & (t.higgs_dm < self.sr_r),
+            c = lambda t : (t.n_medium_btag >  4) & (t.higgs_dm > self.sr_r) & (t.higgs_dm < self.cr_r),
+            d = lambda t : (t.n_medium_btag <= 4) & (t.higgs_dm > self.sr_r) & (t.higgs_dm < self.cr_r),
+        )
+
+        blind_filter = EventFilter('blinded', filter=lambda t : ~( self.ar_bdt.a(t) ))
+        self.blinded_data  = self.data.apply(blind_filter)
+        self.bkg_model = self.blinded_data.asmodel('bkg model')
+
+        self.vr_bdt = ABCD(
+            features=self.bdt_features,
+            a = lambda t : (t.n_medium_btag >  4) & (t.val_higgs_dm < self.sr_r),
+            b = lambda t : (t.n_medium_btag <= 4) & (t.val_higgs_dm < self.sr_r),
+            c = lambda t : (t.n_medium_btag >  4) & (t.val_higgs_dm > self.sr_r) & (t.val_higgs_dm < self.cr_r),
+            d = lambda t : (t.n_medium_btag <= 4) & (t.val_higgs_dm > self.sr_r) & (t.val_higgs_dm < self.cr_r),
+        )
+
     def plot_abcd_regions(self):
         study.quick( 
             self.signal[self.use_signal]+self.bkg,
+            masks=self.ar_bdt.mask,
             legend=True, 
             plot_scale=[10]*len(self.use_signal),
             varlist=['n_medium_btag','higgs_dm'],
@@ -200,6 +221,7 @@ class TestAnalysis(Analysis):
 
         study.quick2d( 
             self.signal[self.use_signal]+self.bkg,
+            masks=self.ar_bdt.mask,
             varlist=['n_medium_btag','higgs_dm'],
             binlist=[np.arange(4,10),(0, self.cr_r, 20)],
             exe=draw_abcd(x_r=(4,5,9), y_r=(0, self.sr_r, self.cr_r), regions=["C","D","A","B"]),
@@ -209,6 +231,7 @@ class TestAnalysis(Analysis):
         study.quick( 
             self.signal[self.use_signal]+self.bkg,
             legend=True, 
+            masks=self.vr_bdt.mask,
             plot_scale=[10]*len(self.use_signal),
             varlist=['n_medium_btag','val_higgs_dm'],
             binlist=[np.arange(4,10),(0, self.cr_r, 20)],
@@ -217,6 +240,7 @@ class TestAnalysis(Analysis):
 
         study.quick2d( 
             self.signal[self.use_signal]+self.bkg,
+            masks=self.vr_bdt.mask,
             varlist=['n_medium_btag','val_higgs_dm'],
             binlist=[np.arange(4,10),(0, self.cr_r, 20)],
             exe=draw_abcd(x_r=(4,5,9), y_r=(0, self.sr_r, self.cr_r), regions=["C","D","A","B"]),
@@ -254,26 +278,6 @@ class TestAnalysis(Analysis):
             saveas=f'{self.dout}/higgs_mass_vs_btagcut'
         )
 
-    def build_abcd(self):
-        self.ar_bdt = ABCD(
-            features=self.bdt_features,
-            a = lambda t : (t.n_medium_btag >  4) & (t.higgs_dm < self.sr_r),
-            b = lambda t : (t.n_medium_btag <= 4) & (t.higgs_dm < self.sr_r),
-            c = lambda t : (t.n_medium_btag >  4) & (t.higgs_dm > self.sr_r) & (t.higgs_dm < self.cr_r),
-            d = lambda t : (t.n_medium_btag <= 4) & (t.higgs_dm > self.sr_r) & (t.higgs_dm < self.cr_r),
-        )
-
-        blind_filter = EventFilter('blinded', filter=lambda t : ~( self.ar_bdt.a(t) ))
-        self.blinded_data  = self.data.apply(blind_filter)
-
-        self.vr_bdt = ABCD(
-            features=self.bdt_features,
-            a = lambda t : (t.n_medium_btag >  4) & (t.val_higgs_dm < self.sr_r),
-            b = lambda t : (t.n_medium_btag <= 4) & (t.val_higgs_dm < self.sr_r),
-            c = lambda t : (t.n_medium_btag >  4) & (t.val_higgs_dm > self.sr_r) & (t.val_higgs_dm < self.cr_r),
-            d = lambda t : (t.n_medium_btag <= 4) & (t.val_higgs_dm > self.sr_r) & (t.val_higgs_dm < self.cr_r),
-        )
-    
     def print_abcd_yields(self):
         print("----- Signal AR -----")
         for lines in zip(*[ self.ar_bdt.print_yields( s, lumi=2018, return_lines=True) for s in self.signal[self.use_signal]]):
@@ -291,8 +295,20 @@ class TestAnalysis(Analysis):
         for lines in zip(self.vr_bdt.print_yields(self.blinded_data, return_lines=True), self.vr_bdt.print_yields(self.bkg, lumi=2018, return_lines=True)):
             print(' | '.join(lines))
 
+    def plot_val_datamc(self, blinded_data, bkg):
+        resonances = ['X_m','Y1_m','Y2_m',None]+[f'higgs_m[:,{i}]' for i in range(4)]
+
+        study.quick( 
+            blinded_data+bkg,
+            masks=self.vr_bdt.mask,
+            legend=True,
+            varlist=resonances,
+            dim=(-1, 4),
+            ratio=True, r_ylabel='Data/MC',
+            saveas=f'{self.dout}/vr_bdt/datamc_resonant_mass'
+        )
+
     def train_ar_bdt(self):
-        self.bkg_model = self.blinded_data.asmodel('bkg model')
 
         # %%
         print("Training AR BDT")
