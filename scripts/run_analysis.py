@@ -42,6 +42,7 @@ for name, template in templates.items():
     )
     template._add_parser(parser)
     method_list = template.methods.keys
+    parser.add_argument('--template', default=template, dest='_class_template_')
     parser.add_argument(f'--only', nargs="*", help=f'Disable all other methods from run list', default=method_list)
     parser.add_argument(f'--disable', nargs="*", help=f'Disable method from run list', default=[])
     parser.add_argument(f'--module', default='fc.eightb.preselection.t8btag_minmass', help='specify the file collection module to use for all samples')
@@ -53,10 +54,14 @@ args, unk = driver.parse_known_args()
 
 print("---Arguments---")
 for key, value in vars(args).items():
+    if key.startswith('_'): continue
     print(f"{key} = {value}")
 if any(unk):
     print(f"uknown = {unk}")
 print()
+
+template = args._class_template_
+method_list = template.methods.keys
 
 # %%
 
@@ -81,10 +86,23 @@ if not args.no_bkg:
 if not args.no_data:
     data = ObjIter([ Tree(module.Run2_UL18.JetHT_Data_UL_List, altfile=altfile) ])
 
-runlist = [method for method in method_list if ( method in args.only and not method in args.disable )]
+def add_to_list(method):
+    import re 
+
+    for disable in args.disable:
+        if any( re.findall(disable, method) ): return False 
+
+    for only in args.only:
+        if any( re.findall(only, method) ): return True 
+
+    return False
+    
+
+runlist = [method for method in method_list if add_to_list(method)]
 
 analysis = template.__class__(
     signal=signal, bkg=bkg, data=data,
+    use_signal=use_signal,
     **vars(args)
 )
 

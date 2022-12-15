@@ -40,10 +40,12 @@ for name, template in templates.items():
     parser = subparser.add_parser(
         name=name,
         description=str(repr(template)),
-        formatter_class=RawTextHelpFormatter
+        formatter_class=RawTextHelpFormatter    
     )
     template._add_parser(parser)
     method_list = template.methods.keys
+    parser.add_argument(f'--module', default='fc.eightb.preselection.t8btag_minmass', help='specify the file collection module to use for all samples')
+    parser.add_argument('--template', default=template, dest='_class_template_')
     parser.add_argument(f'--only', nargs="*", help=f'Disable all other methods from run list', default=method_list)
     parser.add_argument(f'--disable', nargs="*", help=f'Disable method from run list', default=[])
 
@@ -51,11 +53,20 @@ args, unk = driver.parse_known_args()
 
 print("---Arguments---")
 for key, value in vars(args).items():
+    if key.startswith('_'): continue
     print(f"{key} = {value}")
 if any(unk):
     print(f"uknown = {unk}")
 print()
 
+template = args._class_template_
+method_list = template.methods.keys
+
+def _module(mod):
+    local = dict()
+    exec(f"module = {mod}", globals(), local)
+    return local['module']
+module = _module(args.module)
 
 def _file(f):
     if fc.exists(f): return f
@@ -70,7 +81,7 @@ def iter_files(fs):
     else: return [fs]
 
 files = [ f for fs in files for f in iter_files(fs) ]
-trees = [ Tree(f, report=False) for f in tqdm(args.files) ]
+trees = [ Tree(f, report=False) for f in tqdm(files) ]
 signal = ObjIter([ tree for tree in trees if tree.is_signal ])
 bkg = ObjIter([ tree for tree in trees if (not tree.is_data and not tree.is_signal) ])
 data = ObjIter([ tree for tree in trees if tree.is_data ])
