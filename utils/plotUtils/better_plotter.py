@@ -170,7 +170,7 @@ def plot_histos(histos, figax=None, errors=True, fill_error=False, exe=None, **k
 
     if exe: execute(**locals())
     if any(kwargs): format_axes(ax,**kwargs)
-    return fig,ax
+    return fig, ax
 
 def histo_array(array, bins=None, weights=None, density = False, 
                 cumulative=False, scale=None, lumi=None,
@@ -187,7 +187,7 @@ def histo_array(array, bins=None, weights=None, density = False,
     histo = Histo.from_array(array,bins=bins,weights=weights,**hist_kwargs)
     plot_histo(histo, figax=(fig,ax), **kwargs)
     
-    return fig,ax
+    return fig, ax, histo
 
 def histo_arrays(arrays, bins=None, weights=None, density = False, 
                 cumulative=False, scale=None, lumi=None,
@@ -204,7 +204,7 @@ def histo_arrays(arrays, bins=None, weights=None, density = False,
     histolist = HistoList(arrays,bins=bins,weights=weights,**hist_kwargs)
     plot_histos(histolist, figax=(fig,ax), **kwargs)
     
-    return fig,ax
+    return fig, ax, histolist
 
 def plot_stack(stack, figax=None, fill_error=False, exe=None, sort='largest', **kwargs):
     fig, ax = get_figax(figax=(figax))

@@ -29,10 +29,11 @@ def update_cutflow(tree, tag):
         return tree['sample_id']==i
 
     def _update_cutflow(cutflow, weights):
-        cutflow.histo = np.append(cutflow.histo, np.sum(weights))
-        cutflow.error = np.append(cutflow.error, np.sqrt( np.sum(weights**2) ))
-        cutflow.bins = np.arange( len(cutflow.histo)+1 )
-        return cutflow
+        from ..plotUtils import Histo
+        histo = np.append(cutflow.histo, np.sum(weights))
+        error = np.append(cutflow.error, np.sqrt( np.sum(weights**2) ))
+        bins = np.arange( len(histo)+1 )
+        return Histo(histo, bins, error)
 
     new_cutflow = [_update_cutflow(cutflow, event_weight(tree, i))
                    for i, cutflow in enumerate(tree.cutflow)]

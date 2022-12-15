@@ -113,7 +113,8 @@ class Function:
   @classmethod
   def fit_histo(cls, histo, **kwargs):
     x = get_bin_centers(histo.bins)
-    fit = cls.fit(x, histo.histo, yerr=histo.error, n_obs=histo.ndata, **kwargs)
+    # fit = cls.fit(x, histo.histo, yerr=histo.error, n_obs=histo.ndata, **kwargs)
+    fit = cls.fit(x, histo.histo, n_obs=histo.ndata, **kwargs)
 
     if getattr(histo, 'array', None) is not None:
       histo.stats.ks, histo.stats.ks_pvalue = fit.ks(histo)
@@ -204,6 +205,53 @@ class norm(Function):
   @staticmethod
   def func(x, n=1, sigma=1): return n*gaussian.pdf(x, 0, sigma)
   def _func(self, x): return gaussian.func(x, self.n, self.mu, self.sigma)
+
+class crystalball(Function):
+  def __init__(self, x=np.array([0]), n=1, mu=0, sigma=1, beta=1, m=2, **kwargs):
+    super().__init__(x, dict(n=n, mu=mu, sigma=sigma, beta=beta, m=m), **kwargs)
+
+  def __str__(self):
+    if not hasattr(self,"spec"):
+      fvar = lambda v : str(v)
+    else: 
+      fvar = lambda v : f'{v:{self.spec}}'
+
+    z = f"\\frac{{x-{fvar(self.mu)}}}{{{fvar(self.sigma)}}}"
+    A = (self.m/np.abs(self.beta))**self.m
+    B = self.m/np.abs(self.beta)-np.abs(self.beta)
+    em = '{'+fvar(-self.m)+'}'
+
+    lines = [f"${fvar(self.n)}[\exp(-0.5({z})^2)$], ${z} < {fvar(self.beta)}$",
+             f"${fvar(self.n)}[{fvar(A)}({fvar(B)}+{z})^{em}$, ${z} > {fvar(self.beta)}$"]
+    return '\n'.join(lines)
+  
+  @staticmethod
+  def rvs(mu=0, sigma=1, beta=1, m=2, size=1): return (f_stats.crystalball.rvs(beta, m, size=size)-mu)/sigma
+  def _rvs(self, size=1): return crystalball.rvs(self.mu, self.sigma, self.beta, self.m, size)
+
+  @staticmethod
+  def pdf(x, mu=0, sigma=1, beta=1, m=2): return f_stats.crystalball.pdf(-(x-mu)/sigma, beta, m)
+  def _pdf(self, x): return crystalball.pdf(x, self.mu, self.sigma, self.beta, self.m)
+
+  @staticmethod
+  def cdf(x, mu=0, sigma=1, beta=1, m=2): return f_stats.crystalball.cdf(-(x-mu)/sigma, beta, m)
+  def _cdf(self, x): return crystalball.cdf(x, self.mu, self.sigma, self.beta, self.m)
+
+  @staticmethod
+  def sf(x, mu=0, sigma=1, beta=1, m=2): return f_stats.crystalball.sf(-(x-mu)/sigma, beta, m)
+  def _sf(self, x): return crystalball.sf(x, self.mu, self.sigma, self.beta, self.m)
+
+  @staticmethod
+  def func(x, n=1, mu=0, sigma=1, beta=1, m=2): return n*crystalball.pdf(x, mu, sigma, beta, m)
+  def _func(self, x): return crystalball.func(x, self.n, self.mu, self.sigma, self.beta, self.m)
+  
+  @staticmethod
+  def best(x, y):
+    fit_peak = gaussian.fit(x, y, peak=True)
+    n, mu, sigma = fit_peak.n, fit_peak.mu, fit_peak.sigma
+    func = lambda n : np.sum((crystalball.func(x, n, mu, sigma, beta=1, m=2)-y)**2)
+    n = fmin(func, x0=n, maxiter=10, full_output=False, disp=False)[0]
+    return n, mu, sigma, 1.0, 2.0
 
 
 class linear(Function):

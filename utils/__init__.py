@@ -12,4 +12,5 @@ from .orderUtils import *
 from .bdtUtils import *
 from .abcdUtils import *
 from .testUtils import *
+from . import analysisUtils as analysis
 from . import eightbUtils as eightb

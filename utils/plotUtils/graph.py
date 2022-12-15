@@ -28,6 +28,13 @@ class Graph:
 
         return cls(x, y, xerr=xerr, yerr=yerr, **kwargs)
 
+    @classmethod 
+    def from_histo(cls, histo, **kwargs):
+        y, yerr = histo.histo, histo.error
+        x, xerr = get_bin_centers(histo.bins), get_bin_widths(histo.bins)
+
+        return cls(x, y, xerr=xerr, yerr=yerr)
+
     def __init__(self, x_array, y_array, weights=None, xerr=None, yerr=None, order='x', ndata=None, label_stat=None, inv=False, smooth=False, fit=None, histtype=None, **kwargs):
         if inv: x_array, y_array = y_array, x_array
         x_array = flatten(x_array)

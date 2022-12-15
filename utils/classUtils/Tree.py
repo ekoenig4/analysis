@@ -355,10 +355,19 @@ class Tree:
         tree.color = color
         return tree
     
-    def write(self, altfile='new_{base}', retry=2):
+    def write(self, altfile='new_{base}', retry=2, include=[], exclude=[]):
+        exclude += ['^_', '^sample_id$']
 
         def _prep_to_write_(tree):
+
             fields = tree.fields
+            if any(include):
+                regex = lambda field : any( re.match(pattern, field) for pattern in include )
+            else:
+                regex = lambda field : not any( re.match(pattern, field) for pattern in exclude )
+
+            fields = [ field for field in fields if regex(field) ]
+            tree = tree[fields]
 
             types = dict()
             option_fields = []

@@ -52,6 +52,7 @@ class ABCD(BDTReweighter):
     self.a, self.b, self.c, self.d = a, b, c, d
     self.sr = lambda t : self.a(t) | self.b(t)
     self.cr = lambda t : self.c(t) | self.d(t)
+    self.mask = lambda t: self.sr(t) | self.cr(t)
 
   def yields(self, treeiter : ObjIter, lumi=None):
     if not isinstance(treeiter, ObjIter): treeiter = ObjIter([treeiter])

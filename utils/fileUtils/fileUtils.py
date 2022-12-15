@@ -117,6 +117,9 @@ class FileCollection:
 
     self.__dict__.update( sample_files(self.path) )
 
+  def get(self, fname):
+    return os.path.join(self.path, fname)
+
   @property
   def eos(self):
     if self.path.startswith('/store/user/'):
