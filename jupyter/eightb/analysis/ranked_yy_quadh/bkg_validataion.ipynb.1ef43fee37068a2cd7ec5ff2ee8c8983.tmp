@@ -1,0 +1,9 @@
+def get_higgs_dm(t, center=center):
+    dm = [
+        np.abs(t.higgs_m[:,i]-m
+        for i, m in enumerate(center)
+    ]  
+    dm = ak_stack(dm, axis=1)
+    return dm
+    # t.extend(higgs_dm=dm)
+(signal+bkg+data).apply(get_higgs_dm)

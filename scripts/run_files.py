@@ -42,12 +42,12 @@ for name, template in templates.items():
         description=str(repr(template)),
         formatter_class=RawTextHelpFormatter    
     )
-    template._add_parser(parser)
     method_list = template.methods.keys
     parser.add_argument(f'--module', default='fc.eightb.preselection.t8btag_minmass', help='specify the file collection module to use for all samples')
     parser.add_argument('--template', default=template, dest='_class_template_')
     parser.add_argument(f'--only', nargs="*", help=f'Disable all other methods from run list', default=method_list)
     parser.add_argument(f'--disable', nargs="*", help=f'Disable method from run list', default=[])
+    template._add_parser(parser)
 
 args, unk = driver.parse_known_args()
 

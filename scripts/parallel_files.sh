@@ -29,13 +29,13 @@ get_training() {
 
     path=/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection/t8btag_minmass/
 
-    for f in $(ls $path/Run2_Autumn18//QCD/*/ntuple.root); do
-        echo ${f/\/eos\/uscms/}
-    done
+    # for f in $(ls $path/Run2_Autumn18//QCD/*/ntuple.root); do
+    #     echo ${f/\/eos\/uscms/}
+    # done
 
-    for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/TTJets/TTJets*/ntuple_{6,7}.root); do
-        echo ${f/\/eos\/uscms/}
-    done
+    # for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/TTJets/TTJets*/ntuple_{6,7}.root); do
+    #     echo ${f/\/eos\/uscms/}
+    # done
 }
 
 

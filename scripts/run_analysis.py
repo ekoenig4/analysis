@@ -40,15 +40,17 @@ for name, template in templates.items():
         description=str(repr(template)),
         formatter_class=RawTextHelpFormatter
     )
-    template._add_parser(parser)
     method_list = template.methods.keys
     parser.add_argument('--template', default=template, dest='_class_template_')
     parser.add_argument(f'--only', nargs="*", help=f'Disable all other methods from run list', default=method_list)
     parser.add_argument(f'--disable', nargs="*", help=f'Disable method from run list', default=[])
     parser.add_argument(f'--module', default='fc.eightb.preselection.t8btag_minmass', help='specify the file collection module to use for all samples')
     parser.add_argument(f'--no-signal', default=False, action='store_true', help='do not load any signal files')
+    parser.add_argument(f'--use-signal', default='full_signal_list', help='which signal list to load')
     parser.add_argument(f'--no-bkg', default=False, action='store_true', help='do not load any background files')
     parser.add_argument(f'--no-data', default=False, action='store_true', help='do not load any data files')
+    parser.add_argument(f'--debug', default=False, action='store_true', help='disable running analysis for debug')
+    template._add_parser(parser)
 
 args, unk = driver.parse_known_args()
 
@@ -70,41 +72,45 @@ def _module(mod):
     exec(f"module = {mod}", globals(), local)
     return local['module']
 module = _module(args.module)
-altfile = getattr(args, 'altfile', None)
+altfile = getattr(args, 'altfile', '{base}')
 
 signal, bkg, data = ObjIter([]), ObjIter([]), ObjIter([])
 use_signal = []
 
-if not args.no_signal:
-    use_signal  = module.full_signal_list
+if not args.no_signal and not args.debug:
+    use_signal  = getattr(module, args.use_signal)
     signal = ObjIter([Tree(f, altfile=altfile, report=False) for f in tqdm(use_signal)])
-    use_signal = [ use_signal.index(f) for f in module.signal_list ]
+    args.use_signal = [ use_signal.index(f) for f in module.signal_list ]
+else:
+    args.use_signal = []
 
-if not args.no_bkg:
+if not args.no_bkg and not args.debug:
     bkg = ObjIter([Tree(module.Run2_UL18.QCD_B_List, altfile=altfile), Tree(module.Run2_UL18.TTJets, altfile=altfile)])
 
-if not args.no_data:
+if not args.no_data and not args.debug:
     data = ObjIter([ Tree(module.Run2_UL18.JetHT_Data_UL_List, altfile=altfile) ])
 
 def add_to_list(method):
     import re 
 
     for disable in args.disable:
-        if any( re.findall(disable, method) ): return False 
+        if re.match(f'^{disable}$', method): return False 
 
     for only in args.only:
-        if any( re.findall(only, method) ): return True 
+        if re.match(f'^{only}$', method): return True 
 
     return False
     
-
 runlist = [method for method in method_list if add_to_list(method)]
 
 analysis = template.__class__(
     signal=signal, bkg=bkg, data=data,
-    use_signal=use_signal,
+    runlist=runlist,
     **vars(args)
 )
 
 print( repr(analysis) )
-analysis.run(runlist=runlist)
+
+if args.debug: exit()
+
+analysis.run()
