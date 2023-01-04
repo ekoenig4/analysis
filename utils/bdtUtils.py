@@ -148,13 +148,16 @@ class ABCD(BDTReweighter):
     )
 
   def results(self, treeiter: ObjIter):
-    X, W, (mask_a, mask_b) = self.get_features(treeiter, masks=[self.a, self.b])
+    scale = treeiter.scale.cat
+    reweight = treeiter.apply(self.reweight_tree).cat
+    mask_a = treeiter.apply(self.a).cat
+    mask_b = treeiter.apply(self.b).cat
 
-    _, a_W = X[mask_a], W[mask_a]
-    b_X, b_W = X[mask_b], W[mask_b]
-    
+    a_W, b_W = scale[mask_a], scale[mask_b]
+    b_R = reweight[mask_b]
+
     a_T, b_T = [ np.sum(W) for W in (a_W, b_W,) ]
-    b_R = np.sum(b_W*self.reweight(b_X, b_W))
+    b_R = np.sum(b_W*b_R)
 
     return dict(
       k_factor=self.k_factor,

@@ -37,7 +37,7 @@ def _plot_objects(figax, plotobjs, position='right', size="100%", pad=1, contour
 def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None, 
                 is_data=False, is_signal=False, is_model=False, stacked=False, 
                 density=False, cumulative=False, efficiency=False, lumi=None,
-                scale=None, figax=None, **kwargs):
+                scale=None, overlay=False, figax=None, **kwargs):
     fig, ax = get_figax(figax)
 
     # --- Configure kwargs ---
@@ -81,8 +81,12 @@ def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None,
     histo2ds = list(_flatten_plotobjs(plotobjs))
     total = len(histo2ds)
     # sizes = [1, 2, 3]
-    for i, plotobj in enumerate(histo2ds):
-        _plot_objects((fig,ax), [plotobj], **kwargs['remaining'])
+
+    if overlay:
+        _plot_objects((fig,ax), histo2ds, **kwargs['remaining'])
+    else:
+        for i, plotobj in enumerate(histo2ds):
+            _plot_objects((fig,ax), [plotobj], **kwargs['remaining'])
     
     # ax.store = store
     return fig, ax

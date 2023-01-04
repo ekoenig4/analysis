@@ -22,6 +22,11 @@ class ObjTransform:
 
         if hasattr(self,'init') and callable(self.init):
             self.init()
+        
+    def __getattr__(self, key):
+        if key in self.__dict__: return self.__dict__[key]
+        return None
+        
 class MethodIter:
     def __init__(self, objs, calls):
         self.objs = objs
@@ -135,7 +140,7 @@ class ObjIter:
         return workers
 
     
-    def apply(self,obj_function, report=False, parallel=None):
+    def apply(self, obj_function, report=False, parallel=None):
 
         if parallel:
             return self._parallel_apply(obj_function, jobs=parallel)

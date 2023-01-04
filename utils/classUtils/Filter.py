@@ -1,5 +1,6 @@
 from ..utils import *
 from ..classUtils import TreeIter, ObjIter
+import inspect
 
 
 def get_operation(tags, operation, default):
@@ -77,6 +78,20 @@ def event_filter(self, tree):
     update_cutflow(tree, self.name)
 
     return tree
+
+class Filter:
+    def __init__(self, filter):
+        self.filter = filter 
+        self.hash = f'_filter_{hash(filter)}_'
+    def __call__(self, t, **kwargs):
+        key = f'{self.hash}_{hash(tuple(kwargs.items()))}_'
+        if key in t.fields: return t[key]
+        
+        value = self.filter(t, **kwargs)
+        t.extend(**{key:value})
+        return value
+
+        
 
 
 class EventFilter:

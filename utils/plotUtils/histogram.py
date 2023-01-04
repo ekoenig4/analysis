@@ -126,7 +126,7 @@ class Histo:
             weights= np.ones(array.shape)
         
         bins = autobin(array, bins=bins, nbins=nbins)
-        if rebin:
+        if rebin and (rebin < len(bins)):
             bins = np.linspace(bins[0], bins[-1], rebin)
 
         if restrict:

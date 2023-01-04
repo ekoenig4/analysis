@@ -356,6 +356,8 @@ class Tree:
         return tree
     
     def write(self, altfile='new_{base}', retry=2, include=[], exclude=[]):
+        if '{base}' not in altfile: altfile += '_{base}'
+
         exclude += ['^_', '^sample_id$']
 
         def _prep_to_write_(tree):

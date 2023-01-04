@@ -1,4 +1,5 @@
 from .. import *
+from .. import eightbUtils as eightb
 
 
 class randomize_split(Analysis):

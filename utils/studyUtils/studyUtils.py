@@ -486,8 +486,8 @@ def compare_masks_v2(treelist, masks=[], label=[], varlist=[], h_linestyle=["-",
         return fig,axs
 
 
-def quick2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlist=[], ybinlist=[], dim=(-1,-1), size=(-1,-1),  flip=False, figax=None, legend=False, **kwargs):
-    study = Study(*args, **kwargs)
+def quick2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlist=[], ybinlist=[], dim=None, size=(-1,-1),  flip=False, figax=None, overlay=False, **kwargs):
+    study = Study(*args, overlay=overlay, **kwargs)
 
     if varlist is not None:
         xvarlist=varlist[::2]
@@ -511,12 +511,14 @@ def quick2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlis
     #                             dpi=80)
     # fig, axs = figax
     
-    nrows, ncols = autodim(nplots, (nplots, 1), flip)
-    ncols = min(nvar,4)
+    if dim is None:
+        dim = (nplots, 1)
+    nrows, ncols = autodim(nplots, dim, flip)
+    ncols = min(nvar,4) if not overlay else ncols
     xsize, ysize = autosize(size,(nrows, ncols))
     
     if figax is None:
-        figax = plt.subplots(nrows=nrows, ncols=1,
+        figax = plt.subplots(nrows=nrows, ncols=ncols if overlay else 1,
                                 figsize=(int(xsize*ncols), ysize*nrows),
                                 dpi=80)
     fig, axs = figax
@@ -525,8 +527,8 @@ def quick2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlis
 
     it1 = enumerate(zip(xvarlist, yvarlist, xbinlist, ybinlist))
     for i, (xvar, yvar, xbins, ybins) in tqdm(it1, total=nplots, position=0):
-        xbins, xlabel = format_var(xvar, bins=xbins, xlabel=xvar)
-        ybins, ylabel = format_var(yvar, bins=ybins, xlabel=yvar)
+        xbins, xlabel = format_var(xvar, bins=xbins, xlabel=None)
+        ybins, ylabel = format_var(yvar, bins=ybins, xlabel=None)
         info = dict(x_bins=xbins, xlabel=xlabel, y_bins=ybins, ylabel=ylabel)
 
         xhists = study.get_array(xvar)
@@ -537,7 +539,18 @@ def quick2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlis
             ax = axs
         else:
             ax = axs.flat[i]
-        hist2d_multi(xhists, yhists, weights=weights, **info, **study.attrs, figax=(fig,ax))
+
+        if xvar == yvar:
+            keys2d = ('contour','interp','scatter','overlay')
+            attrs = { key:value for key,value in study.attrs.items() if not key in keys2d }
+            attrs['efficiency'] = True
+            attrs['exe'] = None
+            hist_multi(xhists, bins=xbins, xlabel=xlabel, weights=weights, **attrs, figax=(fig,ax))
+        else:
+            attrs = dict(study.attrs)
+            if overlay and 'legend' in attrs: 
+                del attrs['legend']
+            hist2d_multi(xhists, yhists, weights=weights, **info, **attrs, figax=(fig,ax))
 
         # it2 = enumerate(zip(xhists, yhists, weights, labels))
         # for j, (xhist, yhist, weight, label) in tqdm(it2, total=nvar, position=1, leave=False):
@@ -627,6 +640,25 @@ def overlay2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinl
     
     if study.return_figax:
         return fig,axs
+
+def pairplot(*args, varlist=[], binlist=None, scatter=True, dim=None, overlay=True, **kwargs):
+    nvar = len(varlist)
+    binlist = init_attr(binlist, None, nvar)
+
+    IJ = np.stack(np.meshgrid(np.arange(nvar),np.arange(nvar)),axis=2).flatten()
+    varlist = [ varlist[i] for i in IJ ]
+    binlist = [ binlist[i] for i in IJ ]
+
+    quick2d( 
+        *args,
+        varlist=varlist,
+        binlist=binlist,
+        overlay=True, 
+        scatter=scatter,
+        dim=(-1, nvar),
+        **kwargs
+    )
+
 
 def quick_region(*rtrees, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1,-1), flip=False, figax=None, **kwargs):
     ftrees = rtrees[0]

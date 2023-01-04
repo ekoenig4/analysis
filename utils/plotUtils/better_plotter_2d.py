@@ -8,23 +8,39 @@ from .better_plotter import get_figax, execute
 
 from scipy.interpolate import interp2d
 
-def scatter_histo2d(histo2d, figax=None, log=False, cmin=None, min_counts=10000, fraction=0.5, **kwargs):
+def scatter_histo2d(histo2d, figax=None, log=False, cmin=None, min_counts=10000, fraction=10000, alpha=0.25, size=5, **kwargs):
     
     fig, ax = get_figax(figax=figax)
 
     from matplotlib.colors import LogNorm
 
     color = histo2d.kwargs.get('color', None)
+    
+    def _get_probs(weight):
+        abs_weight = np.abs(weight)
+        norm = np.sum(weight)/np.sum(abs_weight)
+        prob = norm * abs_weight 
+        return prob/prob.max()
+    prob = _get_probs(histo2d.weights)
+    def _sample_probs(prob):
+        return prob > np.random.uniform(size=len(prob))
+    index = np.arange(histo2d.counts)
 
-    r = max(min_counts, int(histo2d.counts*fraction))
-    randsample = np.random.permutation(histo2d.counts)[:min(histo2d.counts, r)]
-    x, y, w = histo2d.x_array[randsample], histo2d.y_array[randsample],histo2d.weights[randsample]
+    r = max(min_counts, int(histo2d.counts*fraction)) if fraction < 1 else int(fraction)
+    r = min(histo2d.counts, r)
+    randsample = np.array([]).astype(int)
+    while len(randsample) < r:
+        randsample = np.append(randsample, index[_sample_probs(prob)])
+
+    randsample = randsample[:r]
+    x, y, w = histo2d.x_array[randsample], histo2d.y_array[randsample], prob[randsample]
     bounds = (x > histo2d.x_bins[0]) & (x < histo2d.x_bins[-1]) & (y > histo2d.y_bins[0]) & (y < histo2d.y_bins[-1])
     x, y, w = [ v[bounds] for v in (x,y,w) ]
-    w = (histo2d.ndata/np.sum(w))*w
-    w = 0.9*np.exp(-(w/np.max(w) - 1)**2)
+    # w = alpha*np.exp(-(w - 1)**2)
+    # w = alpha*w
+    w = alpha*np.ones_like(w)
 
-    container = ax.scatter(x, y, s=0.5, c=color, alpha=w)
+    container = ax.scatter(x, y, s=size, c=color, alpha=w)
     ax.set(xlim=(histo2d.x_bins[0], histo2d.x_bins[-1]), ylim=(histo2d.y_bins[0], histo2d.y_bins[-1]))
 
 def contour_histo2d(histo2d, figax=None, log=False, cmin=None, **kwargs):
@@ -76,7 +92,7 @@ def bin_histo2d(histo2d, figax=None, log=False, show_counts=False, cmin=None, **
                 ax.text((bx_hi+bx_lo)/2,(by_hi+by_lo)/2,f'{n[i,j]:0.2}',ha="center", va="center", fontweight="bold")
 
 
-def plot_histo2d(histo2d, figax=None, log=False, show_counts=False, cmin=None, contour=False, interp=False, scatter=False, exe=None, **kwargs):
+def plot_histo2d(histo2d, figax=None, log=False, show_counts=False, cmin=None, contour=False, interp=False, scatter=False, exe=None, legend=False, **kwargs):
     """Plot 2D histogram
 
     Args:
@@ -100,7 +116,7 @@ def plot_histo2d(histo2d, figax=None, log=False, show_counts=False, cmin=None, c
     else:
         bin_histo2d(histo2d, figax=(fig,ax), log=log, show_counts=show_counts, cmin=cmin)
                 
-    if histo2d.kwargs.get('label',None):
+    if histo2d.kwargs.get('label',None) and legend:
         ax.text(0.05, 1.01, f"{histo2d.label} ({histo2d.stats.nevents:0.2e})", transform=ax.transAxes)
                 
     # fig.colorbar(container, ax=ax)
@@ -110,9 +126,9 @@ def plot_histo2d(histo2d, figax=None, log=False, show_counts=False, cmin=None, c
     return fig,ax
 
 
-def plot_histo2ds(histo2ds, figax=None, show_counts=False, exe=None, log=False, **kwargs):
+def plot_histo2ds(histo2ds, figax=None, show_counts=False, exe=None, log=False, legend=True, **kwargs):
     fig, ax = get_figax(figax=figax)
-    for histo2d in histo2ds: plot_histo2d(histo2d, show_counts=show_counts, log=log, figax=(fig,ax))
+    for histo2d in histo2ds: plot_histo2d(histo2d, show_counts=show_counts, log=log, legend=legend, figax=(fig,ax))
 
     if exe: execute(**locals())
     if any(kwargs): format_axes(ax, is_2d=True, **kwargs)

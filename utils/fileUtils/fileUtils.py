@@ -151,6 +151,16 @@ class FileCollection:
     return FileCollection(path)
     
   @property
+  def Run2_UL17(self):
+    path = os.path.join(self.path, 'Run2_UL', 'RunIISummer20UL17NanoAODv9')
+    return FileCollection(path)
+
+  @property
+  def Run2_UL16(self):
+    path = os.path.join(self.path, 'Run2_UL', 'RunIISummer20UL16NanoAODv9')
+    return FileCollection(path)
+    
+  @property
   def Run2_Au18(self):
     path = os.path.join(self.path, 'Run2_Autumn18')
     return FileCollection(path)

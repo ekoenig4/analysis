@@ -1,14 +1,15 @@
 from .. import *
+from .. import eightbUtils as eightb
 
 class weaver_input(Analysis):
     @staticmethod
     def _add_parser(parser):
-        parser.add_argument("--altfile", required=True,
-                            help="output file pattern to write file with. Use {base} to substitute existing file")
+        # parser.add_argument("--altfile", required=True,
+        #                     help="output file pattern to write file with. Use {base} to substitute existing file")
         return parser
 
-    def skim_presel_fully_resolved(self, signal):
-        fully_resolved = EventFilter('signal_fully_resolved', filter=lambda t: t.nfound_presel==8)
+    def skim_fully_resolved(self, signal):
+        fully_resolved = EventFilter('signal_fully_resolved', filter=lambda t: t.nfound_select==8)
         all_bjets = CollectionFilter('jet', filter=lambda t: t.jet_signalId > -1)
 
         filter = FilterSequence(
@@ -22,7 +23,7 @@ class weaver_input(Analysis):
         t8btag = CollectionFilter('jet', filter=lambda t: ak_rank(-t.jet_btag, axis=-1) < 8)
         self.bkg = bkg.apply(t8btag)
 
-    def calc_scale(self, signal, bkg):
+    def calc_rescale(self, signal, bkg):
         sample_scale = {
             'MX_700_MY_300':1.2434550400752545e-18, 
             'MX_1000_MY_450':6.4806808031115614e-18, 
@@ -37,6 +38,17 @@ class weaver_input(Analysis):
             t.extend(scale = norm*t.scale)
 
         (signal + bkg).apply(rescale)
+
+    def normalize_signal(self, signal):
+        sample_scale = {
+            'MX_700_MY_300':282.6071876702381, 
+            'MX_1000_MY_450':141.71038484276528, 
+            'MX_1200_MY_500':103.01861324839004
+        }
+        def use_norm_signal(t):
+            norm = sample_scale.get(t.sample, 1)
+            t.extend(scale=norm*t.scale)
+        signal.apply(use_norm_signal)
 
     def calc_abs_scale(self, signal, bkg):
 
@@ -54,7 +66,7 @@ class weaver_input(Analysis):
 
     def calc_sample_norm(self, signal, bkg):
         signal_norm = {
-            True:31.391838994616947,
+            True:0.3333333333333333,
             False:0.042337213171621944
         }
 

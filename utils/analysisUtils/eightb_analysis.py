@@ -1,4 +1,5 @@
 from .. import *
+from .. import eightbUtils as eightb
 
 class eightb_analysis(Analysis):
     @classmethod

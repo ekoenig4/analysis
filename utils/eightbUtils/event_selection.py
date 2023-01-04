@@ -93,3 +93,16 @@ acr_filter = EventFilter('acr',asym_diff_min=sr,asym_diff_max=cr)
 
 vsr_filter = EventFilter('vsr',asym_diff_vr_max=sr)
 vcr_filter = EventFilter('vcr',asym_diff_vr_min=sr,asym_diff_vr_max=cr)
+
+bdt_features = [
+            'jet_ht','min_jet_deta','max_jet_deta','min_jet_dr','max_jet_dr'
+        ] + [
+            f'h{i+1}_{var}'
+            for var in ('pt','jet_dr')
+            for i in range(4)
+        ] + [
+            f'h{i+1}{j+1}_{var}'
+            for var in ('dphi','deta')
+            for i in range(4)
+            for j in range(i+1, 4)
+        ]

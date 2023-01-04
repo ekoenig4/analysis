@@ -203,14 +203,14 @@ def load_weaver_output(tree, model=None, fields=['scores']):
   return fields
   
 quadh_index = combinations(8, [2,2,2,2])
-def load_quadh(tree, model=None, quadh_index=quadh_index):
+def load_quadh(tree, model=None, quadh_index=quadh_index, name='higgs'):
   ranker = load_weaver_output(tree, model, fields=['maxcomb','maxscore'])
 
   score, index = ranker['maxscore'], ranker['maxcomb']
   tree.extend(quadh_score=score)
   
   quadh_index = ak.from_regular( index.astype(int) )
-  build_all_dijets(tree, pairs=quadh_index, ordered='pt', name='higgs')
+  build_all_dijets(tree, pairs=quadh_index, ordered='pt', name=name)
 
 def load_jet_quadh(tree, model, quadh_index=quadh_index):
   events = len(tree.n_jet)

@@ -113,20 +113,19 @@ class draw_circle:
             ((histo2d.y_array-self.y)/self.r)**2 < 1
         total = histo2d.stats.nevents
         count = np.sum(histo2d.weights[mask])
+        eff = count/total
 
         if self.label is None:
-            if self.efficiency:
-                label = f"{count/total:0.3}"
-            else:
-                label = f"{count:0.3}"
+            label = f"{count:0.2e}({eff:0.2%})"
         else:
             label = self.label.format(**locals())
 
         tx, ty = (self.tx+0.01), (self.ty-0.035)
-        txt = ax.text(tx, ty, label, va="center",
-                fontsize=10, transform=ax.transAxes)
-        txt.set_path_effects(
-                [patheffects.withStroke(linewidth=2, foreground='w')])
+        txt = ax.text(tx, ty, label,
+                va="center", fontsize=10, transform=ax.transAxes, color='w')
+        # txt.set_path_effects(
+        #         [patheffects.withStroke(linewidth=2, foreground='w')])
+        txt.set_bbox(dict(facecolor=self.style['color'], alpha=0.75, edgecolor=self.style['color']))
 
 
 class draw_concentric:
@@ -162,10 +161,12 @@ class draw_concentric:
 
         
         if self.label is None:
-            if self.efficiency:
-                label = f'TOT: {total_eff:0.2%}\nINN: {inner_eff:0.2%}\nOUT: {outer_eff:0.2%}'
-            else:
-                label = f'TOT: {total_count:0.2e}\nINN: {inner_count:0.2e}\nOUT: {outer_count:0.2e}'
+            label = [
+                f"Total: {total_count:0.2e} ({total_eff:0.2%})",
+                f"SR   : {inner_count:0.2e} ({inner_eff:0.2%})",
+                f"CR   : {outer_count:0.2e} ({outer_eff:0.2%})",
+                ] 
+            label = '\n'.join(label)
         else:
             label = self.label.format(**locals())
 
