@@ -1,5 +1,5 @@
 # analysis
-Framework for analysis of events with 6 bs in the final state.
+Framework for analysis of events with 8 bs in the final state.
 
 ## Prerquisites 
 This framework is built on an anaconda3 enviroment, and heavily leaverages UpRoot and Awkward Arrays to be able to perform many operations. 
