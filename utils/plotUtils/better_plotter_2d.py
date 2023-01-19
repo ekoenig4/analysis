@@ -8,7 +8,14 @@ from .better_plotter import get_figax, execute
 
 from scipy.interpolate import interp2d
 
-def scatter_histo2d(histo2d, figax=None, log=False, cmin=None, min_counts=10000, fraction=10000, alpha=0.25, size=5, **kwargs):
+
+_offset = 0.2
+offsets = {
+    2:[(-_offset,-_offset),(_offset, _offset)],
+    3:[(-_offset,-_offset),(_offset,-_offset),(0      ,_offset)],
+    4:[(-_offset,-_offset),(_offset,-_offset),(_offset,_offset),(-_offset,_offset)],
+}
+def scatter_histo2d(histo2d, figax=None, log=False, cmin=None, min_counts=10000, fraction=10000, alpha=0.25, size=5, discrete=False, discrete_offset=None, discrete_scale=0.5, **kwargs):
     
     fig, ax = get_figax(figax=figax)
 
@@ -36,9 +43,21 @@ def scatter_histo2d(histo2d, figax=None, log=False, cmin=None, min_counts=10000,
     x, y, w = histo2d.x_array[randsample], histo2d.y_array[randsample], prob[randsample]
     bounds = (x > histo2d.x_bins[0]) & (x < histo2d.x_bins[-1]) & (y > histo2d.y_bins[0]) & (y < histo2d.y_bins[-1])
     x, y, w = [ v[bounds] for v in (x,y,w) ]
-    # w = alpha*np.exp(-(w - 1)**2)
-    # w = alpha*w
     w = alpha*np.ones_like(w)
+
+    if discrete:
+        x_dis = discrete_scale*get_bin_widths(histo2d.x_bins).mean()
+        y_dis = discrete_scale*get_bin_widths(histo2d.y_bins).mean()
+
+        x = x_dis*(x//x_dis)
+        y = y_dis*(y//y_dis)
+
+        if discrete_offset:
+            i, of = discrete_offset 
+            dx, dy = offsets[of][i]
+            x += dx*x_dis
+            y += dy*y_dis
+
 
     container = ax.scatter(x, y, s=size, c=color, alpha=w)
     ax.set(xlim=(histo2d.x_bins[0], histo2d.x_bins[-1]), ylim=(histo2d.y_bins[0], histo2d.y_bins[-1]))
@@ -80,16 +99,22 @@ def bin_histo2d(histo2d, figax=None, log=False, show_counts=False, cmin=None, **
     cmap = histo2d.kwargs.get('cmap','YlOrRd')
     alpha = histo2d.kwargs.get('alpha', None)
 
-    container = ax.pcolor(histo2d.x_bins, histo2d.y_bins, histo2d.histo2d, cmap=cmap, vmin=cmin, alpha=alpha, norm=LogNorm() if log else None)
+    Z = histo2d.histo2d
+    # Z = np.where(Z > 0, Z, np.nan)
+    container = ax.pcolor(histo2d.x_bins, histo2d.y_bins, Z, cmap=cmap, vmin=cmin, alpha=alpha, norm=LogNorm() if log else None)
 
     n = histo2d.histo2d 
     bx = histo2d.x_bins
     by = histo2d.y_bins
 
     if show_counts:
+        fmt = lambda n : f'{n:0.2}'
+        if callable(show_counts):
+            fmt = show_counts
         for i,(bx_lo,bx_hi) in enumerate(zip(bx[:-1],bx[1:])):
             for j,(by_lo,by_hi) in enumerate(zip(by[:-1],by[1:])):
-                ax.text((bx_hi+bx_lo)/2,(by_hi+by_lo)/2,f'{n[i,j]:0.2}',ha="center", va="center", fontweight="bold")
+                if cmin is not None and n[j,i] <= cmin: continue
+                ax.text((bx_hi+bx_lo)/2,(by_hi+by_lo)/2,fmt(n[j,i]),ha="center", va="center", fontweight="bold")
 
 
 def plot_histo2d(histo2d, figax=None, log=False, show_counts=False, cmin=None, contour=False, interp=False, scatter=False, exe=None, legend=False, **kwargs):

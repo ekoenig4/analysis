@@ -22,22 +22,35 @@ def _flatten_plotobjs(plotobjs):
         else:
             yield plotobj
 
-def _plot_objects(figax, plotobjs, position='right', size="100%", pad=1, contour=False, interp=False, scatter=False, exe=None, log=False, **kwargs):
+def _histo2d_kwargs(show_counts=False, contour=False, interp=False, scatter=False, cmin=None, **kwargs):
+    histo2d_kwargs = { key:value for key, value in locals().items() if key != 'kwargs' }
+    return histo2d_kwargs, kwargs
+
+def _plot_objects(figax, plotobjs, position='right', size="100%", pad=1, legend=False, exe=None, log=False, **kwargs):
     fig, ax = figax
     ax, sub_ax = _add_new_axis(ax, position=position, size=size, sharex=False, sharey=True, pad=pad)
 
-    for plotobj in plotobjs: 
+    histo2d_kwargs, kwargs = _histo2d_kwargs(**kwargs)
+    scatter = histo2d_kwargs.get('scatter')
+
+    nobjs = len(plotobjs)
+    if nobjs > 1 and scatter and isinstance(scatter, dict):
+        _scatter_kwargs = lambda i : dict(scatter, discrete_offset=(i, nobjs))
+
+    for i, plotobj in enumerate(plotobjs): 
+        if nobjs > 1 and scatter: histo2d_kwargs['scatter'] = _scatter_kwargs(i)
+
         if isinstance(plotobj, Histo2DList): 
-            plot_histo2ds(plotobj,figax=(fig, sub_ax), exe=exe, contour=contour, interp=interp, scatter=scatter, log=log)
+            plot_histo2ds(plotobj,figax=(fig, sub_ax), exe=exe, log=log, legend=legend, **histo2d_kwargs)
         elif isinstance(plotobj, Histo2D): 
-            plot_histo2d(plotobj, figax=(fig, sub_ax), exe=exe, contour=contour, interp=interp, scatter=scatter, log=log)
+            plot_histo2d(plotobj, figax=(fig, sub_ax), exe=exe, log=log, legend=legend, **histo2d_kwargs)
 
     format_axes(sub_ax, is_2d=True, **kwargs)
 
 def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None, 
                 is_data=False, is_signal=False, is_model=False, stacked=False, 
                 density=False, cumulative=False, efficiency=False, lumi=None,
-                scale=None, overlay=False, figax=None, **kwargs):
+                scale=None, overlay=False, signal_stacked=False, figax=None, **kwargs):
     fig, ax = get_figax(figax)
 
     # --- Configure kwargs ---
@@ -63,10 +76,22 @@ def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None,
         if len(bkgs) > 0:
             bkg_kwargs = bkgs.unzip(bkgs.fields[1:])
             bkg_kwargs.update(label='MC-Bkg', color='grey')
+            # bkg_kwargs.update(label='MC-Bkg', color='black')
             stack = Stack2D(bkgs.x_arrays, x_bins=x_bins, y_bins=y_bins, density=density, cumulative=cumulative, efficiency=efficiency, **bkg_kwargs)
             x_bins = stack.x_bins
             y_bins = stack.y_bins
             plotobjs.append(stack)
+
+    if signal_stacked:
+        signal,attrs = attrs.split(lambda h : h.is_signal)
+        if len(signal) > 0:
+            signal_kwargs = signal.unzip(signal.fields[1:])
+            signal_kwargs.update(label='Signal', color='red')
+            stack = Stack2D(signal.x_arrays, x_bins=x_bins, y_bins=y_bins, density=density, cumulative=cumulative, efficiency=efficiency, **signal_kwargs)
+            x_bins = stack.x_bins
+            y_bins = stack.y_bins
+            plotobjs.append(stack)
+
         
     if len(attrs) > 0:
         histo_kwargs = attrs.unzip(attrs.fields[1:])

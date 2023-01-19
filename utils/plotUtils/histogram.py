@@ -1,4 +1,4 @@
-from ..utils import flatten, autobin, get_bin_centers, get_bin_widths, is_iter, get_avg_std, init_attr, restrict_array, get_bin_centers
+from ..utils import flatten, autobin, get_bin_centers, get_bin_widths, is_iter, get_avg_std, init_attr, restrict_array, get_bin_centers, cast_array
 from ..xsecUtils import lumiMap
 from ..classUtils import ObjIter,AttrArray
 from . import function
@@ -116,15 +116,23 @@ class Histo:
 
     @classmethod 
     def from_array(cls, array, bins=None, weights=None, nbins=30, rebin=None, restrict=False, sumw2=True, **kwargs):
+        if weights is not None:
+            if len(weights) != len(array):
+                raise ValueError(f'shape of the first dimension must be the same for array and weight. Got array ({len(array)}) and weight ({len(weights)}')
+            weights = cast_array(weights)
+        array = cast_array(array)
+
+        if array.ndim > 1:
+            nobjs = ak.to_numpy(ak.count(array, axis=1))
         array = flatten(array)
 
         if weights is not None:
             weights = flatten(weights)
             if weights.shape != array.shape:
-                weights = flatten(ak.ones_like(array)*weights)
+                weights = np.repeat(weights, nobjs)
         else:
             weights= np.ones(array.shape)
-        
+
         bins = autobin(array, bins=bins, nbins=nbins)
         if rebin and (rebin < len(bins)):
             bins = np.linspace(bins[0], bins[-1], rebin)
@@ -215,8 +223,7 @@ class Histo:
             self.label = f"{self.label}($\\times${self.plot_scale})"
 
         self.kwargs = kwargs
-        if label_stat is not None:
-            self.set_label(label_stat)
+        self.set_label(label_stat)
         return self
     
     def rescale(self, scale=None, efficiency=False, density=False):

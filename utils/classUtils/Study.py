@@ -9,6 +9,8 @@ from ..varConfig import varinfo
 from ..classUtils import TreeIter, ObjIter
 from matplotlib.transforms import Bbox
 
+import matplotlib.pyplot as plt
+
 date_tag = date.today().strftime("%Y%m%d")
 
 
@@ -48,6 +50,8 @@ def save_fig(fig, saveas=None, base=f"{GIT_WD}/plots/{date_tag}_plots", fmt=['jp
     if 'jpg' in fmt:
         fig.savefig(f"{outfn}.jpg", format="jpg", dpi=400)
     # fig.savefig(f"{outfn}.png", format="png")
+    plt.clf()   
+    plt.close()
 
 
 def format_var(var, bins=None, xlabel=None):

@@ -1,7 +1,7 @@
 from .. import *
 from .. import eightbUtils as eightb
 
-class eightb_analysis(Analysis):
+class eightb_analysis_v1(Analysis):
     @classmethod
     def _add_parser(self, parser):
         

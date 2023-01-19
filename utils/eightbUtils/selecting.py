@@ -29,12 +29,13 @@ def select_topbias(tree,njet=8):
     tree.extend(reorder_collection(jets,ak.argsort(-jets.jet_pt,axis=-1)))
     build_all_dijets(tree)
 
-def selected_jet_pt(pts='loose'):
-    pts = dict(
+get_jetpt_wp = dict(
         loose =[75, 60, 45, 40, 30, 25], # 0.99^8 eff
         medium=[85, 65, 55, 45, 35, 30, 25], # 0.95^8 eff
         tight =[90, 75, 60, 50, 40, 30, 25] # 0.90^8 eff
-    ).get(str(pts), pts)
+    ).get
+def selected_jet_pt(pts='loose'):
+    pts = get_jetpt_wp(str(pts), pts)
 
     def jet_pt_filter(t):
         jet_pt = ak.sort(t.jet_pt, axis=-1, ascending=False)
@@ -57,14 +58,13 @@ def selected_jet_ptregressed(pts=[80,65,50,40,35,30,20,20]):
         return mask
     return EventFilter('jet_ptRegressed_'+'_'.join(map(str,pts)), filter=jet_pt_filter)
 
-
-    
-def selected_jet_btagwp(btagwps='loose'):
-    btagwps = dict(
+get_jetbtag_wps = dict(
         loose =[3, 3, 2, 2, 1], # 0.99^8 eff
         medium=[3, 3, 3, 2, 2, 1], # 0.95^8 eff
         tight =[3, 3, 3, 3, 2, 2, 1] # 0.85^8 eff
-    ).get(str(btagwps), btagwps)
+    ).get
+def selected_jet_btagwp(btagwps='loose'):
+    btagwps = get_jetbtag_wps(str(btagwps), btagwps)
     def jet_btagwp_filter(t):
         jet_btag = ak.sort(t.jet_btag, axis=-1, ascending=False)
 

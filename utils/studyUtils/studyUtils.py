@@ -352,6 +352,7 @@ def compare_masks(treelist, bkg=None, varlist=[], masks=[], label=[], h_linestyl
         return axs[i]
 
     for i, sample in enumerate(treelist):
+      if bkg is not None: i+=1
       quick(
           [sample]*nmasks,
           masks=masks,
@@ -375,7 +376,7 @@ def compare_masks(treelist, bkg=None, varlist=[], masks=[], label=[], h_linestyl
             varlist=varlist,
             text=(0.0,1.0,'MC-Bkg'),
             text_style=dict(ha='left',va='bottom'),
-            figax=(fig, get_ax(-1)),
+            figax=(fig, get_ax(0)),
             **kwargs,
         )
     

@@ -50,7 +50,9 @@ for name, template in templates.items():
     parser.add_argument(f'--no-bkg', default=False, action='store_true', help='do not load any background files')
     parser.add_argument(f'--no-data', default=False, action='store_true', help='do not load any data files')
     parser.add_argument(f'--debug', default=False, action='store_true', help='disable running analysis for debug')
-    template._add_parser(parser)
+
+    group = parser.add_argument_group(name)
+    template._add_parser(group)
 
 args, unk = driver.parse_known_args()
 
@@ -90,18 +92,20 @@ if not args.no_bkg and not args.debug:
 if not args.no_data and not args.debug:
     data = ObjIter([ Tree(module.Run2_UL18.JetHT_Data_UL_List, altfile=altfile) ])
 
-def add_to_list(method):
+def add_to_list(i, method):
     import re 
 
     for disable in args.disable:
+        if disable.isdigit() and int(disable) == i: return False
         if re.match(f'^{disable}$', method): return False 
 
     for only in args.only:
+        if only.isdigit() and int(only) == i: return True
         if re.match(f'^{only}$', method): return True 
 
     return False
     
-runlist = [method for method in method_list if add_to_list(method)]
+runlist = [method for i, method in enumerate(method_list) if add_to_list(i, method)]
 
 analysis = template.__class__(
     signal=signal, bkg=bkg, data=data,

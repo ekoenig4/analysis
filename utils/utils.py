@@ -32,6 +32,11 @@ def flatten(array, clean=True):
     # return array[mask]
     return array
 
+def cast_array(array):
+    if isinstance(array, torch.Tensor):
+        return array.cpu().numpy()
+    return array
+
 
 def ordinal(n): return "%d%s" % (
     n, {1: "st", 2: "nd", 3: "rd"}.get(n if n < 20 else n % 10, "th"))

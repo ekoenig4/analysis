@@ -455,33 +455,24 @@ def build_all_dijets(tree, pairs=None, ordered=None, name='dijet'):
     jets = join_fields(jets, idx=ak.local_index(jets.ptRegressed, axis=-1))
 
     if pairs is None: pairs = ak.unzip(ak.combinations(jets.idx, 2))
-    else: pairs = pairs[:,:,0], pairs[:,:,1]    
-    pairs = ObjIter([jets[pairs[0]], jets[pairs[1]]]) 
+    else: pairs = pairs[:,:,0], pairs[:,:,1]
 
-    j1_id, j2_id = pairs.signalId
-    diff = np.abs(j1_id - j2_id)
-    add = j1_id + j2_id
-    mod2 = add % 2
-    paired = (diff*mod2 == 1) & ((add == 1) | (add == 5) | (add == 9) | (add == 13))
+    j1, j2 = jets[pairs[0]], jets[pairs[1]]
 
-    j1_m, j2_m = pairs.mRegressed
-    j1_pt, j2_pt = pairs.ptRegressed
-    j1_eta, j2_eta = pairs.eta
-    j1_phi, j2_phi = pairs.phi
-    j1_idx, j2_idx = pairs.idx
-    j1_btag, j2_btag = pairs.btag   
+    j1_id, j2_id = j1.signalId, j2.signalId
+    j1_id = (j1_id+2)//2
+    j2_id = (j2_id+2)//2
+    h_id = ak.where( j1_id == j2_id, j1_id, 0) - 1
 
-    dphi = calc_dphi(j1_phi, j2_phi)
-    deta = calc_deta(j1_eta, j2_eta)
+    j1_p4 = build_p4(j1, use_regressed=True)
+    j2_p4 = build_p4(j2, use_regressed=True)
+
+    dphi = calc_dphi(j1_p4.phi, j2_p4.phi)
+    deta = calc_deta(j1_p4.eta, j2_p4.eta)
     dr = np.sqrt(deta**2 + dphi**2)
 
-    j1_p4 = vector.obj(m=j1_m, pt=j1_pt, eta=j1_eta, phi=j1_phi)
-    j2_p4 = vector.obj(m=j2_m, pt=j2_pt, eta=j2_eta, phi=j2_phi)
     dijet = j1_p4 + j2_p4
     
-    signalId = ak.min(ak.concatenate([j1_id[:,:,None],j2_id[:,:,None]],axis=-1),axis=-1)//2
-    signalId = ak.where(paired,signalId,-1)
-
     dijet = dict( 
         m=dijet.m,
         dm=np.abs(dijet.m-125),
@@ -491,10 +482,10 @@ def build_all_dijets(tree, pairs=None, ordered=None, name='dijet'):
         jet_deta=deta,
         jet_dphi=dphi,
         jet_dr=dr,
-        btagsum=j1_btag+j2_btag,
-        signalId=signalId,
-        j1Idx=j1_idx,
-        j2Idx=j2_idx,
+        btagsum=j1.btag+j2.btag,
+        signalId=h_id,
+        j1Idx=j1.idx,
+        j2Idx=j2.idx,
         localId=ak.local_index(dijet.m,axis=-1)
     )
 
@@ -504,7 +495,7 @@ def build_all_dijets(tree, pairs=None, ordered=None, name='dijet'):
             key:value[order]
             for key, value in dijet.items()
         }
-
+        
     tree.extend(
         **{
             f'{name}_{key}':value

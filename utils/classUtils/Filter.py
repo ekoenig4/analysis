@@ -88,7 +88,7 @@ class Filter:
         if key in t.fields: return t[key]
         
         value = self.filter(t, **kwargs)
-        t.extend(**{key:value})
+        if hasattr(t, 'extend'): t.extend(**{key:value})
         return value
 
         

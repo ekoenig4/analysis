@@ -7,15 +7,15 @@ get_files() {
         echo ${f/\/eos\/uscms/}
     done
     
-    for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/JetHT_Data/*/ntuple.root); do
-        echo ${f/\/eos\/uscms/}
-    done
-    
     for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/QCD/*/ntuple.root); do
         echo ${f/\/eos\/uscms/}
     done
     
     for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/TTJets/TTJets*/ntuple_{0,1}.root); do
+        echo ${f/\/eos\/uscms/}
+    done
+    
+    for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/JetHT_Data/*/ntuple.root); do
         echo ${f/\/eos\/uscms/}
     done
 }
@@ -45,5 +45,5 @@ run_function() {
 
 export -f run_function
 
-time get_files | parallel -k run_function $@
+time get_files | parallel -j 4 -k run_function $@
 # time get_training | parallel -k run_function $@

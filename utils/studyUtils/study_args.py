@@ -158,8 +158,9 @@ class _study_args:
     def get_scale(self, items):
         scales = self.get_array('scale', indices=False, transforms=False, scale=True)
         scales = [
-            scale if ak.count(scale) == ak.count(
-                item) else ak.ones_like(item)*scale
+            # scale if ak.count(scale) == ak.count(
+            #     item) else ak.ones_like(item)*scale
+            scale
             for scale, item in zip(scales, items)
         ]
         return scales

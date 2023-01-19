@@ -15,6 +15,48 @@ class obj_store:
     def append(self, objs):
         self.objs.append(objs)
 
+class draw_line:
+    def __init__(self, x):
+        self.x = x
+
+    def __call__(self, fig, ax, **kwargs):
+        xlim, ylim = ax.get_xlim(), ax.get_ylim()
+        ax.plot([self.x, self.x], ylim, color='grey', linestyle=':')
+
+class draw_cut:
+    def __init__(self, x, selection='>='):
+        self.x = x
+        self.selection = selection
+
+    def _array_eff(self, histo):
+        array = histo.array
+        weights = histo.weights 
+        total = np.sum(weights)
+        local = dict()
+        exec(f'mask = array {self.selection} {self.x}',dict(array=array),local)
+        count = np.sum(weights[local['mask']])
+        eff = count/total 
+        return f'{eff:0.2%}'
+
+    def _count_eff(self, histo):
+        array = histo.bins[:-1]
+        weights = histo.histo 
+        total = np.sum(weights)
+        local = dict()
+        exec(f'mask = array {self.selection} {self.x}',dict(array=array),local)
+        count = np.sum(weights[local['mask']])
+        eff = count/total 
+        return f'{eff:0.2%}'
+
+    def get_eff(self, histo):
+        if getattr(histo, 'array', None) is not None: return self._array_eff(histo)
+        return self._count_eff(histo)
+
+    def __call__(self, fig, ax, histos=None, stack=None, **kwargs):
+        xlim, ylim = ax.get_xlim(), ax.get_ylim()
+        ax.plot([self.x, self.x], ylim, color='grey', linestyle=':')
+
+
 class draw_abcd:
     def __init__(self, x_r, y_r, regions=["A","B","C","D"]):
         self.x_r, self.y_r = x_r, y_r
@@ -119,6 +161,9 @@ class draw_circle:
             label = f"{count:0.2e}({eff:0.2%})"
         else:
             label = self.label.format(**locals())
+
+        ax.set_aspect('auto')
+        ax.set_xlim(xlim)
 
         tx, ty = (self.tx+0.01), (self.ty-0.035)
         txt = ax.text(tx, ty, label,
