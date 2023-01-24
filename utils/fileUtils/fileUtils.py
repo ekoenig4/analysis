@@ -25,7 +25,9 @@ from .eos import *
 
 def check_accstudies(fn):
     if eos.exists(fn): return fn
-    return fn.replace("_accstudies.root","/ntuple.root")
+    fn = fn.replace("_accstudies.root","/ntuple.root")
+    if eos.exists(fn): return fn
+    return fn.replace("ntuple.root","ntuple_*.root")
 
 def check_ttjets(fn):
   if eos.exists(fn): return [fn]
@@ -38,18 +40,18 @@ def sample_files(path):
     NMSSM_XYY_YToHH_8b_MX_1200_MY_500 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1200_MY_500_accstudies.root")
     NMSSM_XYY_YToHH_8b_MX_1000_MY_300 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1000_MY_300_accstudies.root")
     NMSSM_XYY_YToHH_8b_MX_1000_MY_450 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1000_MY_450_accstudies.root")
-    NMSSM_XYY_YToHH_8b_MX_700_MY_300 =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_700_MY_300_accstudies.root")
-    NMSSM_XYY_YToHH_8b_MX_800_MY_300 =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_800_MY_300_accstudies.root")
-    NMSSM_XYY_YToHH_8b_MX_800_MY_350 =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_800_MY_350_accstudies.root")
-    NMSSM_XYY_YToHH_8b_MX_900_MY_300 =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_300_accstudies.root")
-    NMSSM_XYY_YToHH_8b_MX_900_MY_400 =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_400_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_700_MY_300  =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_700_MY_300_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_800_MY_300  =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_800_MY_300_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_800_MY_350  =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_800_MY_350_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_900_MY_300  =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_300_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_900_MY_400  =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_400_accstudies.root")
 
     full_signal_list = [
-        NMSSM_XYY_YToHH_8b_MX_700_MY_300,
-        NMSSM_XYY_YToHH_8b_MX_800_MY_300,
-        NMSSM_XYY_YToHH_8b_MX_800_MY_350,
-        NMSSM_XYY_YToHH_8b_MX_900_MY_300,
-        NMSSM_XYY_YToHH_8b_MX_900_MY_400,
+        NMSSM_XYY_YToHH_8b_MX_700_MY_300 ,
+        NMSSM_XYY_YToHH_8b_MX_800_MY_300 ,
+        NMSSM_XYY_YToHH_8b_MX_800_MY_350 ,
+        NMSSM_XYY_YToHH_8b_MX_900_MY_300 ,
+        NMSSM_XYY_YToHH_8b_MX_900_MY_400 ,
         NMSSM_XYY_YToHH_8b_MX_1000_MY_300,
         NMSSM_XYY_YToHH_8b_MX_1000_MY_450,
         NMSSM_XYY_YToHH_8b_MX_1200_MY_500

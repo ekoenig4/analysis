@@ -7,6 +7,7 @@ from .studyUtils import *
 # from ..plotUtils.plotUtils import graph_multi, boxplot_multi,  plot_barrel_display, plot_endcap_display
 from ..plotUtils.multi_plotter import hist_multi, count_multi
 from ..plotUtils.multi_plotter_2d import hist2d_simple, hist2d_multi
+from ..plotUtils.better_plotter import graph_array
 from ..selectUtils import *
 # from ..classUtils.Study import Study, save_fig, format_var
 from ..classUtils.Study import save_fig, format_var
@@ -233,6 +234,82 @@ def h_quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1,-1), size=(-1
         counts, bins, error = study.get_histogram(var)
         count_multi(counts, bins=bins, xlabel=xlabel,
                     error=error, **study.attrs, figax=(fig, ax))
+    fig.suptitle(study.title)
+    fig.tight_layout()
+    fig.canvas.draw()
+
+    # plt.show()
+    if study.saveas:
+        save_fig(fig, study.saveas)
+        
+    if study.return_figax:
+        return fig,axs
+
+
+def group_kwargs(prefix, **kwargs):
+    grouped_kwargs = { key[len(prefix):]:value for key,value in kwargs.items() if key.startswith(prefix) }
+    remaining_kwargs = { key:value for key,value in kwargs.items() if not key.startswith(prefix) }
+    return grouped_kwargs, remaining_kwargs
+
+def statsplot(*args, varlist=[], binlist=None, stat='{stats.mean}', stat_err=None, xlabels=None, dim=(-1,-1), size=(-1,-1), flip=False, figax=None, **kwargs):
+    study = Study(*args, **kwargs)
+
+    nvar = len(varlist)
+    binlist = init_attr(binlist, None, nvar)
+    xlabels = init_attr(xlabels, None, nvar)
+    varlist = zip(varlist, binlist, xlabels)
+
+    nrows, ncols = autodim(nvar, dim, flip)
+    xsize, ysize = autosize(size,(nrows,ncols))
+    
+    if figax is None:
+        figax = plt.subplots(nrows=nrows, ncols=ncols,
+                                figsize=(int(xsize*ncols), ysize*nrows),
+                                dpi=80)
+    fig, axs = figax
+
+    g_kwargs, study.attrs = group_kwargs('g_', **study.attrs)
+
+    def get_stat(histos, stat):
+        if stat is None: return None
+        if callable(stat):
+            return np.array([ stat(h) for h in histos ])
+        elif any(re.findall(r'{(.*?)}', stat)):
+            return np.array([ float(stat.format(**vars(h))) for h in histos ])
+        else:
+            return np.array([ getattr(h, stat) for h in histos ])
+
+    it = tqdm(enumerate(varlist),total=nvar) if study.report else enumerate(varlist)
+    for i, (var, bins, xlabel) in it:
+        if not isinstance(axs, np.ndarray):
+            ax = axs
+        else:
+            ax = axs.flat[i]
+            
+        if var is None: 
+            ax.set_visible(False)
+            continue
+        
+        bins, xlabel = format_var(var, bins, xlabel)
+        hists = study.get_array(var)
+        weights = study.get_scale(hists)
+        fig, ax, histos = hist_multi(hists, bins=bins, weights=weights, **study.attrs, histo=False, figax=(fig, ax))
+        histos = histos[-1]
+
+        labels = np.array([ h.label for h in histos ])
+        h_stat = get_stat(histos, stat)
+        h_stat_err = get_stat(histos, stat_err)
+
+        graph_array(
+            labels,
+            h_stat,
+            yerr=h_stat_err,
+            ylabel=xlabel,
+            **g_kwargs,
+            figax=(fig,ax)
+        )
+
+
     fig.suptitle(study.title)
     fig.tight_layout()
     fig.canvas.draw()

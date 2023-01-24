@@ -43,6 +43,10 @@ def plot_graph(graph, errors=True, bar=False, fill_error=False, fill_alpha=0.25,
     fig, ax = get_figax(figax=figax)
     xerr, yerr = (graph.xerr, graph.yerr) if errors else (None,None)
 
+    kwargs.update(
+        xlabel=getattr(graph, 'xlabel', kwargs.get('xlabel', None))
+    )
+
     if not fill_error:
         fill_error = (graph.x_array.shape[0] >= 30) and (yerr is not None)
 

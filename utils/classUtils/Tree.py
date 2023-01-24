@@ -160,6 +160,8 @@ def init_sample(self):  # Helper Method For Tree Class
         points = [ re.findall('MX_\d+_MY_\d+',fn.fname)[0] for fn in self.filelist ]
         if len(set(points)) == 1:
             self.sample = points[0]
+            mx, my = self.sample.split("_")[1::2]
+            self.mass = f'({mx}, {my})'
         
     self.color = colorMap.get(self.sample, None)
     if self.color is not None and not isinstance(self.color, str): self.color = next(self.color)

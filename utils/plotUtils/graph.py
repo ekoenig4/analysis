@@ -41,8 +41,8 @@ class Graph:
         y_array = flatten(y_array)
 
         if x_array.dtype.type is np.str_:
-            xlabels = list(x_array)
-            x_array = np.arange(len(xlabels))
+            self.xlabel = list(x_array)
+            x_array = np.arange(len(self.xlabel))
 
         mask_inf = np.isinf(x_array) | np.isinf(y_array) | np.isnan(x_array) | np.isnan(y_array)
         x_array, y_array = x_array[~mask_inf], y_array[~mask_inf]

@@ -114,7 +114,9 @@ def bin_histo2d(histo2d, figax=None, log=False, show_counts=False, cmin=None, **
         for i,(bx_lo,bx_hi) in enumerate(zip(bx[:-1],bx[1:])):
             for j,(by_lo,by_hi) in enumerate(zip(by[:-1],by[1:])):
                 if cmin is not None and n[j,i] <= cmin: continue
-                ax.text((bx_hi+bx_lo)/2,(by_hi+by_lo)/2,fmt(n[j,i]),ha="center", va="center", fontweight="bold")
+                txt = fmt(n[j,i])
+                if txt:
+                    ax.text((bx_hi+bx_lo)/2,(by_hi+by_lo)/2,txt,ha="center", va="center", fontweight="bold")
 
 
 def plot_histo2d(histo2d, figax=None, log=False, show_counts=False, cmin=None, contour=False, interp=False, scatter=False, exe=None, legend=False, **kwargs):

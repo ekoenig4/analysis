@@ -34,8 +34,10 @@ def _plot_objects(figax, plotobjs, position='right', size="100%", pad=1, legend=
     scatter = histo2d_kwargs.get('scatter')
 
     nobjs = len(plotobjs)
-    if nobjs > 1 and scatter and isinstance(scatter, dict):
-        _scatter_kwargs = lambda i : dict(scatter, discrete_offset=(i, nobjs))
+    if nobjs > 1 and scatter:
+        _scatter_kwargs = lambda i : dict(scatter, discrete_offset=(i, nobjs)) \
+            if isinstance(scatter, dict) else \
+                lambda t : dict(discrete_offset=(i, nobjs))
 
     for i, plotobj in enumerate(plotobjs): 
         if nobjs > 1 and scatter: histo2d_kwargs['scatter'] = _scatter_kwargs(i)

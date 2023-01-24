@@ -126,6 +126,7 @@ class Analysis:
             else:
                 method()
 
+    def __getattr__(self, key): return self.__dict__.get(key, None)
 
     @classmethod
     def get_args(cls):

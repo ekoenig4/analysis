@@ -25,9 +25,14 @@ class weaver_input(Analysis):
 
     def calc_rescale(self, signal, bkg):
         sample_scale = {
-            'MX_700_MY_300':1.2434550400752545e-18, 
-            'MX_1000_MY_450':6.4806808031115614e-18, 
-            'MX_1200_MY_500':1.343392630420647e-17, 
+            # 'MX_700_MY_300':1.2434550400752545e-18, 
+            # 'MX_800_MY_300':1.6568129499652848e-18,
+            # 'MX_800_MY_350': 1.921792885099276e-18,
+            # 'MX_900_MY_300': 2.40911537095554e-18,
+            # 'MX_900_MY_400': 3.494872548400683e-18,
+            # 'MX_1000_MY_300': 3.551084678512766e-18,
+            # 'MX_1000_MY_450':6.4806808031115614e-18, 
+            # 'MX_1200_MY_500':1.343392630420647e-17, 
             'TTJets':7.294459735548297e-09
         }
 
@@ -42,7 +47,12 @@ class weaver_input(Analysis):
     def normalize_signal(self, signal):
         sample_scale = {
             'MX_700_MY_300':282.6071876702381, 
-            'MX_1000_MY_450':141.71038484276528, 
+            'MX_800_MY_300': 225.12014605010498,
+            'MX_800_MY_350': 207.70891386133388,
+            'MX_900_MY_300': 200.58352182856032,
+            'MX_900_MY_400': 167.88681160623509,
+            'MX_1000_MY_300': 192.87950460596224,
+            'MX_1000_MY_450':144.54467503648686, 
             'MX_1200_MY_500':103.01861324839004
         }
         def use_norm_signal(t):
@@ -66,7 +76,8 @@ class weaver_input(Analysis):
 
     def calc_sample_norm(self, signal, bkg):
         signal_norm = {
-            True:0.3333333333333333,
+            # True:0.3333333333333333,
+            True:0.125,
             False:0.042337213171621944
         }
 
@@ -91,6 +102,7 @@ class weaver_input(Analysis):
         bkg.apply(lambda t : t.extend(is_bkg=ak.ones_like(t.Run)))
     
     def write_trees(self, signal, bkg, data):
+
         if any(signal.objs):
             (signal).write(
                 'fully_res_{base}'

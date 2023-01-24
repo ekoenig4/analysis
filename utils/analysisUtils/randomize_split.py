@@ -24,4 +24,5 @@ class randomize_split(Analysis):
                 split,
                 varlist=['jet_pt[:,0]']
             )
-            split.write(f'split_{i}_{{base}}', include=['^jet','^X','.*scale$','is_bkg'])
+            include=['^jet','^X','.*scale$','is_bkg','gen_X_m','gen_Y1_m']
+            split.write(f'split_{i}_{{base}}', include=include)
