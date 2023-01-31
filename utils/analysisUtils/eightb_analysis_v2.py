@@ -1,6 +1,16 @@
 from .. import *
 from .. import eightbUtils as eightb
 
+
+
+class scalar_m_res(ObjTransform):
+    @property
+    def xlabel(self): return f'{self.res}_m resolution'
+    def __call__(self, t):
+        scalar_m = t[f'{self.res}_m']
+        gen_m = t[f'gen_{self.res}_m']
+        return scalar_m/gen_m
+
 class eightb_analysis_v2(Analysis):
     @classmethod
     def _add_parser(self, parser):
@@ -67,6 +77,7 @@ class eightb_analysis_v2(Analysis):
                 saveas=f'{self.dout}/n1_histos/{var}',
             )
 
+    @required
     def reweight_bkg(self, bkg):
         bkg.reweight(2.3)
         bkg.set_systematics(0.2)
@@ -133,6 +144,7 @@ class eightb_analysis_v2(Analysis):
                 masks.append(_jet_btag_cut)
         study.save_fig(fig, f'{self.dout}/n1_histos/jet_btag')
     
+    @required
     def jet_kin_cuts(self, signal, bkg, data):
         if not self.ptcuts: self.ptcuts = self.ptwp
         pt_filter = eightb.selected_jet_pt()
@@ -167,34 +179,57 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/ranker/reco_rank'
         )
         
-    def _plot_t8btag_signal(self, signal):
+    def plot_t8btag_signal(self, signal):
         varinfo.nfound_select = dict(xlabel='N Higgs Jet')
         varinfo.nfound_presel = dict(xlabel='N Higgs Jet in Preselection')
         varinfo.nfound_select_h = dict(xlabel='N Higgs in Selection')
         varinfo.nfound_paired_h = dict(xlabel='N Higgs Paired')
 
         study.quick( 
-            signal[self.use_signal],
+            signal,
             legend=True,
             varlist=['nfound_select','nfound_paired_h'],
             efficiency=True, ylim=(0,0.85), grid=True,
             saveas=f'{self.dout}/signal/t8btag_n_reco'
         )
 
-        study.quick2d(
-            signal[self.use_signal],
+        study.quick(
+            signal,
             legend=True,
-            varlist=['nfound_presel','nfound_select'],
+            h_label_stat='$\mu={fit.mu:0.2f}$',
+            varlist=[ scalar_m_res(res=res) for res in eightb.esmlist]+[None]+[ scalar_m_res(res=res) for res in eightb.higgslist],
+            h_fit='gaussian',
+            #  h_fit_peak=True,
+            binlist=[(0,3,30)]*8,
             efficiency=True,
-            saveas=f'{self.dout}/signal/t8btag_nhiggs_jet'
+            saveas=f'{self.dout}/signal/t8btag_scalar_resolution'
         )
 
-        study.quick2d(
-            signal[self.use_signal],
+        study.statsplot(
+            signal,
+            varlist=[ scalar_m_res(res=res) for res in eightb.esmlist]+[None]+[ scalar_m_res(res=res) for res in eightb.higgslist],
+            label=signal.mass.list,
+            # binlist=[(500,2000,30)]+[(0,1000,30)]*2+[(0,500,30)]*4
+            binlist=[(0,3,30)]*8,
+            h_fit='gaussian', 
+            # h_fit_peak=True,
+            stat='{fit.mu}',
+            stat_err='{fit.sigma}',
+            g_ylim=(0,2.0),
+            g_grid=True,
+            saveas=f'{self.dout}/signal/t8btag_scalar_peak_resolution'
+        )
+
+        study.statsplot(
+            signal,
             legend=True,
-            varlist=['nfound_select_h','nfound_paired_h'],
-            efficiency=True, show_counts=True, cmin=0.001,
-            saveas=f'{self.dout}/signal/t8btag_nhiggs_paired'
+            varlist=[ 'nfound_paired_h' ],
+            xlabels=['Fraction with 4 Paired Higgs'],
+            label=signal.mass.list,
+            stat=lambda h : h.histo[-1],
+            g_grid=True, g_ylim=(0,1.2),
+            efficiency=True,
+            saveas=f'{self.dout}/signal/t8btag_4_higgs_pair_eff'
         )
 
     def plot_eightb_signal(self, signal):
@@ -204,7 +239,7 @@ class eightb_analysis_v2(Analysis):
         varinfo.nfound_paired_h = dict(xlabel='N Higgs Paired')
 
         study.quick( 
-            signal[self.use_signal],
+            signal,
             masks=lambda t:t.nfound_select==8,
             legend=True,
             varlist=['nfound_select','nfound_paired_h'],
@@ -212,21 +247,14 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/signal/eightb_n_reco'
         )
 
-        class scalar_m_res(ObjTransform):
-            @property
-            def xlabel(self): return f'{self.res}_m resolution'
-            def __call__(self, t):
-                scalar_m = t[f'{self.res}_m']
-                gen_m = t[f'gen_{self.res}_m']
-                return scalar_m/gen_m
-
         study.quick(
-            signal[self.use_signal],
+            signal,
             masks=lambda t:t.nfound_select==8,
             legend=True,
-            h_label_stat='peak $\mu={fit.mu:0.2f}$',
+            h_label_stat='$\mu={fit.mu:0.2f}$',
             varlist=[ scalar_m_res(res=res) for res in eightb.esmlist]+[None]+[ scalar_m_res(res=res) for res in eightb.higgslist],
-            h_fit='gaussian', h_fit_peak=True,
+            h_fit='gaussian',
+            #  h_fit_peak=True,
             binlist=[(0,3,30)]*8,
             efficiency=True,
             saveas=f'{self.dout}/signal/eightb_scalar_resolution'
@@ -239,7 +267,8 @@ class eightb_analysis_v2(Analysis):
             label=signal.mass.list,
             # binlist=[(500,2000,30)]+[(0,1000,30)]*2+[(0,500,30)]*4
             binlist=[(0,3,30)]*8,
-            h_fit='gaussian', h_fit_peak=True,
+            h_fit='gaussian', 
+            # h_fit_peak=True,
             stat='{fit.mu}',
             stat_err='{fit.sigma}',
             g_ylim=(0,2.0),
@@ -303,7 +332,7 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/kin/global_jet/btag_multi'
         )
 
-    def _plot_assigned_jet_kin(self, signal, bkg):
+    def plot_assigned_jet_kin(self, signal, bkg):
         for var in ('pt','btag','eta','phi',):
             study.quick( 
                 signal[self.use_signal]+bkg,
@@ -327,7 +356,7 @@ class eightb_analysis_v2(Analysis):
                 saveas=f'{self.dout}/kin/unassigned_higgs/{var}'
             )
 
-    def _plot_assigned_higgs_kin(self, signal, bkg):
+    def plot_assigned_higgs_kin(self, signal, bkg):
         for var in ('pt','m','jet_dr','eta'):
             study.quick( 
                 signal[self.use_signal]+bkg,
@@ -339,7 +368,7 @@ class eightb_analysis_v2(Analysis):
                 saveas=f'{self.dout}/kin/assigned_higgs/{var}'
             )
 
-    def _plot_assigned_y_kin(self, signal, bkg):
+    def plot_assigned_y_kin(self, signal, bkg):
         for var in ('pt','m','higgs_dr','eta'):
             study.quick( 
                 signal[self.use_signal]+bkg,
@@ -351,7 +380,7 @@ class eightb_analysis_v2(Analysis):
                 saveas=f'{self.dout}/kin/y/{var}'
             )
 
-    def _plot_x_kin(self, signal, bkg, data):
+    def plot_x_kin(self, signal, bkg, data):
 
         def renaming_variables(t):
             y1_p4 = build_p4(t, prefix='Y1')
@@ -432,6 +461,7 @@ class eightb_analysis_v2(Analysis):
 
         (signal+bkg+data).apply(set_hiyj_dm)
 
+    @dependency(build_higgs_dm)
     def _plot_unassigned_higgs_m(self, signal, bkg):
         study.pairplot(
             signal[self.use_signal]+bkg,
@@ -460,7 +490,8 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/pairplot/unassigned_higgs/m_log_ratio'
         )
 
-    def _plot_assigned_higgs_m(self, signal, bkg):
+    @dependency(build_higgs_dm)
+    def plot_assigned_higgs_m(self, signal, bkg):
         study.pairplot(
             signal[self.use_signal]+bkg,
             legend=True,
@@ -488,7 +519,8 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/pairplot/assigned_higgs/m_log_ratio'
         )
 
-    def _plot_y_higgs_m(self, signal, bkg):
+    @dependency(build_higgs_dm)
+    def plot_y_higgs_m(self, signal, bkg):
         study.pairplot(
             signal[self.use_signal]+bkg,
             legend=True,
@@ -507,6 +539,7 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/pairplot/y_higgs/m_log_ratio'
         )
 
+    @dependency(build_higgs_dm)
     def plot_abcd_variables(self, signal, bkg):
 
         study.quick2d( 
@@ -556,6 +589,7 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/btag_vs_Y2_h_rm',
         )
 
+    @dependency(build_higgs_dm)
     def build_abcd(self):
         y1_h_sr = Filter(lambda t : t[f"Y1_h_{self.dm}"] < self.sr_r)
         y1_h_cr = Filter(lambda t : (t[f"Y1_h_{self.dm}"] > self.sr_r) & (t[f"Y1_h_{self.dm}"] < self.cr_r))
@@ -640,6 +674,7 @@ class eightb_analysis_v2(Analysis):
             scatter=True,
         )
 
+    @dependency(build_abcd)
     def plot_abcd_regions(self, signal, bkg):
         self._plot_abcd_regions(signal, bkg, self.ar_bdt, 'abcd/ar')
         self._plot_abcd_regions(signal, bkg, self.vr1_bdt, 'abcd/vr1')
@@ -708,6 +743,7 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/{key}/datamc_resonant_mass'
         )
 
+    @dependency(build_abcd)
     def plot_vr_datamc(self):
         self._plot_vr_datamc(self.vr1_bdt, 'abcd/vr1')
         self._plot_vr_datamc(self.vr2_bdt, 'abcd/vr2')
@@ -758,6 +794,7 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/{key}/applying_resonanes',
         )
 
+    @dependency(build_abcd)
     def train_vr_bdt(self):
         print("Training VR 1 BDT")
         self._train_bdt(self.vr1_bdt)
@@ -767,12 +804,14 @@ class eightb_analysis_v2(Analysis):
         self._train_bdt(self.vr2_bdt)
         self._evaluate_bdt(self.vr2_bdt, 'abcd/vr2')
 
+    @dependency(build_abcd)
     def train_ar_bdt(self):
 
         # %%
         print("Training AR BDT")
         self._train_bdt(self.ar_bdt)
 
+    @dependency(train_ar_bdt)
     def calc_limits(self):
         study.quick(
             self.signal[self.use_signal] + self.bkg_model, 
@@ -787,6 +826,7 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/limits/bdt_bkg_model'
         )
 
+    @dependency(train_ar_bdt)
     def calc_brazil(self):
         study.brazil(
             self.signal+self.bkg_model,

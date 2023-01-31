@@ -50,5 +50,5 @@ run_function() {
 
 export -f run_function
 
-# time get_files | parallel -j 4 -k run_function $@
-time get_training | parallel -j 6 -k run_function $@
+time get_files | parallel -j 4 -k run_function $@
+# time get_training | parallel -j 6 -k run_function $@

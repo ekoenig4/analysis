@@ -241,6 +241,8 @@ def _regex_field(self, regex):
 
 class Tree:
     def __init__(self, filelist, altfile="{base}", report=True, use_gen=True, cache=None):
+        self._recursion_safe_guard_counter = 0
+        self._recursion_safe_guard_stack = []
 
         init_files(self, filelist, altfile, report)
 
@@ -275,7 +277,17 @@ class Tree:
         if slice is not None:
             item = eval(f'item{slice}', {'item': item})
         return item
-    def __getattr__(self, key): return self[key]
+    def __getattr__(self, key): 
+        if self._recursion_safe_guard_counter > 3:
+            raise RecursionError(f"recursive missing attribute error detected. key stack -> ({self._recursion_safe_guard_stack})")
+
+        self._recursion_safe_guard_counter += 1
+        self._recursion_safe_guard_stack += [key]
+
+        item = self[key]
+        self._recursion_safe_guard_counter -= 1
+        self._recursion_safe_guard_stack.pop(0)
+        return item
     def __len__(self): return len(self.ttree)
     def __getstate__(self):
         return self.__dict__

@@ -4,7 +4,7 @@ from .. import eightbUtils as eightb
 class reconstruct_resonances(Analysis):
     @staticmethod
     def _add_parser(parser):
-        parser.add_argument("--altfile", required=True,
+        parser.add_argument("--outfile", required=True,
                             help="output file pattern to write file with. Use {base} to substitute existing file")
         parser.add_argument("--reco-algo", choices=["ranker","minmass"],
                             help="type of reconstruction method to apply")
@@ -140,5 +140,5 @@ class reconstruct_resonances(Analysis):
     
     def write_trees(self, signal, bkg, data):
         (signal+bkg+data).write(
-            self.altfile
+            self.outfile
         )

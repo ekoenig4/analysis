@@ -14,6 +14,112 @@ def find_all_undeclared(object):
     undeclared = set.difference(attrs, declared).difference(members)
     return sorted(undeclared, key=ordered_attrs.index)
 
+def f7(seq):
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
+class MethodDependency:
+    _required_graphs = defaultdict(dict)
+    _dependency_graphs = defaultdict(lambda:defaultdict(list))
+
+    @classmethod
+    def dependency(cls, *required):
+        required = [ f.__name__ for f in required ]
+
+        def set_dependency(method, required=required):
+            cls._dependency_graphs[method.__qualname__.split('.')[0]][method.__name__] = required
+            return method
+        return set_dependency
+
+    @classmethod
+    def required(cls, method):
+        cls._required_graphs[method.__qualname__.split('.')[0]][method.__name__] = None
+        return method
+
+    @classmethod
+    def get_dependency(cls, analysis):
+        if not isinstance(analysis, str):
+            analysis = analysis.__name__
+        return cls._dependency_graphs[analysis]
+
+
+    @classmethod
+    def get_required(cls, analysis):
+        if not isinstance(analysis, str):
+            analysis = analysis.__name__
+        return list(cls._required_graphs[analysis].keys())
+
+    def __init__(self, analysis, methods):
+        required_graph = MethodDependency.get_required(analysis.__class__)
+        dependency_graph = MethodDependency.get_dependency(analysis.__class__)
+
+        for required in required_graph:
+            idx = methods.index(required)
+            for method in methods[idx+1:]:
+                dependency_graph[method] = f7(dependency_graph[method] + [required])
+
+        for method, dependency in dependency_graph.items():
+            dependency_graph[method] = sorted(dependency, key=methods.index)
+        self.dependency_graph = dependency_graph
+
+    def build_runlist(self, runlist):
+        graph = self.dependency_graph
+        def get_dependence(method):
+            method_dependency = graph.get(method, dict())
+            runlist = []
+            for dependence in method_dependency:
+                runlist += get_dependence(dependence)
+            runlist += [method]
+            return f7(runlist)
+            
+        full_runlist = []
+        for method in runlist:
+            full_runlist = f7(full_runlist+get_dependence(method))
+        return full_runlist
+
+
+required = MethodDependency.required
+dependency = MethodDependency.dependency
+
+# class dependency:
+#     graph = defaultdict(dict)
+
+#     def __init__(self, *require):
+#         self.require = [ f.__name__ for f in require ]
+
+#     def __call__(self, method):
+#         self.graph[method.__qualname__.split('.')[0]][method.__name__] = self.require
+#         return method
+
+#     @staticmethod
+#     def f7(seq):
+#         seen = set()
+#         seen_add = seen.add
+#         return [x for x in seq if not (x in seen or seen_add(x))]
+
+#     @staticmethod
+#     def build_runlist(analysis, runlist):
+#         graph = dependency.graph[analysis]
+#         def get_dependence(method):
+#             method_dependency = graph.get(method, dict())
+#             runlist = []
+#             for dependence in method_dependency:
+#                 runlist += get_dependence(dependence)
+#             runlist += [method]
+#             return dependency.f7(runlist)
+            
+#         full_runlist = []
+#         for method in runlist:
+#             full_runlist = dependency.f7(full_runlist+get_dependence(method))
+#         return full_runlist
+
+#     @staticmethod
+#     def clear_graph(*stored):
+#         for key in stored:
+#             if key in dependency.graph:
+#                 del dependency.graph[key]
+
+
 class AnalysisMethod:
     def __init__(self, analysis, method, disable=False):
         self.analysis = analysis 
@@ -103,6 +209,9 @@ class Analysis:
         self.trees = signal + bkg + data
 
         methods = { key : method for key, method in vars(self.__class__).items() if (not key.startswith('_') and callable(method)) }
+        self.dependency = MethodDependency(self, list(methods.keys()))
+
+        if runlist is not None: runlist = self.build_runlist(runlist)
         self.methods = MethodList(self, runlist=runlist, **methods)
         self.ignore_error = ignore_error
 
@@ -111,6 +220,7 @@ class Analysis:
     def run(self, runlist=None, **kwargs):
         if runlist is None: 
             runlist = [ key for key,method in self.methods.items() if not method.disable ]
+        runlist = self.build_runlist(runlist)
 
         for i, (key, method) in enumerate(self.methods.items()): 
             if key not in runlist: 
@@ -132,6 +242,9 @@ class Analysis:
     def get_args(cls):
         args = find_all_undeclared(cls)
         return args
+
+    def build_runlist(self, runlist):
+        return self.dependency.build_runlist(runlist)
 
     def __repr__(self):
         lines = [

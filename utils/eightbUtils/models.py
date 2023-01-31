@@ -75,6 +75,7 @@ yy_quadh_bkg10_soft100_md = WeaverModel('exp_yy/yy_4h_reco_ranker/20221227_7a4d5
 yy_quadh_bkg10_soft025_md = WeaverModel('exp_yy/yy_4h_reco_ranker/20230103_7c14f31f22b318c56b1b4621b416c4a6_ranger_lr0.0047_batch1024_m7m10m12_withbkg/')
 yy_quadh_bkg10_asym002_md = WeaverModel('exp_yy/yy_4h_reco_ranker/20230105_7f6d562c1ae48b9fd380ed2ffc27c347_ranger_lr0.0047_batch1024_m7m10m12_withbkg/')
 
+yy_quadh_bkg10_soft025_md_allsig = WeaverModel('exp_yy/yy_4h_reco_ranker/20230125_7c14f31f22b318c56b1b4621b416c4a6_ranger_lr0.0047_batch1024_withbkg/')
 def get_model_path(model, locals=locals()):
     if model not in locals: return model 
     return locals[model].path

@@ -406,7 +406,7 @@ def overlay(tree, varlist=[], binlist=None, dim=(-1,-1), size=(-1,-1), xlabels=N
     if study.return_figax:
         return fig,axs
 
-def compare_masks(treelist, bkg=None, varlist=[], masks=[], label=[], h_linestyle=["-","-.","--",":"], figax=None, saveas=None, **kwargs):
+def compare_masks(treelist, bkg=None, varlist=[], masks=[], label=[], h_linestyle=["-","-.","--",":"], overlay=False, figax=None, saveas=None, **kwargs):
     n = len(treelist) + (1 if bkg is not None else 0)
     if figax is None:
       figax = get_figax(n*len(varlist), dim=(-1,n))
@@ -430,6 +430,7 @@ def compare_masks(treelist, bkg=None, varlist=[], masks=[], label=[], h_linestyl
 
     for i, sample in enumerate(treelist):
       if bkg is not None: i+=1
+      if overlay: i = 0
       quick(
           [sample]*nmasks,
           masks=masks,
