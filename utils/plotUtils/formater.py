@@ -23,9 +23,13 @@ def _set_rescale(ax, **kwargs):
 
 def _set_legend(ax, legend=False, legend_loc='upper left', is_2d=False, **kwargs):
     legend_kwargs, kwargs = group_kwargs('legend_', **kwargs)
+    legend_kwargs['loc'] = legend_kwargs.get('loc', legend_loc)
 
     if legend: 
-        ax.legend(loc=legend_loc, **legend_kwargs)
+        if isinstance(legend, dict):
+            legend_kwargs.update(legend)
+
+        ax.legend(**legend_kwargs)
     return kwargs
 
 def _get_ylabel(density=False, cumulative=False, efficiency=False, scale=None):
