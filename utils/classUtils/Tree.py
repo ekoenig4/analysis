@@ -186,15 +186,23 @@ def init_tree(self, use_gen=False, cache=None):
     )
 
     self.raw_events = sum(fn.raw_events for fn in self.filelist)
-    self.cutflow_labels = max(map(lambda fn : fn.cutflow_labels,self.filelist))
-    if not any(self.cutflow_labels):
-        self.cutflow_labels = max(map(lambda fn : np.arange(len(fn.cutflow.counts())).astype(str).tolist(), self.filelist))
-    ncutflow = len(self.cutflow_labels) if any(self.cutflow_labels) else 0
+    # self.cutflow_labels = max(map(lambda fn : fn.cutflow_labels,self.filelist))
+    # if not any(self.cutflow_labels):
+    #     self.cutflow_labels = max(map(lambda fn : np.arange(len(fn.cutflow.counts())).astype(str).tolist(), self.filelist))
+    # ncutflow = len(self.cutflow_labels) if any(self.cutflow_labels) else 0
 
-    def pad_cutflow(cutflow):
-        from ..plotUtils import Histo
-        cutflow = Histo.from_th1d(cutflow)
+    from ..plotUtils import Histo
+    self.cutflow = [ Histo.from_th1d(fn.cutflow) for fn in self.filelist]
 
+    def _trim_cutflow(cutflow):
+        cutflow.histo = np.trim_zeros(cutflow.histo, 'b')
+        cutflow.error = cutflow.error[:len(cutflow.histo)]
+        cutflow.bins = np.arange(len(cutflow.histo))
+    for cutflow in self.cutflow: _trim_cutflow(cutflow)
+    ncutflow = max( len(cutflow.histo) for cutflow in self.cutflow )
+    self.cutflow_labels = np.arange(ncutflow).astype(str).tolist()
+
+    def _pad_cutflow(cutflow):
         pad = max(0, ncutflow - len(cutflow.histo))
         if pad > 0: 
             cutflow.histo = np.pad( cutflow.histo, (0, pad), constant_values=0 )
@@ -205,8 +213,8 @@ def init_tree(self, use_gen=False, cache=None):
 
         cutflow.bins = np.arange(ncutflow+1)
         return cutflow
+    for cutflow in self.cutflow: _pad_cutflow(cutflow)
 
-    self.cutflow = [ pad_cutflow(fn.cutflow) for fn in self.filelist]
 
     self.systematics = None
 
@@ -241,7 +249,6 @@ def _regex_field(self, regex):
 
 class Tree:
     def __init__(self, filelist, altfile="{base}", report=True, use_gen=True, cache=None):
-        self._recursion_safe_guard_counter = 0
         self._recursion_safe_guard_stack = []
 
         init_files(self, filelist, altfile, report)
@@ -278,14 +285,13 @@ class Tree:
             item = eval(f'item{slice}', {'item': item})
         return item
     def __getattr__(self, key): 
-        if self._recursion_safe_guard_counter > 3:
-            raise RecursionError(f"recursive missing attribute error detected. key stack -> ({self._recursion_safe_guard_stack})")
+        if len(self._recursion_safe_guard_stack) > 3:
+            current_stack = self._recursion_safe_guard_stack
+            self._recursion_safe_guard_stack = []
+            raise RecursionError(f"recursive missing attribute error detected. key stack -> ({current_stack})")
 
-        self._recursion_safe_guard_counter += 1
-        self._recursion_safe_guard_stack += [key]
-
+        self._recursion_safe_guard_stack.insert(0, key)
         item = self[key]
-        self._recursion_safe_guard_counter -= 1
         self._recursion_safe_guard_stack.pop(0)
         return item
     def __len__(self): return len(self.ttree)

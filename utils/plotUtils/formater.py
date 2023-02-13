@@ -70,15 +70,16 @@ def _set_ylim(ax, yscale=None, log=False, logy=False, is_2d=False, **kwargs):
     if log or logy: ax.set_yscale('log')
     return kwargs
 
-def _set_xlabel(ax, xlabel=None, **kwargs):
+def _set_xlabel(ax, xlabel=None, xlabel_offset=0, **kwargs):
     if not isinstance(xlabel,list):
         kwargs['xlabel'] = xlabel 
         return kwargs 
     
     ax.set_xticks(np.arange(len(xlabel)))
-    # ax.set_xticks(np.arange(len(xlabel))+0.5)
     rotation = -45 if isinstance(xlabel[0],str) else 0
-    ax.set_xticklabels(xlabel, rotation=rotation)
+    ax.set_xticklabels(xlabel, rotation=rotation, ha='left')
+    # ax.xaxis.get_label().set_horizontalalignment('right')
+
     return kwargs
 
 def _set_xlim(ax, logx=False, **kwargs):

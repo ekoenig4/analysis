@@ -157,16 +157,25 @@ class eightb_analysis_v2(Analysis):
         self.bkg = bkg.apply(event_filter)
         self.data = data.apply(event_filter)
 
-    def _cutflow(self, signal, bkg, data):
+    def plot_cutflow(self, signal, bkg, data):
         cutflow_labels = [
-            "total", "trigger","met filters", "muon veto", "electron veto", "n_presel_jets >= 8", "selected_jets", "selected_jets_pt", "selected_jets_btag"
+            'total',
+            'trigger',
+            'met filters',
+            'muon veto','electron veto',
+            '8 presel jets',
+            'select jets',
+            'pt cuts',
+            'btag cuts'
         ]
 
         study.cutflow( 
             signal[self.use_signal] + bkg + data,
-            ylim=(1e3, -1),
+            size=(5,5),
+            legend=dict(loc='upper right'),
+            ylim=(1e3, 1e12),
             xlabel=cutflow_labels,
-            legend=True,
+            grid=True,
             saveas=f'{self.dout}/cutflow'
         )
 
@@ -403,6 +412,18 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/kin/X_kin'
         )
 
+    def plot_res_m(self, signal, bkg, data):
+        
+        study.quick(
+            signal[self.use_signal]+bkg,
+            legend=True,
+            plot_scale=[10]*len(self.use_signal),
+            varlist=[f'X_m','Y1_m','Y2_m',None]+[f'{higgs}_m' for higgs in eightb.higgslist ],
+            # h_rebin=30,
+            dim=(-1, 4),
+            saveas=f'{self.dout}/kin/resonant_m'
+        )
+
     def build_higgs_dm(self, signal, bkg, data):
         h4m = signal.higgs_m.apply(lambda m : m[:10000]).cat.to_numpy()
         from scipy import optimize
@@ -631,6 +652,27 @@ class eightb_analysis_v2(Analysis):
             c = lambda t : y2_h_cr(t) & medium_btag_sr(t) & y1_h_vr(t),
             d = lambda t : y2_h_cr(t) & medium_btag_cr(t) & y1_h_vr(t),
         )
+
+    def _plot_abcd_composition(self, bkg, bdt, key):
+
+        for region in ('a','b','c','d'):
+            study.quick (
+                bkg,
+                masks=getattr(bdt, region),
+                varlist=[lambda t : ak.ones_like(t.X_pt)],
+                xlabels=[""],
+                ylabel="Composition",
+                binlist=[np.array([0,2])],
+                efficiency=True,
+                h_label_stat=lambda h : f'{h.histo[-1]:0.2%}',
+                legend=True,
+                saveas=f'{self.dout}/{key}/composition_{region}'
+            )
+
+    @dependency(build_abcd)
+    def plot_abcd_composition(self, signal, bkg):
+        self._plot_abcd_composition(bkg, self.ar_bdt, 'abcd/ar')
+
 
     def _plot_abcd_regions(self, signal, bkg, bdt, key):
         study.quick( 
