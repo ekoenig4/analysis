@@ -1,8 +1,9 @@
 import numpy as np
 import awkward as ak
 
-from ..utils import *
-from ..selectUtils import combinations, to_pair_combinations, calc_dphi, calc_dr_p4, build_all_dijets
+from ..hepUtils import  calc_dphi, calc_dr_p4, build_all_dijets
+from ..ak_tools import *
+from ..combinatorics import combinations, to_pair_combinations
 from .pairing import load_weaver_output
 
 def y_min_mass_asym(ys):

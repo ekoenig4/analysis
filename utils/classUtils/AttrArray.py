@@ -1,4 +1,3 @@
-from ..utils import init_attr
 from attrdict import AttrDict
 
 def _unzip_kwargs(**kwargs):
@@ -14,14 +13,22 @@ def _zip_args(*args):
     return AttrDict({ key:[ arg[key] for arg in args ] for key in keys })
 
 class AttrArray:
+    @staticmethod
+    def init_attr(attr, init, size):
+        if attr is None:
+            return [init]*size
+        if not isinstance(attr, list):
+            attr = [attr]
+        return (attr + size*[init])[:size]
+
     def __init__(self,**kwargs):
         nobjs = 0
         if any(kwargs):
             nobjs = len( list(kwargs.values())[0] )
             for key,value in kwargs.items(): 
-                if not isinstance(value,(list)): value = init_attr(None,value,nobjs)
+                if not isinstance(value,(list)): value = self.init_attr(None,value,nobjs)
                 default = False if isinstance(value[0],bool) else None
-                kwargs[key] = init_attr(value,default,nobjs)
+                kwargs[key] = self.init_attr(value,default,nobjs)
                 
         kwargs["__id__"] = kwargs.get("__id__", list(range(nobjs)))
         

@@ -5,9 +5,6 @@ from .histogram2d import *
 from .graph import * 
 from .model import *
 from .function import *
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import matplotlib.colors as mcolors
-import itertools 
 
 from .multi_plotter import _configure_kwargs, _add_new_axis, obj_store
 

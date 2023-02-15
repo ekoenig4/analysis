@@ -1,10 +1,11 @@
-from ..utils import *
 import vector
 import awkward0 as ak0
+import awkward as ak
 import glob, os
 
-from ..selectUtils import build_all_dijets, combinations
-from ..classUtils.Filter import CollectionFilter
+from ..ak_tools import *
+from ..hepUtils import build_all_dijets
+from ..combinatorics import combinations
 
 def get_remaining_pairs(pair,all_pairs):
     return list(filter(lambda h : not any(j in h for j in pair),all_pairs))

@@ -1,7 +1,7 @@
 import vector
 import awkward as ak
 
-from ..selectUtils import *
+from ..hepUtils import *
 
 mass_list = [
     "MX_700_MY_300",

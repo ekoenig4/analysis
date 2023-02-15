@@ -1,7 +1,7 @@
 import awkward as ak
 
-from ..utils import get_collection,reorder_collection
-from ..selectUtils import build_all_dijets
+from ..ak_tools import get_collection,reorder_collection
+from ..hepUtils import build_all_dijets
 from ..cutConfig import jet_btagWP
 from ..classUtils.Filter import EventFilter
 

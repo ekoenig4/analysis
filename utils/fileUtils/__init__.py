@@ -1,7 +1,5 @@
-from . import sr
-from . import qcd_sr
-from . import higgs_cr
-from . import passthrough
-# from . import eightb
 from .eos import *
-from .fileUtils import eightb, sixb
+from .fileUtils import FileCollection
+
+eightb = FileCollection(path='/store/user/ekoenig/8BAnalysis/NTuples/2018/')
+sixb = FileCollection(path='/store/user/ekoenig/6BAnalysis/NTuples/2018/')

@@ -2,9 +2,9 @@ from inspect import signature
 import awkward as ak
 import re
 
-from ..utils import init_attr
 from .variable_table import VariableTable
 from ..varConfig import varinfo
+from ..classUtils import AttrArray
 
 
 def _get_item_from_tree(tree, key):
@@ -93,14 +93,14 @@ class _study_args:
         self.selections = treelist
 
         ntrees = len(treelist)
-        self.masks = init_attr(
+        self.masks = AttrArray.init_attr(
             masks, masks if callable(masks) else None, ntrees)
-        self.indices = init_attr(
+        self.indices = AttrArray.init_attr(
             indices, indices if callable(indices) else None, ntrees)
-        self.transforms = init_attr(
+        self.transforms = AttrArray.init_attr(
             transforms, transforms if callable(transforms) else None, ntrees)
 
-        scales = init_attr(scale, scale if callable(scale) else None, ntrees)
+        scales = AttrArray.init_attr(scale, scale if callable(scale) else None, ntrees)
         self.scales = [_scale_tree(tree, scale) for tree, scale in zip(treelist, scales)]
 
         self.saveas = saveas

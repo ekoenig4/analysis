@@ -1,11 +1,9 @@
 import matplotlib.colors as clrs
-import matplotlib.colors as clrs
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..utils import get_bin_centers, get_bin_widths, get_bin_line
+from .binning_tools import get_bin_centers, get_bin_widths, get_bin_line
 from .histogram import Histo, HistoList, Stack
-from .histogram2d import Histo2D
 from .graph import Graph, GraphList, Ratio
 from .formater import format_axes
 

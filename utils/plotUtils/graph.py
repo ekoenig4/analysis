@@ -1,6 +1,7 @@
 from matplotlib.pyplot import isinteractive
-from ..utils import safe_divide, get_bin_centers, get_bin_widths, init_attr, flatten
-from ..classUtils import ObjIter
+from .binning_tools import get_bin_centers, get_bin_widths, safe_divide
+from ..ak_tools import *
+from ..classUtils import ObjIter, AttrArray
 from . import function
 import numpy as np
 import awkward as ak
@@ -53,7 +54,7 @@ class Graph:
         if weights is not None:
             weights = weights[~mask_inf]
 
-        order = x_array.argsort() if order is 'x' else y_array.argsort()
+        order = x_array.argsort() if order == 'x' else y_array.argsort()
         
         self.x_array = x_array[order]
         self.y_array = y_array[order]
@@ -198,8 +199,8 @@ class GraphList(ObjIter):
         narrays = len(y_arrays)
         
         for key,value in kwargs.items(): 
-            if not isinstance(value,list): value = init_attr(None,value,narrays)
-            kwargs[key] = init_attr(value,None,narrays)
+            if not isinstance(value,list): value = AttrArray.init_attr(None,value,narrays)
+            kwargs[key] = AttrArray.init_attr(value,None,narrays)
             
         super().__init__([
             Graph(x_array,y_array, **{ key:value[i] for key,value in kwargs.items() })
@@ -328,25 +329,25 @@ class Difference(Graph):
         difference = num_y - den_y
         error = np.sqrt( num_yerr**2 + den_yerr**2 )
 
-        if method is 'percerr':
+        if method == 'percerr':
             difference = 1 - den_y/num_y
             error = difference*np.sqrt( (num_yerr/num_y)**2 + (den_yerr/den_y)**2 )
 
-        if method is 'normalize':
+        if method == 'normalize':
             mean = (num_y+den_y)/2
             difference = difference/mean
             error = error/mean
 
-        if method is 'standardize': 
+        if method == 'standardize': 
             std = np.std(difference)
             difference = difference/std
             error = error/std
         
-        if method is 'stderr': 
+        if method == 'stderr': 
             difference = difference/error
             error = error/error
 
-        if method is 'chi2':
+        if method == 'chi2':
             error = 2*difference*error
             difference = difference**2
 
@@ -354,13 +355,13 @@ class Difference(Graph):
             difference = difference/den_y
             error = difference*error
 
-        if method is 'r2':
+        if method == 'r2':
             std = np.std(num_y)
             error = 2*difference*error
             difference = difference**2/std
             error = error/std
 
-        if method is 'ks':
+        if method == 'ks':
             nm = np.sqrt((num.ndata*den.ndata)/(num.ndata+den.ndata))
             difference = nm*difference
             error = nm*error
@@ -410,7 +411,7 @@ class Correlation(Graph):
 
         x, y = num_y, den_y
 
-        if method is 'roc':
+        if method == 'roc':
             x = np.sort(num_y)
             y = np.sort(den_y)
 
@@ -424,7 +425,7 @@ class Correlation(Graph):
                 y = 1 - y
             
 
-        if method is 'ad':
+        if method == 'ad':
             x = (num.ndata*num_y + den.ndata*den_y)/(num.ndata + den.ndata)
             y = num_y - den_y
             # nm = (num.ndata*den.ndata)/(num.ndata + den.ndata)

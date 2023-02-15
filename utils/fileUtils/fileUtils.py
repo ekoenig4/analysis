@@ -2,27 +2,6 @@ import os, subprocess
 
 from .eos import *
 
-# class eos:
-#   url="root://cmseos.fnal.gov"
-
-#   @staticmethod
-#   def ls(path, with_path=False):
-#     cmd = ['eos',eos.url,'ls',path]
-#     stdout = subprocess.run([' '.join(cmd)], shell=True, capture_output=True).stdout.decode("utf-8")
-#     dirlist = stdout.strip().split('\n')
-
-#     if with_path:
-#       path = os.path.dirname(path)
-#       return [ f'{path}/{d}' for d in dirlist ]
-#     return dirlist
-
-#   @staticmethod
-#   def exists(path):
-#     cmd = ['eos', eos.url, 'ls', path]
-#     stdout = subprocess.run([' '.join(cmd)], shell=True, capture_output=True).stdout.decode("utf-8")
-#     stdout.strip()
-#     return any(stdout)
-
 def check_accstudies(fn):
     if eos.exists(fn): return fn
     fn = fn.replace("_accstudies.root","/ntuple.root")
@@ -113,7 +92,7 @@ def sample_files(path):
 
 class FileCollection:
 
-  def __init__(self, path='/store/user/ekoenig/8BAnalysis/NTuples/2018/'):
+  def __init__(self, path='.'):
     self.path = os.path.abspath(path)
     self.contents = None
 
@@ -171,7 +150,3 @@ class FileCollection:
   def __repr__(self): 
     ls='\n'.join([ f'   {f}' for f in self.ls])
     return f"{self.path}\n{ls}"
-
-
-eightb = FileCollection()
-sixb = FileCollection(path='/store/user/ekoenig/6BAnalysis/NTuples/2018/')

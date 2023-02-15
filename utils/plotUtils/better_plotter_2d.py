@@ -1,6 +1,6 @@
 import numpy as np
 
-from ..utils import get_bin_centers, get_bin_widths, get_bin_line
+from .binning_tools import get_bin_centers, get_bin_widths, get_bin_line
 from .histogram2d import Histo2D
 from .formater import format_axes
 

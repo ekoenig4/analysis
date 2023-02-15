@@ -6,136 +6,13 @@ import numpy as np
 import vector
 import scipy
 
-from .utils import *
-from .classUtils.ObjIter import ObjIter
-
-
-def _combinations(items, ks):
-    if len(ks) == 1:
-        for c in itertools.combinations(items, ks[0]):
-            yield (c,)
-
-    else:
-        for c_first in itertools.combinations(items, ks[0]):
-            items_remaining= set(items) - set(c_first)
-            for c_other in \
-            _combinations(items_remaining, ks[1:]):
-                if len(c_first)!=len(c_other[0]) or c_first<c_other[0]:
-                    yield (c_first,) + c_other
-
-def get_combinations(nitems, ks):
-    combs = []
-    for cs in _combinations(np.arange(nitems), ks):
-        _combs = []
-        for c in cs:
-            _combs.append(list(c))
-        combs.append(_combs)
-
-    array = np.array(combs)
-    return array
-
-def _flatten(ks):
-    if len(ks) == 0:
-        return ks
-    if isinstance(ks[0], list):
-        return _flatten(ks[0]) + _flatten(ks[1:])
-    return ks[:1] + _flatten(ks[1:])
-def _grouped(ks):
-    return [ (len(k) if isinstance(k,list) else 1) for k in ks ]
-
-def combinations(nitems, ks):
-    ks_flatten = _flatten(ks)
-    ks_grouped = _grouped(ks)
-
-    cb_flatten = get_combinations(nitems, ks_flatten)
-    cb_grouped = get_combinations(sum(ks_grouped), ks_grouped)
-    combs = np.concatenate([ cb_flatten.T[:, np.array(cb_grouped[:,i].tolist()).T ] for i in range(cb_grouped.shape[1]) ], axis=1)
-    combs = combs.reshape(*combs.shape[:-2], -1).T
-    return combs
-
-def to_pair_combinations(o1_index, o2_index, nobjs=None):
-    if nobjs is None:
-      nobjs = max( np.max(o1_index), np.max(o2_index) )+1
-    i, j = o1_index, o2_index
-    k = (-0.5*i*i + (nobjs-0.5)*i + j - i - 1).astype(int)
-    return k
-
-def get_jet_index_mask(jets, index):
-    """ Generate jet mask for a list of indicies """
-    if hasattr(jets, 'ttree'):
-        jets = jets["jet_pt"]
-
-    jet_index = ak.local_index(jets)
-    inter = (jet_index == index[:, None])
-    return ak.sum(inter, axis=-1) == 1
-
-
-def exclude_jets(input_mask, exclude_mask):
-    return (input_mask == True) & (exclude_mask == False)
-
-
-def get_top_njet_index(tree, jet_index, njets=6):
-    index_array = ak.local_index(jet_index)
-    firstN_array = index_array < njets if njets != -1 else index_array != -1
-    top_njet_index = jet_index[firstN_array]
-    bot_njet_index = jet_index[firstN_array == False]
-    return top_njet_index, bot_njet_index
-
-
-def sort_jet_index_simple(tree, varbranch, jets=None, method=max):
-    """ Mask of the top njet jets in varbranch """
-
-    if jets is None:
-        jets = tree.all_jets_mask
-
-    polarity = -1 if method is max else 1
-
-    sorted_array = ak.local_index(jets, axis=-1)
-    if varbranch is not None:
-        sorted_array = np.argsort(polarity * varbranch)
-
-    selected_sorted_array = jets[sorted_array]
-    selected_array = sorted_array[selected_sorted_array]
-    return selected_array
-
-
-def sort_jet_index(tree, variable=None, jets=None, method=max):
-    """ Mask of the top njet jets in variable """
-
-    varbranch = tree[variable] if variable else None
-    if variable == "jet_eta":
-        varbranch = np.abs(varbranch)
-    return sort_jet_index_simple(tree, varbranch, jets, method=method)
-
-
-def count_sixb_index(jet_index, sixb_jet_mask):
-    """ Number of signal b-jets in index list """
-
-    nevts = ak.size(jet_index, axis=0)
-    compare, _ = ak.broadcast_arrays(sixb_jet_mask[:, None], jet_index)
-    inter = (jet_index == compare)
-    count = ak.sum(ak.flatten(inter, axis=-1), axis=-1)
-    return count
-
-
-def count_sixb_mask(jet_mask, sixb_jet_mask):
-    """ Number of signal b-jets in jet mask """
-
-    inter = jet_mask & sixb_jet_mask
-    return ak.sum(inter, axis=-1)
-
-
-def get_jet_position(jet_index, jet_mask):
-    """ Get index positions of jets in sorted jet index list"""
-    position = ak.local_index(jet_index, axis=-1)
-    jet_position = position[jet_mask[jet_index]]
-    return jet_position
+from .ak_tools import *
 
 
 def calc_dphi(phi_1, phi_2):
     dphi = phi_2 - phi_1
-    dphi = ak.where( dphi >= np.pi, dphi - 2.0*np.pi, dphi)
-    dphi = ak.where( dphi < -np.pi, dphi + 2.0*np.pi, dphi)
+    dphi = ak.where(dphi >= np.pi, dphi - 2.0*np.pi, dphi)
+    dphi = ak.where(dphi < -np.pi, dphi + 2.0*np.pi, dphi)
     return dphi
 
 
@@ -148,6 +25,7 @@ def calc_dr(eta_1, phi_1, eta_2, phi_2):
     dphi = calc_dphi(phi_1, phi_2)
     dr = np.sqrt(deta**2 + dphi**2)
     return dr
+
 
 def calc_dr_p4(a_p4, b_p4):
     return calc_dr(a_p4.eta, a_p4.phi, b_p4.eta, b_p4.phi)
@@ -168,79 +46,6 @@ def get_ext_dr(eta_1, phi_1, eta_2, phi_2):
     max_dr = ak.flatten(dr_reduced[imax_dr], axis=-1)
     imax_dr = ak.flatten(dr_index[imax_dr], axis=-1)
     return dr, min_dr, imin_dr, max_dr, imax_dr
-
-# --- Standard Preselection --- #
-
-
-def std_preselection(tree, ptcut=20, etacut=2.5, btagcut=None, btagcut_invert=None, jetid=1, puid=1, njetcut=None, njetcut_invert=None, min_drcut=None, qglcut=None,
-                     passthrough=False, exclude_events_mask=None, exclude_jet_mask=None, include_jet_mask=None, **kwargs):
-    def jet_pu_mask(puid=puid):
-        puid_mask = (1 << puid) == tree["jet_puid"] & (1 << puid)
-        low_pt_pu_mask = (tree["jet_pt"] < 50) & puid_mask
-        return (tree["jet_pt"] >= 50) | low_pt_pu_mask
-
-    jet_mask = tree.all_jets_mask
-    event_mask = tree.all_events_mask
-
-    if include_jet_mask is not None:
-        jet_mask = jet_mask & include_jet_mask
-    if exclude_jet_mask is not None:
-        jet_mask = exclude_jets(jet_mask, exclude_jet_mask)
-
-    if not passthrough:
-        if ptcut:
-            jet_mask = jet_mask & (tree["jet_pt"] > ptcut)
-        if etacut:
-            jet_mask = jet_mask & (np.abs(tree["jet_eta"]) < etacut)
-        if btagcut:
-            jet_mask = jet_mask & (tree["jet_btag"] > btagcut)
-        if btagcut_invert:
-            jet_mask = jet_mask & (tree["jet_btag"] <= btagcut_invert)
-        if jetid:
-            jet_mask = jet_mask & (
-                (1 << jetid) == tree["jet_id"] & (1 << jetid))
-        if puid:
-            jet_mask = jet_mask & jet_pu_mask()
-        if min_drcut:
-            jet_mask = jet_mask & (tree["jet_min_dr"] > min_drcut)
-        if qglcut:
-            jet_mask = jet_mask & (tree["jet_qgl"] > qglcut)
-
-    njets = ak.sum(jet_mask, axis=-1)
-    if njetcut:
-        event_mask = event_mask & (njets >= njetcut)
-    if njetcut_invert:
-        event_mask = event_mask & (njets < njetcut_invert)
-    if exclude_events_mask is not None:
-        event_mask = event_mask & exclude_events_mask
-    return event_mask, jet_mask
-
-
-def xmass_selected_signal(tree, jets_index, njets=6, invm=700):
-    top_jets_index, _ = get_top_njet_index(tree, jets_index, njets=njets)
-
-    jet_pt = tree["jet_pt"]
-    jet_m = tree["jet_m"]
-    jet_eta = tree["jet_eta"]
-    jet_phi = tree["jet_phi"]
-
-    comb_jets_index = ak.combinations(top_jets_index, 6)
-    def build_p4(index): return vector.obj(
-        pt=jet_pt[index], mass=jet_m[index], eta=jet_eta[index], phi=jet_phi[index])
-    jet0, jet1, jet2, jet3, jet4, jet5 = [
-        build_p4(jet) for jet in ak.unzip(comb_jets_index)]
-    x_invm = (jet0+jet1+jet2+jet3+jet4+jet5).mass
-    signal_comb = ak.argmin(np.abs(x_invm - invm), axis=-1)
-    comb_mask = get_jet_index_mask(comb_jets_index, signal_comb[:, np.newaxis])
-    jets_selected_index = ak.concatenate(
-        ak.unzip(comb_jets_index[comb_mask]), axis=-1)
-
-    selected_compare, _ = ak.broadcast_arrays(
-        jets_selected_index[:, np.newaxis], jets_index)
-    jets_remaining_index = jets_index[ak.sum(
-        jets_index == selected_compare, axis=-1) == 0]
-
-    return jets_selected_index, jets_remaining_index
 
 
 def com_boost_vector(jet_pt, jet_eta, jet_phi, jet_m, njet=-1):
@@ -398,7 +203,7 @@ def calc_asymmetry(jet_pt, jet_eta, jet_phi, jet_m, njet=-1):
 
     boost = com_boost_vector(jet_pt, jet_eta, jet_phi, jet_m, njet)
     boosted_jets = vector.obj(pt=jet_pt, eta=jet_eta,
-                              phi=jet_phi, m=jet_m) #   .boost_p4(-boost)
+                              phi=jet_phi, m=jet_m)  # .boost_p4(-boost)
     jet_px, jet_py, jet_pz = boosted_jets.px, boosted_jets.py, boosted_jets.pz
 
     jet_p = np.sqrt(jet_px**2+jet_py**2+jet_pz**2)
@@ -454,15 +259,17 @@ def build_all_dijets(tree, pairs=None, ordered=None, name='dijet'):
         ['mRegressed', 'ptRegressed', 'eta', 'phi', 'signalId', 'btag']]
     jets = join_fields(jets, idx=ak.local_index(jets.ptRegressed, axis=-1))
 
-    if pairs is None: pairs = ak.unzip(ak.combinations(jets.idx, 2))
-    else: pairs = pairs[:,:,0], pairs[:,:,1]
+    if pairs is None:
+        pairs = ak.unzip(ak.combinations(jets.idx, 2))
+    else:
+        pairs = pairs[:, :, 0], pairs[:, :, 1]
 
     j1, j2 = jets[pairs[0]], jets[pairs[1]]
 
     j1_id, j2_id = j1.signalId, j2.signalId
     j1_id = (j1_id+2)//2
     j2_id = (j2_id+2)//2
-    h_id = ak.where( j1_id == j2_id, j1_id, 0) - 1
+    h_id = ak.where(j1_id == j2_id, j1_id, 0) - 1
 
     j1_p4 = build_p4(j1, use_regressed=True)
     j2_p4 = build_p4(j2, use_regressed=True)
@@ -472,8 +279,8 @@ def build_all_dijets(tree, pairs=None, ordered=None, name='dijet'):
     dr = np.sqrt(deta**2 + dphi**2)
 
     dijet = j1_p4 + j2_p4
-    
-    dijet = dict( 
+
+    dijet = dict(
         m=dijet.m,
         dm=np.abs(dijet.m-125),
         pt=dijet.pt,
@@ -486,59 +293,23 @@ def build_all_dijets(tree, pairs=None, ordered=None, name='dijet'):
         signalId=h_id,
         j1Idx=j1.idx,
         j2Idx=j2.idx,
-        localId=ak.local_index(dijet.m,axis=-1)
+        localId=ak.local_index(dijet.m, axis=-1)
     )
 
     if ordered and ordered in dijet:
         order = ak.argsort(-dijet[ordered], axis=-1)
-        dijet = { 
-            key:value[order]
+        dijet = {
+            key: value[order]
             for key, value in dijet.items()
         }
-        
+
     tree.extend(
         **{
-            f'{name}_{key}':value
-            for key,value in dijet.items()
+            f'{name}_{key}': value
+            for key, value in dijet.items()
         }
     )
 
-
-def select_higgs(tree, field='score', tag='gnn', nhiggs=3, ptordered=True):
-    """Select unique dijets based on highest value specified from field
-
-    Args:
-        tree (Tree): Tree class contained already built dijet pairs
-        field (str, optional): Field to select dijets. Defaults to score
-        nhiggs (int, optional): Number of higgs to select. Defaults to 3.
-
-    Returns:
-        awkward.Record: Awkward collection of selected higgs
-    """
-    higgs_list = []
-    dijets = get_collection(tree, 'dijet', False)
-    sorted_dijets = dijets[ak.argsort(-dijets[field], axis=-1)]
-
-    def get_next_higgs(sorted_dijets):
-        higgs = sorted_dijets[:, :, :1]
-        sorted_dijets = sorted_dijets[:, :, 1:]
-        unique = (sorted_dijets.j1Idx != higgs.j1Idx[:, 0]) & \
-            (sorted_dijets.j1Idx != higgs.j2Idx[:, 0]) & \
-            (sorted_dijets.j2Idx != higgs.j1Idx[:, 0]) & \
-            (sorted_dijets.j2Idx != higgs.j2Idx[:, 0])
-        sorted_dijets = sorted_dijets[unique]
-        return higgs, sorted_dijets
-    for _ in range(nhiggs):
-        higgs, sorted_dijets = get_next_higgs(sorted_dijets)
-        higgs_list.append(higgs)
-    higgs = ak.concatenate(higgs_list, axis=1)
-    if ptordered:
-        higgs = higgs[ak.argsort(-higgs.pt)]
-    higgs = rename_collection(higgs, f'{tag}_higgs')
-    
-    tree.extend(
-        **unzip_records(higgs)
-    )
 
 def X_m_hm_res_corrected(t, higgs='higgs', nhiggs=4):
     """Correct X_m by subtracting off the measured higgs mass and adding the nominal mass (125)
@@ -550,15 +321,16 @@ def X_m_hm_res_corrected(t, higgs='higgs', nhiggs=4):
     if isinstance(higgs, str):
         higgs_m = t[f'{higgs}_m']
     elif isinstance(higgs, list):
-        higgs_m = ak_stack([ t[f'{h}_m'] for h in higgs ])
+        higgs_m = ak_stack([t[f'{h}_m'] for h in higgs])
 
-    higgs_m = higgs_m[:,:nhiggs]
+    higgs_m = higgs_m[:, :nhiggs]
     higgs_m_res = higgs_m - 125
-    higgs_m_res_sum = ak.sum(higgs_m_res,axis=-1)
+    higgs_m_res_sum = ak.sum(higgs_m_res, axis=-1)
     t.extend(
         higgs_m_res_sum=higgs_m_res_sum,
         X_m_hm_res_corr=t.X_m - higgs_m_res_sum
     )
+
 
 def X_m_hp4_res_corrected(t, higgs='higgs', nhiggs=4):
     """Correct X_m by scaling the measured p4 of the higgs to have the nominal mass(125)
@@ -570,34 +342,34 @@ def X_m_hp4_res_corrected(t, higgs='higgs', nhiggs=4):
     if isinstance(higgs, str):
         higgs_p4 = build_p4(t, prefix=higgs)
     elif isinstance(higgs, list):
-        higgs_p4 = ak_stack([ build_p4(t, prefix=h) for h in higgs ])
+        higgs_p4 = ak_stack([build_p4(t, prefix=h) for h in higgs])
 
-    higgs_p4 = higgs_p4[:,:nhiggs]
+    higgs_p4 = higgs_p4[:, :nhiggs]
 
     higgs_p4_corr = (125/higgs_p4.m)*higgs_p4
-    X_p4_corr = higgs_p4_corr[:,0]
+    X_p4_corr = higgs_p4_corr[:, 0]
     for i in range(1, 4):
-        X_p4_corr = X_p4_corr + higgs_p4_corr[:,i]
+        X_p4_corr = X_p4_corr + higgs_p4_corr[:, i]
 
     t.extend(
         **{
-            f'X_{var}_hp4_res_corr':getattr(X_p4_corr, var)
-            for var in ('pt','m','eta','phi')
+            f'X_{var}_hp4_res_corr': getattr(X_p4_corr, var)
+            for var in ('pt', 'm', 'eta', 'phi')
         }
     )
-    
+
     if isinstance(higgs, str):
         t.extend(
             **{
-                f'higgs_{var}_corr':getattr(higgs_p4_corr, var)
-                for var in ('pt','m','eta','phi')
+                f'higgs_{var}_corr': getattr(higgs_p4_corr, var)
+                for var in ('pt', 'm', 'eta', 'phi')
             }
         )
     elif isinstance(higgs, list):
         t.extend(
             **{
-                f'{h}_{var}_corr':getattr(higgs_p4_corr,var)[:, i]
-                for var in ('pt','m','eta','phi')
+                f'{h}_{var}_corr': getattr(higgs_p4_corr, var)[:, i]
+                for var in ('pt', 'm', 'eta', 'phi')
                 for i, h in enumerate(higgs)
             }
         )

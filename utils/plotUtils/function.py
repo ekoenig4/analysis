@@ -6,7 +6,8 @@ import re
 
 from sympy import Q
 
-from ..utils import get_avg_std, get_bin_centers, get_bin_widths
+from .binning_tools import get_bin_centers, get_bin_widths
+from ..ak_tools import *
 
 class Function:
   __instance__ = ['pdf','func','cdf','rvs','sf']

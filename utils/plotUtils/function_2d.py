@@ -1,12 +1,11 @@
 import scipy.stats as f_stats
 from scipy.optimize import curve_fit , fmin
-from scipy import integrate, interpolate
 import numpy as np
 import re
 
 from sympy import Q
 
-from utils.utils import get_avg_std, get_bin_centers, get_bin_widths
+from .binning_tools import get_avg_std, get_bin_centers, get_bin_widths
 
 class Function2D:
   __instance__ = ['pdf','func','cdf','rvs','sf']

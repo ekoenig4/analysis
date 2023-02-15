@@ -1,5 +1,5 @@
 from ..utils import *
-from ..classUtils import TreeIter, ObjIter
+from ..classUtils import ObjIter
 import inspect
 
 
@@ -109,10 +109,6 @@ class EventFilter:
             tree = filter.filter(tree)
         if isinstance(tree,list):
             return [event_filter(self, t) for t in tree]
-        if isinstance(tree,TreeIter):
-            return TreeIter([event_filter(self, t) for t in tree])
-        # if isinstance(tree,ObjIter):
-        #     return tree.apply(lambda t : event_filter(self,t))
         return event_filter(self, tree)
     
     def __str__(self): return f"<EventFilter: {self.name}>"
@@ -172,10 +168,6 @@ class CollectionFilter:
     def filter(self, tree):
         if isinstance(tree,list):
             return [collection_filter(self, t) for t in tree]
-        if isinstance(tree,TreeIter):
-            return TreeIter([collection_filter(self, t) for t in tree])
-        # if isinstance(tree,ObjIter):
-        #     return tree.apply(lambda t : collection_filter(self,t))
         return collection_filter(self, tree)
 
     def __call__(self, tree): return self.filter(tree)

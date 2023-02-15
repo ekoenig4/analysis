@@ -1,9 +1,8 @@
 import pandas as pd
 import os
 from .. import GIT_WD
-from ..classUtils.Study import save_fig
 from ..classUtils import ObjIter
-from ..utils import get_avg_std
+from ..ak_tools import get_avg_std
 from ..plotUtils import obj_store
 
 from ..studyUtils import default_args 
@@ -45,6 +44,8 @@ class VariableTable:
         
     def add(self, variable, define=None, comments=None, figax=None, **kwargs):
         fig, ax = figax
+
+        from .studyUtils import save_fig
         save_fig(fig, self.plots, variable, fmt='png')
         
         self.header = ['variable','define','comments'] + list(kwargs.keys()) + ['plot']
