@@ -174,3 +174,4 @@ class FileCollection:
 
 
 eightb = FileCollection()
+sixb = FileCollection(path='/store/user/ekoenig/6BAnalysis/NTuples/2018/')
