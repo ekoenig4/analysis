@@ -76,6 +76,18 @@ yy_quadh_bkg10_soft025_md = WeaverModel('exp_yy/yy_4h_reco_ranker/20230103_7c14f
 yy_quadh_bkg10_asym002_md = WeaverModel('exp_yy/yy_4h_reco_ranker/20230105_7f6d562c1ae48b9fd380ed2ffc27c347_ranger_lr0.0047_batch1024_m7m10m12_withbkg/')
 
 yy_quadh_bkg10_soft025_md_allsig = WeaverModel('exp_yy/yy_4h_reco_ranker/20230125_7c14f31f22b318c56b1b4621b416c4a6_ranger_lr0.0047_batch1024_withbkg/')
+
+yy_quadh_bkg10_allsig = WeaverModel('exp_yy/yy_4h_reco_ranker/20230125_7c14f31f22b318c56b1b4621b416c4a6_ranger_lr0.0047_batch1024_withbkg/')
+yy_quadh_bkg10_MX_700_MY_300  =  WeaverModel('exp_mass/yy_4h_reco_ranker/20230216_ranger_lr0.0047_batch1024_MX_700_MY_300_withbkg/')
+yy_quadh_bkg10_MX_800_MY_300  =  WeaverModel('exp_mass/yy_4h_reco_ranker/20230216_ranger_lr0.0047_batch1024_MX_800_MY_300_withbkg/')
+yy_quadh_bkg10_MX_800_MY_350  =  WeaverModel('exp_mass/yy_4h_reco_ranker/20230216_ranger_lr0.0047_batch1024_MX_800_MY_350_withbkg/')
+yy_quadh_bkg10_MX_900_MY_300  =  WeaverModel('exp_mass/yy_4h_reco_ranker/20230216_ranger_lr0.0047_batch1024_MX_900_MY_300_withbkg/')
+yy_quadh_bkg10_MX_900_MY_400  =  WeaverModel('exp_mass/yy_4h_reco_ranker/20230216_ranger_lr0.0047_batch1024_MX_900_MY_400_withbkg/')
+yy_quadh_bkg10_MX_1000_MY_300 =  WeaverModel('exp_mass/yy_4h_reco_ranker/20230216_ranger_lr0.0047_batch1024_MX_1000_MY_300_withbkg/')
+yy_quadh_bkg10_MX_1000_MY_450 =  WeaverModel('exp_mass/yy_4h_reco_ranker/20230216_ranger_lr0.0047_batch1024_MX_1000_MY_450_withbkg/')
+yy_quadh_bkg10_MX_1200_MY_500 =  WeaverModel('exp_mass/yy_4h_reco_ranker/20230216_ranger_lr0.0047_batch1024_MX_1200_MY_500_withbkg/')
+
+ 
 def get_model_path(model, locals=locals()):
     if model not in locals: return model 
     return locals[model].path

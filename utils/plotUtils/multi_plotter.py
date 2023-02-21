@@ -76,6 +76,7 @@ def _plot_objects(figax, plotobjs, position='bottom', size='20%', sharex=True, s
 
     fig, ax = figax
     ax, sub_ax = _add_new_axis(ax, position=position, size=size, sharex=sharex, sharey=sharey, pad=pad)
+    # del ax.divider
 
     for plotobj in plotobjs: 
         if isinstance(plotobj,DataList): 

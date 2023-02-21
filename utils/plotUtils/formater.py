@@ -100,7 +100,7 @@ def _set_lumi(ax, lumi=None, is_2d=False, **kwargs):
     
     if label is None: return kwargs 
     
-    text = f"{lumi/1000:0.1f} $fb^{'{-1}'}$ {label}"
+    text = f"{lumi/1000:0.1f} fb$^{'{-1}'}$ {label}"
     _set_text(ax, (1.0, 1.0, text), text_style=dict(ha="right", va="bottom", fontsize=10))
     
     return kwargs

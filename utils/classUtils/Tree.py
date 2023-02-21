@@ -309,7 +309,6 @@ class Tree:
         
         init_sample(tree)
         init_tree(tree)
-        init_selection(tree)
 
         return tree
 

@@ -3,6 +3,7 @@ from typing import Callable
 
 import awkward as ak
 import numpy as np
+import torch
 import vector
 from tqdm import tqdm
 
@@ -106,6 +107,14 @@ def cast_array(array):
         return array.cpu().numpy()
     return array
 
+def restrict_array(array, bins, **params):
+    x_lo = array >= bins[0]
+    x_hi = array < bins[-1]
+    array = array[x_lo & x_hi]
+    if len(params) > 0:
+        params = [param[x_lo & x_hi] for param in params.values()]
+        return array, *params
+    return array
 
 def get_avg_std(array, weights=None, bins=None):
     mask = ~np.isnan(array) & ~(np.abs(array) == np.inf)

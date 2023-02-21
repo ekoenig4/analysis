@@ -29,6 +29,8 @@ class eightb_analysis_v2(Analysis):
                             help='Specify preset working point for btag cuts')
         parser.add_argument('--btagcuts', type=int, nargs="*",
                             help='List of jet btag wps cuts to apply to selected jets')
+        parser.add_argument('--use-unassigned', default=False, action='store_true',
+                            help='Use unassigned higgs to calculate 4D mass peak (previously used)')
         parser.add_argument('--use-log', action='store_true', default=False,
                             help='Use the Y1_H_log_rm instead Y1_H_rm')
         parser.add_argument('--sr-r', default=0.5, type=float,
@@ -198,6 +200,7 @@ class eightb_analysis_v2(Analysis):
             signal,
             legend=True,
             varlist=['nfound_select','nfound_paired_h'],
+            h_label_stat=lambda h:f"{h.histo[-1]:0.2%}",
             efficiency=True, ylim=(0,0.85), grid=True,
             saveas=f'{self.dout}/signal/t8btag_n_reco'
         )
@@ -252,6 +255,7 @@ class eightb_analysis_v2(Analysis):
             masks=lambda t:t.nfound_select==8,
             legend=True,
             varlist=['nfound_select','nfound_paired_h'],
+            h_label_stat=lambda h:f"{h.histo[-1]:0.2%}",
             efficiency=True, ylim=(0,0.85), grid=True,
             saveas=f'{self.dout}/signal/eightb_n_reco'
         )
@@ -298,6 +302,29 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/signal/eightb_4_higgs_pair_eff'
         )
 
+    def plot_fully_reconstrcuted_id(self, signal):
+        def fully_reconstructed(t):
+            h_b_ids = [ t[f'{quark}_signalId'] // 2 for quark in eightb.quarklist ]
+            y_h_ids = [ ak.where(h_b1_id == h_b2_id, h_b1_id, -1) // 2 for h_b1_id, h_b2_id in zip(h_b_ids[::2], h_b_ids[1::2]) ]
+            y1_id, y2_id = [ ak.where(y_h1_id == y_h2_id, y_h1_id, -1) // 2 for y_h1_id, y_h2_id in zip(y_h_ids[::2], y_h_ids[1::2]) ]
+            reco_id = ak.where(y1_id == y2_id, y1_id, -1)
+            t.extend(
+                reco_id = reco_id
+            )
+        signal.apply(fully_reconstructed)
+
+        study.statsplot(
+            signal,
+            masks=lambda t:t.nfound_select==8,
+            legend=True,
+            varlist=[ 'reco_id' ],
+            xlabels=['Recostruction Efficiency'],
+            label=signal.mass.list,
+            stat=lambda h : h.histo[-1],
+            g_grid=True, g_ylim=(0,1.2),
+            efficiency=True,
+            saveas=f'{self.dout}/signal/eightb_reco_eff'
+        )
 
     def _plot_unassigned_jet_kin(self, signal, bkg):
         for var in ('pt','btag','eta','phi',):
@@ -424,7 +451,8 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/kin/resonant_m'
         )
 
-    def build_higgs_dm(self, signal, bkg, data):
+    def _unassigned_higgs_rm(self, signal, bkg, data):
+        print("Calculating 4D Higgs mass peak with UNASSIGNED higgs")
         h4m = signal.higgs_m.apply(lambda m : m[:10000]).cat.to_numpy()
         from scipy import optimize
 
@@ -444,7 +472,7 @@ class eightb_analysis_v2(Analysis):
         self.center = optimize.fmin(_find_best_, r0,)
         print(np.round(self.center, 2))
 
-        def get_higgs_dm(t, center=self.center):
+        def get_higgs_rm(t, center=self.center):
             rm = [
                 np.abs(t.higgs_m[:,i]/m)
                 for i, m in enumerate(center)
@@ -453,10 +481,10 @@ class eightb_analysis_v2(Analysis):
 
             log_rm = np.abs(np.log10(rm))
             t.extend(higgs_rm=rm, higgs_log_rm=log_rm)
-        (signal+bkg+data).apply(get_higgs_dm)
+        (signal+bkg+data).apply(get_higgs_rm)
 
 
-        def set_hiyj_dm(t):
+        def set_hiyj_rm(t):
             rm = t.higgs_rm
             log_rm = t.higgs_log_rm
 
@@ -480,9 +508,47 @@ class eightb_analysis_v2(Analysis):
 
             t.extend(**hiyj_rm, Y1_h_rm=y1_h_rm, Y2_h_rm=y2_h_rm, **hiyj_log_rm, Y1_h_log_rm=y1_h_log_rm, Y2_h_log_rm=y2_h_log_rm, )
 
-        (signal+bkg+data).apply(set_hiyj_dm)
+        (signal+bkg+data).apply(set_hiyj_rm)
 
-    @dependency(build_higgs_dm)
+    def _assigned_higgs_rm(self, signal, bkg, data):
+        print("Calculating 4D Higgs mass peak with ASSIGNED higgs")
+        h4m = np.stack([ getattr(signal, f'{res}_m').apply(lambda m:m[:10000]).cat.to_numpy() for res in eightb.higgslist ], axis=1)
+        from scipy import optimize
+        def calc_dm(center, h4m=h4m):
+                n = len(center)
+                dm = np.sqrt( np.sum( ( (h4m[:,:n]-center)/center )**2, axis=-1 ) )
+                return dm
+
+        def _find_best_(center):
+            dm = calc_dm(center)
+            mask = dm < 0.25
+            return 1-np.mean(mask)
+            # mu = ak.mean(dm[dm < 100])
+            # return mu
+
+        r0 = (125,125,125,125)
+        self.center = optimize.fmin(_find_best_, r0,)
+        print(np.round(self.center, 2))
+
+        def set_higgs_rm(t, center=self.center):
+            higgs_rm = {
+                    f'{res}_rm':t[f'{res}_m']/r
+                    for res,r in zip(eightb.higgslist,center)
+                }
+            t.extend(
+                **higgs_rm,
+                Y1_h_rm = np.sqrt( (higgs_rm['H1Y1_rm']-1)**2 + (higgs_rm['H2Y1_rm']-1)**2),
+                Y2_h_rm = np.sqrt( (higgs_rm['H1Y2_rm']-1)**2 + (higgs_rm['H2Y2_rm']-1)**2)
+            )
+        (signal+bkg+data).apply(set_higgs_rm)
+
+    def build_higgs_rm(self, signal, bkg, data):
+        if self.use_unassigned:
+            self._unassigned_higgs_rm(signal, bkg, data)
+        else:
+            self._assigned_higgs_rm(signal, bkg, data)
+                
+    @dependency(build_higgs_rm)
     def _plot_unassigned_higgs_m(self, signal, bkg):
         study.pairplot(
             signal[self.use_signal]+bkg,
@@ -511,7 +577,7 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/pairplot/unassigned_higgs/m_log_ratio'
         )
 
-    @dependency(build_higgs_dm)
+    @dependency(build_higgs_rm)
     def plot_assigned_higgs_m(self, signal, bkg):
         study.pairplot(
             signal[self.use_signal]+bkg,
@@ -540,7 +606,7 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/pairplot/assigned_higgs/m_log_ratio'
         )
 
-    @dependency(build_higgs_dm)
+    @dependency(build_higgs_rm)
     def plot_y_higgs_m(self, signal, bkg):
         study.pairplot(
             signal[self.use_signal]+bkg,
@@ -560,7 +626,7 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/pairplot/y_higgs/m_log_ratio'
         )
 
-    @dependency(build_higgs_dm)
+    @dependency(build_higgs_rm)
     def plot_abcd_variables(self, signal, bkg):
 
         study.quick2d( 
@@ -610,8 +676,8 @@ class eightb_analysis_v2(Analysis):
             saveas=f'{self.dout}/btag_vs_Y2_h_rm',
         )
 
-    @dependency(build_higgs_dm)
-    def build_abcd(self):
+    @dependency(build_higgs_rm)
+    def build_abcd(self, data):
         y1_h_sr = Filter(lambda t : t[f"Y1_h_{self.dm}"] < self.sr_r)
         y1_h_cr = Filter(lambda t : (t[f"Y1_h_{self.dm}"] > self.sr_r) & (t[f"Y1_h_{self.dm}"] < self.cr_r))
         # y1_h_rm_ar = Filter(lambda t : t[f"Y1_h_{self.dm}"] < self.cr_r)
@@ -627,14 +693,22 @@ class eightb_analysis_v2(Analysis):
 
         self.ar_bdt = ABCD(
             features=self.bdt_features,
-            a = lambda t : y1_h_sr(t) & medium_btag_sr(t) & y2_h_ar(t),
-            b = lambda t : y1_h_sr(t) & medium_btag_cr(t) & y2_h_ar(t),
+            a = lambda t : y1_h_sr(t) & medium_btag_sr(t) & y2_h_sr(t),
+            b = lambda t : y1_h_sr(t) & medium_btag_cr(t) & y2_h_sr(t),
             c = lambda t : y1_h_cr(t) & medium_btag_sr(t) & y2_h_ar(t),
             d = lambda t : y1_h_cr(t) & medium_btag_cr(t) & y2_h_ar(t),
         )
+        
+        # self.ar_bdt = ABCD(
+        #     features=self.bdt_features,
+        #     a = lambda t : y1_h_sr(t) & y2_h_sr(t) & medium_btag_sr(t),
+        #     b = lambda t : y1_h_sr(t) & y2_h_sr(t) & medium_btag_cr(t),
+        #     c = lambda t : ( (y1_h_sr(t) & y2_h_cr(t)) | (y1_h_cr(t) & y2_h_sr(t)) ) & medium_btag_sr(t),
+        #     d = lambda t : ( (y1_h_sr(t) & y2_h_cr(t)) | (y1_h_cr(t) & y2_h_sr(t)) ) & medium_btag_cr(t),
+        # )
 
         blind_filter = EventFilter('blinded', filter=lambda t : ~( self.ar_bdt.a(t) ))
-        self.blinded_data  = self.data.apply(blind_filter)
+        self.blinded_data  = data.apply(blind_filter)
         self.bkg_model = self.blinded_data.apply(lambda t : t.asmodel('bkg model'))
 
         self.vr1_bdt = ABCD(
@@ -645,6 +719,14 @@ class eightb_analysis_v2(Analysis):
             d = lambda t : y1_h_cr(t) & medium_btag_cr(t) & y2_h_vr(t),
         )
 
+        # self.vr1_bdt = ABCD(
+        #     features=self.bdt_features,
+        #     a = lambda t : y1_h_sr(t) & y2_h_cr(t) & medium_btag_sr(t),
+        #     b = lambda t : y1_h_sr(t) & y2_h_cr(t) & medium_btag_cr(t),
+        #     c = lambda t : ( (y1_h_cr(t) & y2_h_sr(t)) ) & medium_btag_sr(t),
+        #     d = lambda t : ( (y1_h_cr(t) & y2_h_sr(t)) ) & medium_btag_cr(t),
+        # )
+
         self.vr2_bdt = ABCD(
             features=self.bdt_features,
             a = lambda t : y2_h_sr(t) & medium_btag_sr(t) & y1_h_vr(t),
@@ -652,6 +734,14 @@ class eightb_analysis_v2(Analysis):
             c = lambda t : y2_h_cr(t) & medium_btag_sr(t) & y1_h_vr(t),
             d = lambda t : y2_h_cr(t) & medium_btag_cr(t) & y1_h_vr(t),
         )
+        
+        # self.vr2_bdt = ABCD(
+        #     features=self.bdt_features,
+        #     a = lambda t : y1_h_cr(t) & y2_h_sr(t) & medium_btag_sr(t),
+        #     b = lambda t : y1_h_cr(t) & y2_h_sr(t) & medium_btag_cr(t),
+        #     c = lambda t : ( (y1_h_sr(t) & y2_h_cr(t)) ) & medium_btag_sr(t),
+        #     d = lambda t : ( (y1_h_sr(t) & y2_h_cr(t)) ) & medium_btag_cr(t),
+        # )
 
     def _plot_abcd_composition(self, bkg, bdt, key):
 
@@ -670,9 +760,10 @@ class eightb_analysis_v2(Analysis):
             )
 
     @dependency(build_abcd)
-    def plot_abcd_composition(self, signal, bkg):
+    def plot_abcd_composition(self, bkg):
         self._plot_abcd_composition(bkg, self.ar_bdt, 'abcd/ar')
-
+        self._plot_abcd_composition(bkg, self.vr1_bdt, 'abcd/vr1')
+        self._plot_abcd_composition(bkg, self.vr2_bdt, 'abcd/vr2')
 
     def _plot_abcd_regions(self, signal, bkg, bdt, key):
         study.quick( 
@@ -722,9 +813,9 @@ class eightb_analysis_v2(Analysis):
         self._plot_abcd_regions(signal, bkg, self.vr1_bdt, 'abcd/vr1')
         self._plot_abcd_regions(signal, bkg, self.vr2_bdt, 'abcd/vr2')
 
-    def var_correlations(self):
+    def var_correlations(self, signal, bkg):
         study.quick( 
-            self.signal[self.use_signal] + self.bkg,
+            signal[self.use_signal] + bkg,
             legend=True,
             plot_scale=[10]*len(self.use_signal),
             varlist=['n_loose_btag','n_medium_btag','n_tight_btag'],
@@ -733,14 +824,14 @@ class eightb_analysis_v2(Analysis):
         )
 
         study.quick2d( 
-            self.signal[self.use_signal] + self.bkg,
+            signal[self.use_signal] + bkg,
             varlist=['higgs_m[:,0]','n_medium_btag'],
             dim=-1,
             saveas=f'{self.dout}/2d_higgs_m_vs_mbtag'
         )
 
         study.compare_masks( 
-            self.signal[self.use_signal], self.bkg,
+            signal[self.use_signal], bkg,
             h_color=None,
             legend=True,
             masks=[lambda t: t.n_medium_btag >=4, lambda t: t.n_medium_btag >=5, lambda t: t.n_medium_btag >=6],
@@ -770,11 +861,11 @@ class eightb_analysis_v2(Analysis):
         for lines in zip(self.vr_bdt.print_yields(self.blinded_data, return_lines=True), self.vr_bdt.print_yields(self.bkg, lumi=2018, return_lines=True)):
             print(' | '.join(lines))
 
-    def _plot_vr_datamc(self, bdt, key):
+    def _plot_vr_datamc(self, bkg, blinded_data, bdt, key):
         resonances = ['X_m','Y1_m','Y2_m',None]+[f'{h}_m' for h in eightb.higgslist]
 
         study.quick( 
-            self.blinded_data+self.bkg,
+            blinded_data+bkg,
             masks=bdt.mask,
             legend=True,
             varlist=resonances,
@@ -786,20 +877,20 @@ class eightb_analysis_v2(Analysis):
         )
 
     @dependency(build_abcd)
-    def plot_vr_datamc(self):
-        self._plot_vr_datamc(self.vr1_bdt, 'abcd/vr1')
-        self._plot_vr_datamc(self.vr2_bdt, 'abcd/vr2')
+    def plot_vr_datamc(self, bkg, blinded_data):
+        self._plot_vr_datamc(bkg, blinded_data, self.vr1_bdt, 'abcd/vr1')
+        self._plot_vr_datamc(bkg, blinded_data, self.vr2_bdt, 'abcd/vr2')
 
-    def _train_bdt(self, bdt):
-        bdt.train(self.bkg_model)
-        bdt.print_results(self.bkg_model)
+    def _train_bdt(self, bkg_model, bdt):
+        bdt.train(bkg_model)
+        bdt.print_results(bkg_model)
 
-    def _evaluate_bdt(self, bdt, key):
+    def _evaluate_bdt(self, bkg_model, blinded_data, bdt, key):
         study.quick_region(
-            self.blinded_data , self.bkg_model, self.bkg_model, label=['target','k factor','bdt'],
+            blinded_data , bkg_model, bkg_model, label=['target','k factor','bdt'],
             h_color=['black','red','orange'], legend=True,
-            masks=[bdt.c]*len(self.blinded_data)+[bdt.d]*(len(self.bkg_model)*2),
-            scale=[1]*len(self.blinded_data)+[bdt.scale_tree]*len(self.bkg_model)+[bdt.reweight_tree]*len(self.bkg_model),
+            masks=[bdt.c]*len(blinded_data)+[bdt.d]*(len(bkg_model)*2),
+            scale=[1]*len(blinded_data)+[bdt.scale_tree]*len(bkg_model)+[bdt.reweight_tree]*len(bkg_model),
             varlist=bdt.feature_names,
             h_rebin=15,
             suptitle='BDT Training (Data) D $\\rightarrow$ C',
@@ -837,29 +928,69 @@ class eightb_analysis_v2(Analysis):
         )
 
     @dependency(build_abcd)
-    def train_vr_bdt(self):
+    def train_vr_bdt(bkg_model, blinded_data, self):
         print("Training VR 1 BDT")
-        self._train_bdt(self.vr1_bdt)
-        self._evaluate_bdt(self.vr1_bdt, 'abcd/vr1')
+        self._train_bdt(blinded_data, self.vr1_bdt)
+        self._evaluate_bdt(bkg_model, blinded_data, self.vr1_bdt, 'abcd/vr1')
 
         print("Training VR 2 BDT")
-        self._train_bdt(self.vr2_bdt)
-        self._evaluate_bdt(self.vr2_bdt, 'abcd/vr2')
+        self._train_bdt(blinded_data, self.vr2_bdt)
+        self._evaluate_bdt(bkg_model, blinded_data, self.vr2_bdt, 'abcd/vr2')
 
     @dependency(build_abcd)
-    def train_ar_bdt(self):
+    def train_ar_bdt(self, bkg_model):
 
         # %%
         print("Training AR BDT")
-        self._train_bdt(self.ar_bdt)
+        self._train_bdt(bkg_model, self.ar_bdt)
 
     @dependency(train_ar_bdt)
-    def calc_limits(self):
-        study.quick(
-            self.signal[self.use_signal] + self.bkg_model, 
+    def plot_ar_datamc(self, signal, bkg, bkg_model):
+        resonances = ['X_m','Y1_m','Y2_m',None]+[f'{h}_m' for h in eightb.higgslist]
+
+        study.quick( 
+            signal[self.use_signal] + bkg_model,
+            masks=self.ar_bdt.a,
             legend=True,
-            masks=[self.ar_bdt.a]*len(self.use_signal)+[self.ar_bdt.b]*len(self.bkg_model),
-            scale=[1]*len(self.use_signal)+[self.ar_bdt.reweight_tree]*len(self.bkg_model),
+            varlist=resonances,
+            binlist=[(500,2000,30)]+[(0,1000,30)]*3+[(0,500,30)]*4,
+            h_rebin=15,
+            dim=(-1, 4),
+            saveas=f'{self.dout}/abcd/ar/mc_resonant_mass'
+        )
+
+        study.quick( 
+            signal[self.use_signal] + bkg_model, 
+            masks=[self.ar_bdt.a]*len(self.use_signal)+[self.ar_bdt.b]*len(bkg_model),
+            scale=[1]*len(self.use_signal)+[self.ar_bdt.reweight_tree]*len(bkg_model),
+            legend=True,
+            varlist=resonances,
+            binlist=[(500,2000,30)]+[(0,1000,30)]*3+[(0,500,30)]*4,
+            # h_rebin=15,
+            dim=(-1, 4),
+            saveas=f'{self.dout}/abcd/ar/bkg_model_resonant_mass'
+        )
+
+        study.quick( 
+            bkg + bkg_model, 
+            masks=[self.ar_bdt.a]*len(bkg)+[self.ar_bdt.b]*len(bkg_model),
+            scale=[1]*len(bkg)+[self.ar_bdt.reweight_tree]*len(bkg_model),
+            legend=True,
+            varlist=resonances,
+            binlist=[(500,2000,30)]+[(0,1000,30)]*3+[(0,500,30)]*4,
+            h_rebin=15,
+            dim=(-1, 4),
+            ratio=True, r_ylabel='Model/MC',
+            saveas=f'{self.dout}/abcd/ar/mc_bkg_model_resonant_mass'
+        )
+
+    @dependency(train_ar_bdt)
+    def calc_limits(self, signal, bkg_model):
+        study.quick(
+            signal[self.use_signal] + bkg_model, 
+            legend=True,
+            masks=[self.ar_bdt.a]*len(self.use_signal)+[self.ar_bdt.b]*len(bkg_model),
+            scale=[1]*len(self.use_signal)+[self.ar_bdt.reweight_tree]*len(bkg_model),
             varlist=['X_m'],
             binlist=[(500,2000,30)],
             title='BDT Bkg Model',
@@ -869,11 +1000,11 @@ class eightb_analysis_v2(Analysis):
         )
 
     @dependency(train_ar_bdt)
-    def calc_brazil(self):
+    def calc_brazil(self, signal, bkg_model):
         study.brazil(
-            self.signal+self.bkg_model,
-            masks=[self.ar_bdt.a]*len(self.signal)+[self.ar_bdt.b]*len(self.bkg_model),
-            scale=[1]*len(self.signal)+[self.ar_bdt.reweight_tree]*len(self.bkg_model),
+            signal+bkg_model,
+            masks=[self.ar_bdt.a]*len(signal)+[self.ar_bdt.b]*len(bkg_model),
+            scale=[1]*len(signal)+[self.ar_bdt.reweight_tree]*len(bkg_model),
             varlist=['X_m'],
             binlist=[(500,2000,30)],
             l_poi=np.linspace(0,3,21), 

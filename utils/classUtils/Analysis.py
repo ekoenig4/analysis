@@ -81,45 +81,6 @@ class MethodDependency:
 required = MethodDependency.required
 dependency = MethodDependency.dependency
 
-# class dependency:
-#     graph = defaultdict(dict)
-
-#     def __init__(self, *require):
-#         self.require = [ f.__name__ for f in require ]
-
-#     def __call__(self, method):
-#         self.graph[method.__qualname__.split('.')[0]][method.__name__] = self.require
-#         return method
-
-#     @staticmethod
-#     def f7(seq):
-#         seen = set()
-#         seen_add = seen.add
-#         return [x for x in seq if not (x in seen or seen_add(x))]
-
-#     @staticmethod
-#     def build_runlist(analysis, runlist):
-#         graph = dependency.graph[analysis]
-#         def get_dependence(method):
-#             method_dependency = graph.get(method, dict())
-#             runlist = []
-#             for dependence in method_dependency:
-#                 runlist += get_dependence(dependence)
-#             runlist += [method]
-#             return dependency.f7(runlist)
-            
-#         full_runlist = []
-#         for method in runlist:
-#             full_runlist = dependency.f7(full_runlist+get_dependence(method))
-#         return full_runlist
-
-#     @staticmethod
-#     def clear_graph(*stored):
-#         for key in stored:
-#             if key in dependency.graph:
-#                 del dependency.graph[key]
-
-
 class AnalysisMethod:
     def __init__(self, analysis, method, disable=False):
         self.analysis = analysis 
@@ -149,14 +110,17 @@ class AnalysisMethod:
         return result
     @property
     def __name__(self): return self.method.__name__
-    def __repr__(self): 
+    def __str__(self): 
         status =     colored('done'.center(8),'green')
         if self.disable:
-            status = colored('disabled'.center(8), 'red')
+            status = colored('disabled'.center(8), 'red', attrs=['dark'])
         elif self.enabled:
             status = colored('pending'.center(8), 'blue')
-        
-        return f"<[{status}] {self.__name__}>"
+
+        name = colored(self.__name__, 'white', attrs=['dark'] if self.disable else [])
+        args = colored(', '.join(self.args), 'white', attrs=['dark'])
+        return f"<[{status}] {name}({args})>"
+    def __repr__(self): return str(self)
     def run(self):
         self.enabled = True
         return self()
@@ -174,9 +138,10 @@ class MethodList:
     def keys(self): return list(self.methods.keys())
     @property
     def values(self): return list(self.methods.values())
-    def __repr__(self):
-        lines = [ f"{i:>5}: {repr(method)}" for i, method in enumerate(self.methods.values()) ]
+    def __str__(self):
+        lines = [ f"{i:>5}: {str(method)}" for i, method in enumerate(self.methods.values()) ]
         return '<MethodList\n'+'\n'.join(lines)+'\n>'
+    def __repr__(self): return str(self)
     def __getiter__(self):
         return iter(self.methods.values())
     def items(self): return self.methods.items()
@@ -224,7 +189,7 @@ class Analysis:
 
         for i, (key, method) in enumerate(self.methods.items()): 
             if key not in runlist: 
-                print(f'[{colored("skipping","white")}] {key}')
+                print(f'[{colored("skipping","white", attrs=["dark"])}] {colored(key, "white", attrs=["dark"])}')
                 continue
             print(f'[{colored("running","green")}] {key}')
 

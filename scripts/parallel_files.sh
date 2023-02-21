@@ -27,20 +27,28 @@ get_training() {
     #     echo ${f/\/eos\/uscms/}
     # done
     
-    for f in $(ls $path/NMSSM_XYY_YToHH_8b/*{MX_700_MY_300,MX_800_MY_300,MX_800_MY_350,MX_900_MY_300,MX_900_MY_400,MX_1000_MY_300,MX_1000_MY_450,MX_1200_MY_500}*/ntuple*.root); do
+    for f in $(ls $path/NMSSM_XYY_YToHH_8b/*{MX_700_MY_300,MX_800_MY_300,MX_800_MY_350,MX_900_MY_300,MX_900_MY_400,MX_1000_MY_300,MX_1000_MY_450,MX_1200_MY_500}*/ntuple.root); do
         echo ${f/\/eos\/uscms/}
     done
 
 
     path=/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection/t8btag_minmass/
 
-    # for f in $(ls $path/Run2_Autumn18//QCD/*/ntuple.root); do
-    #     echo ${f/\/eos\/uscms/}
-    # done
+    for f in $(ls $path/Run2_Autumn18//QCD/*/ntuple.root); do
+        echo ${f/\/eos\/uscms/}
+    done
 
-    # for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/TTJets/TTJets*/ntuple_{6,7}.root); do
-    #     echo ${f/\/eos\/uscms/}
-    # done
+    for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/TTJets/TTJets*/ntuple_training.root); do
+        echo ${f/\/eos\/uscms/}
+    done
+}
+split_training() {
+    path=/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/training/
+
+    for f in $(ls $path/bkg/* $path/sig/*/*); do
+        echo ${f/\/eos\/uscms/}
+    done
+
 }
 
 
@@ -50,5 +58,6 @@ run_function() {
 
 export -f run_function
 
-time get_files | parallel -j 4 -k run_function $@
+# time get_files | parallel -j 4 -k run_function $@
 # time get_training | parallel -j 6 -k run_function $@
+time split_training | parallel -j 6 -k run_function $@

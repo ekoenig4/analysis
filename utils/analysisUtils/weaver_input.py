@@ -23,26 +23,26 @@ class weaver_input(Analysis):
         t8btag = CollectionFilter('jet', filter=lambda t: ak_rank(-t.jet_btag, axis=-1) < 8)
         self.bkg = bkg.apply(t8btag)
 
-    def calc_rescale(self, signal, bkg):
-        sample_scale = {
-            # 'MX_700_MY_300':1.2434550400752545e-18, 
-            # 'MX_800_MY_300':1.6568129499652848e-18,
-            # 'MX_800_MY_350': 1.921792885099276e-18,
-            # 'MX_900_MY_300': 2.40911537095554e-18,
-            # 'MX_900_MY_400': 3.494872548400683e-18,
-            # 'MX_1000_MY_300': 3.551084678512766e-18,
-            # 'MX_1000_MY_450':6.4806808031115614e-18, 
-            # 'MX_1200_MY_500':1.343392630420647e-17, 
-            'TTJets':7.294459735548297e-09
-        }
+    # def calc_rescale(self, signal, bkg):
+    #     sample_scale = {
+    #         # 'MX_700_MY_300':1.2434550400752545e-18, 
+    #         # 'MX_800_MY_300':1.6568129499652848e-18,
+    #         # 'MX_800_MY_350': 1.921792885099276e-18,
+    #         # 'MX_900_MY_300': 2.40911537095554e-18,
+    #         # 'MX_900_MY_400': 3.494872548400683e-18,
+    #         # 'MX_1000_MY_300': 3.551084678512766e-18,
+    #         # 'MX_1000_MY_450':6.4806808031115614e-18, 
+    #         # 'MX_1200_MY_500':1.343392630420647e-17, 
+    #         # 'TTJets':7.294459735548297e-09
+    #     }
 
-        def rescale(t):
-            norm = sample_scale.get(t.sample, None)
-            if norm is None: return 
-            norm /= t.filelist[0].scale 
-            t.extend(scale = norm*t.scale)
+    #     def rescale(t):
+    #         norm = sample_scale.get(t.sample, None)
+    #         if norm is None: return 
+    #         norm /= t.filelist[0].scale 
+    #         t.extend(scale = norm*t.scale)
 
-        (signal + bkg).apply(rescale)
+    #     (signal + bkg).apply(rescale)
 
     def normalize_signal(self, signal):
         sample_scale = {
@@ -64,7 +64,7 @@ class weaver_input(Analysis):
 
         sample_norm = {
             'QCD':0.9990666979650883,
-            'TTJets':0.2295229640177209,
+            'TTJets':0.22838519653423503,
         }
 
         def use_abs_scale(t):
@@ -77,8 +77,8 @@ class weaver_input(Analysis):
     def calc_sample_norm(self, signal, bkg):
         signal_norm = {
             # True:0.3333333333333333,
-            True:0.125,
-            False:0.042337213171621944
+            # True:0.125,
+            False:0.04239411075548981
         }
 
         def use_sample_norm(t):
@@ -89,7 +89,7 @@ class weaver_input(Analysis):
         (signal+bkg).apply(use_sample_norm)
 
     def calc_dataset_norm(self, signal, bkg):
-        max_norm = 807.4736641950203
+        max_norm = 806.3899452606947
 
         def use_dataset_norm(t):
             norm = max_norm 
