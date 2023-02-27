@@ -1,9 +1,11 @@
 from .binning_tools import *
+from .histogram import histogram
 from ..xsecUtils import lumiMap
 from ..classUtils import ObjIter,AttrArray
 from . import function
 from .graph import Graph
 from ..ak_tools import *
+from ..utils import is_iter
 import numpy as np
 import numba
 import awkward as ak
@@ -67,12 +69,6 @@ def histogram2d(x_array, y_array, x_bins, y_bins, weights, sumw2=True):
     if weights is None: return numba_unweighted_histo2d(x_array, y_array, x_bins, y_bins)
     elif not sumw2: return numba_weighted_histo2d(x_array, y_array, x_bins, y_bins, weights)
     return numba_weighted_histo2d_sumw2(x_array, y_array, x_bins, y_bins, weights)
-
-    histo2d, _, _ = np.histogram2d(x_array, y_array, bins=(x_bins, y_bins), weights=weights)
-    error2d, _, _ = np.histogram2d(x_array, y_array, bins=(x_bins, y_bins), weights=weights**2)
-    error2d = np.sqrt(error2d)
-
-    return histo2d.T, error2d.T
 
 class Histo2D:
     def __init__(self, x_array, y_array, x_bins=None, y_bins=None, weights=None,
@@ -167,6 +163,10 @@ class Histo2D:
             #     self.label = f'{self.label} x {scale}'
                 
         self.histo2d, self.error2d = histogram2d(self.x_array, self.y_array, self.x_bins, self.y_bins, self.weights, self.sumw2)
+        
+        if np.any( self.histo2d < 0 ):
+            self.error2d = np.where(self.histo2d < 0, 0, self.error2d)
+            self.histo2d = np.where(self.histo2d < 0, 0, self.histo2d)
 
         if self.density:
             self.x_widths = get_bin_widths(self.x_bins)
@@ -177,27 +177,23 @@ class Histo2D:
             self.error2d /= self.areas
 
     def x_corr(self, **kwargs):
-        def _get_bin_avg_(lo, hi):
-            mask = (self.x_array >= lo)&(self.x_array < hi)
-            if not np.any(mask): 
-                return np.nan, np.nan
-            mu, sig = get_avg_std(self.y_array[mask], self.weights[mask], self.y_bins)
-            return mu, sig
+        x_points, y_points = get_bin_centers(self.x_bins), get_bin_centers(self.y_bins)
+        X_points, Y_points = np.meshgrid(x_points, y_points)
 
-        corr = np.array([ _get_bin_avg_(lo,hi) for lo,hi in zip(self.x_bins[:-1], self.x_bins[1:]) ])
-        return Graph(get_bin_centers(self.x_bins), corr[:,0], yerr=corr[:,1], color='grey', **kwargs)
+        mean = np.sum(self.histo2d * Y_points, axis=0)/np.sum(self.histo2d,axis=0)
+        stdv = np.sqrt(np.sum(self.histo2d * (Y_points - mean)**2, axis=0)/np.sum(self.histo2d,axis=0))
+
+        return Graph(x_points, mean, yerr=stdv, color='grey', **kwargs)
 
     
     def y_corr(self, **kwargs):
-        def _get_bin_avg_(lo, hi):
-            mask = (self.y_array >= lo)&(self.y_array < hi)
-            if not np.any(mask):    
-                return np.nan, np.nan
-            mu, sig = get_avg_std(self.x_array[mask], self.weights[mask], self.x_bins)
-            return mu, sig
+        x_points, y_points = get_bin_centers(self.x_bins), get_bin_centers(self.y_bins)
+        X_points, Y_points = np.meshgrid(x_points, y_points)
 
-        corr = np.array([ _get_bin_avg_(lo,hi) for lo,hi in zip(self.y_bins[:-1], self.y_bins[1:]) ])
-        return Graph(corr[:,0], get_bin_centers(self.y_bins), xerr=corr[:,1], order='y', color='grey', **kwargs)
+        mean = np.sum(self.histo2d * X_points, axis=1)/np.sum(self.histo2d,axis=1)
+        stdv = np.sqrt(np.sum(self.histo2d * (X_points.T - mean).T**2, axis=1)/np.sum(self.histo2d,axis=1))
+
+        return Graph(mean, y_points, xerr=stdv, order='y', color='grey', **kwargs)
 
 class Histo2DList(ObjIter):
     def __init__(self, x_arrays, y_arrays, x_bins=None, y_bins=None, **kwargs):

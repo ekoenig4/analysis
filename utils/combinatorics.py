@@ -50,3 +50,13 @@ def to_pair_combinations(o1_index, o2_index, nobjs=None):
     i, j = o1_index, o2_index
     k = (-0.5*i*i + (nobjs-0.5)*i + j - i - 1).astype(int)
     return k
+
+def map_to_collection(o1_index, o2_index, collection):
+    """Maps a tensor of combination indicies to a collection of combinations
+    """
+    max_id = np.max(collection)+1
+    hash_func = lambda i,j : i + max_id*j
+    hash_map = { int(k):v for v, k in enumerate( hash_func(collection[0], collection[1]) ) }
+    return np.vectorize(hash_map.get)(np.vectorize(hash_func)(o1_index, o2_index))
+    # k = hash_func(o1_index, o2_index).apply_(lambda k : hash_map[k])
+    # return k

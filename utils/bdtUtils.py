@@ -17,7 +17,7 @@ import pickle, os
 
 class BDTReweighter:
   seed = 123456789
-  def __init__(self, n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, gb_args={'subsample':0.4}, n_folds=2, verbose=True):
+  def __init__(self, n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, gb_args={'subsample':0.4}, n_folds=2, verbose=True, load=None):
     np.random.seed(self.seed) #Fix any random seed using numpy arrays
 
     reweighter_base = reweight.GBReweighter(
@@ -45,14 +45,37 @@ class BDTReweighter:
   def scale(self, x, w):
     return self.k_factor*w/w
 
+  def save(self, fname='bdt_reweighter.pkl', path=f'{GIT_WD}/models'):
+      if not fname.endswith('.pkl'): fname += '.pkl'
+      fname = os.path.join(path, fname)
+      if os.path.exists(fname): return
+
+      print(f'... saving bdt to {fname}')
+
+      with open(fname, 'wb') as f:
+          pickle.dump(self.reweighter, f)
+
+  def load(self, fname, path=f'{GIT_WD}/models'):
+      if not fname.endswith('.pkl'): fname += '.pkl'
+      fname = os.path.join(path, fname)
+
+      with open(fname, 'rb') as f:
+          self.reweighter = pickle.load(f)
+
 class ABCD(BDTReweighter):
-  def __init__(self, features: list = None, a: Callable = None, b: Callable = None, c: Callable = None, d: Callable = None, **kwargs):
+  def __init__(self, features: list = None, a: Callable = None, b: Callable = None, c: Callable = None, d: Callable = None, save=None, **kwargs):
     super().__init__(**kwargs)
     self.feature_names = features
     self.a, self.b, self.c, self.d = a, b, c, d
     self.sr = lambda t : self.a(t) | self.b(t)
     self.cr = lambda t : self.c(t) | self.d(t)
     self.mask = lambda t: self.sr(t) | self.cr(t)
+
+    if save and os.path.exists(f'{GIT_WD}/models/{save}'):
+      print(f' ... loading saved bdt at {GIT_WD}/models/{save}')
+      self.load(save)
+      self.hash = f"__abcd_reweight_{hash(self)}__{hash(self.reweighter)}__"
+      self._trained_ = True
 
   def yields(self, treeiter : ObjIter, lumi=None):
     if not isinstance(treeiter, ObjIter): treeiter = ObjIter([treeiter])
@@ -124,6 +147,8 @@ class ABCD(BDTReweighter):
     return X, W
 
   def train(self, treeiter: ObjIter, **kwargs):
+    if hasattr(self, '_trained_'): return
+
     if self.verbose:
       print('... fetching features')
     X, W, (mask_c, mask_d) = self.get_features(treeiter, masks=[self.c, self.d])
@@ -136,6 +161,7 @@ class ABCD(BDTReweighter):
     super().train(c_X, c_W, d_X, d_W, **kwargs)
 
     self.hash = f"__abcd_reweight_{hash(self)}__{hash(self.reweighter)}__"
+    self._trained_ = True
 
 
   def print_results(self, treeiter: ObjIter):

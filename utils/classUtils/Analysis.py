@@ -1,8 +1,10 @@
 import inspect
 from collections import defaultdict
 from .ObjIter import ObjIter
+from .Stopwatch import Stopwatch
 from tqdm import tqdm
 from termcolor import colored
+import time
 
 import re
 def find_all_undeclared(object):
@@ -187,19 +189,21 @@ class Analysis:
             runlist = [ key for key,method in self.methods.items() if not method.disable ]
         runlist = self.build_runlist(runlist)
 
+        stopwatch = Stopwatch()
         for i, (key, method) in enumerate(self.methods.items()): 
             if key not in runlist: 
-                print(f'[{colored("skipping","white", attrs=["dark"])}] {colored(key, "white", attrs=["dark"])}')
+                print(f'{stopwatch} [{colored("skipping","white", attrs=["dark"])}] {colored(key, "white", attrs=["dark"])}')
                 continue
-            print(f'[{colored("running","green")}] {key}')
+            print(f'{stopwatch} [{colored("running","green")}] {key}')
 
             if self.ignore_error:
                 try:
                     method()
                 except Exception as e:
-                    print(f'[{colored("error","red")}] {e}\n')
+                    print(f'{stopwatch} [{colored("error","red")}] {e}\n')
             else:
                 method()
+        print(f'{stopwatch} [{colored("finished","green")}]')
 
     def __getattr__(self, key): return self.__dict__.get(key, None)
 

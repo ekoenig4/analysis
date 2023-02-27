@@ -231,7 +231,7 @@ def plot_stack(stack, figax=None, fill_error=False, exe=None, sort='largest', **
         error = np.where( (histo_sum-error)>0, error, histo_sum)
         if not fill_error:
             ax.errorbar(bin_centers, histo_sum, yerr=error,
-                        fmt='none', color='black', capsize=1)
+                        fmt='none', color='grey', capsize=1)
         else:
             for nstd in range(1, int(fill_error)+1 ):
                 ax.fill_between(bin_centers, histo_sum-nstd*error, histo_sum+nstd*error, color='grey', alpha=0.25/nstd, step='mid')

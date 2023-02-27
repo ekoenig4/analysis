@@ -131,6 +131,8 @@ def get_avg_std(array, weights=None, bins=None):
         if len(array) == 0:
             return np.nan, np.nan
         avg = np.average(array, weights=weights)
+        if bins is not None:
+            avg = np.clip(avg, bins[0], bins[-1])
         std = np.sqrt(np.average((array-avg)**2, weights=weights))
     return avg, std
 
@@ -160,8 +162,8 @@ def ak_binned(array, bins, axis=1, overflow=False):
     return 1*ak_stack(binned, axis=axis)
 
 
-def build_p4(array, prefix=None, use_regressed=False):
-    kin = ['pt', 'eta', 'phi', 'm']
+def build_p4(array, prefix=None, use_regressed=False, extra=[]):
+    kin = ['pt', 'eta', 'phi', 'm']+extra
     regmap = {}
     if use_regressed:
         regmap = {'pt': 'ptRegressed', 'm': 'mRegressed'}

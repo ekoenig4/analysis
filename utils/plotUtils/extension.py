@@ -254,15 +254,15 @@ class draw_ellipse:
 
 
 def plot_histo2d_x_corr(histo2d, fig, ax, **kwargs):
-    corr = histo2d.x_corr(marker=None, fit='linear')
-    ax.text(0.1, 0.1, f'slope = {corr.fit.c1:0.2}', transform=ax.transAxes)
+    corr = histo2d.x_corr(marker=None)
+    # ax.text(0.1, 0.1, f'slope = {corr.fit.c1:0.2}', transform=ax.transAxes)
     plot_graph(corr, figax=(fig, ax), fill_error=True,
                xlim=ax.get_xlim(), ylim=ax.get_ylim())
 
 
 def plot_histo2d_y_corr(histo2d, fig, ax, **kwargs):
-    corr = histo2d.y_corr(marker=None, fit='linear')
-    ax.text(0.1, 0.1, f'slope = {corr.fit.c1:0.2}', transform=ax.transAxes)
+    corr = histo2d.y_corr(marker=None)
+    # ax.text(0.1, 0.1, f'slope = {corr.fit.c1:0.2}', transform=ax.transAxes)
     plot_graph(corr, figax=(fig, ax), fill_error=True,
                xlim=ax.get_xlim(), ylim=ax.get_ylim())
 

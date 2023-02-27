@@ -30,6 +30,7 @@ def select_topbias(tree,njet=8):
     build_all_dijets(tree)
 
 get_jetpt_wp = dict(
+        trigger=[75, 60, 45, 40], # only trigger thresholds
         loose =[75, 60, 45, 40, 30, 25], # 0.99^8 eff
         medium=[85, 65, 55, 45, 35, 30, 25], # 0.95^8 eff
         tight =[90, 75, 60, 50, 40, 30, 25] # 0.90^8 eff
@@ -59,6 +60,7 @@ def selected_jet_ptregressed(pts=[80,65,50,40,35,30,20,20]):
     return EventFilter('jet_ptRegressed_'+'_'.join(map(str,pts)), filter=jet_pt_filter)
 
 get_jetbtag_wps = dict(
+        minimal=[2,2,2,2], # minimal selection to align with 4 btag vs >= 5 btag regions
         loose =[3, 3, 2, 2, 1], # 0.99^8 eff
         medium=[3, 3, 3, 2, 2, 1], # 0.95^8 eff
         tight =[3, 3, 3, 3, 2, 2, 1] # 0.85^8 eff

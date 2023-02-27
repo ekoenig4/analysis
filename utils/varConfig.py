@@ -107,14 +107,14 @@ varinfo.b_6j_score = dict(xlabel="6 Jet Classifier Score", bins=np.linspace(0, 1
 varinfo.b_3d_score = dict(xlabel="3 Higgs Classifier Score",bins=np.linspace(0, 1, 30))
 varinfo.b_2j_score = dict(xlabel="2 Jet Classifier Score", bins=np.linspace(0, 1, 30))
 
-varinfo.X_m = dict(bins=np.linspace(500,2000,30))
-varinfo.Y1_m = dict(bins=np.linspace(200,1000,30))
-varinfo.Y2_m = dict(bins=np.linspace(200,1000,30))
+varinfo.X_m = dict(bins=np.linspace(500,2000,30), xlabel='$M_{X}$ (GeV)')
+varinfo.Y1_m = dict(bins=np.linspace(200,1000,30), xlabel='$M_{Y1}$ (GeV)')
+varinfo.Y2_m = dict(bins=np.linspace(200,1000,30), xlabel='$M_{Y2}$ (GeV)')
 
 varinfo.Y1_pt = dict(bins=(0,600,30))
 varinfo.Y2_pt = dict(bins=(0,600,30))
 
-varinfo.H1Y1_m = dict(bins=np.linspace(0,300,30))
-varinfo.H2Y1_m = dict(bins=np.linspace(0,300,30))
-varinfo.H1Y2_m = dict(bins=np.linspace(0,300,30))
-varinfo.H2Y2_m = dict(bins=np.linspace(0,300,30))
+varinfo.H1Y1_m = dict(bins=np.linspace(0,500,30), xlabel='$M_{H1Y1}$ (GeV)')
+varinfo.H2Y1_m = dict(bins=np.linspace(0,500,30), xlabel='$M_{H2Y1}$ (GeV)')
+varinfo.H1Y2_m = dict(bins=np.linspace(0,500,30), xlabel='$M_{H1Y2}$ (GeV)')
+varinfo.H2Y2_m = dict(bins=np.linspace(0,500,30), xlabel='$M_{H2Y2}$ (GeV)')

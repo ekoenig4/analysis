@@ -10,5 +10,6 @@ from .studyUtils import *
 from .classUtils import *
 from .bdtUtils import *
 from .testUtils import *
+from .combinatorics import *
 from . import analysisUtils as analysis
 from . import eightbUtils as eightb

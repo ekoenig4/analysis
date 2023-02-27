@@ -333,7 +333,7 @@ class Histo:
         elif label_stat == 'exp_lim':
             if hasattr(self.stats, 'exp_limits'):
                 std_1 = max(self.stats.exp_limits[2+1]-self.stats.exp_limits[2], self.stats.exp_limits[2]-self.stats.exp_limits[2-1])
-                label_stat = f'CL$^{{95\%}}r<{self.stats.exp_limits[2]:0.3}\pm{std_1:0.3}$'
+                label_stat = f'CL$^{{95\%}}r<{self.stats.exp_limits[2]:0.2}\pm{std_1:0.2}$'
 
         else: label_stat = f'{getattr(self.stats,label_stat):0.2e}'
 
