@@ -35,116 +35,11 @@ class Feynman:
             product.mother = self
         return self
 
-    def get_product_types(self):
-        """Get a dictionary for each unique particle type that this particle produces
-        Each value of the dictionary will contain a list of all the particles that match that type
-
-        Returns:
-            dict: dictionary of unique product types for this particle
-        """
-        if getattr(self, 'product_types', None): return self.product_types 
-
-        product_types = defaultdict(list)
-        for product in self.products:
-            product_types[product.typeid].append(product)
-        
-        self.product_type = product_types
-        return self.product_type
-
-    def get_finalstate(self):
-        """Get a list of final state particles
-
-        Returns:
-            list: final state particles
-        """
-        if getattr(self, 'finalstate', None): return self.finalstate
-
-        def _finalstate(feynman):
-            if not any(feynman.products):
-                return [feynman]
-
-            finalstates = []
-            for product in feynman.products:
-                finalstates += _finalstate(product)
-            return finalstates
-        self.finalstate = _finalstate(self)
-        return self.finalstate
-
-    def get_finalstate_types(self):
-        """Get a dictionary for each unique particle type in this particles final state
-
-        Returns:
-            dict: dictionary of unique finalstate types for this particle
-        """
-        if getattr(self, 'finalstate_types', None): return self.finalstate_types
-
-        finalstate = self.get_finalstate()
-        self.finalstate_type = defaultdict(list)
-        for state in finalstate:
-            self.finalstate_type[state.typeid].append(state)
-        return self.finalstate_type
-
-    def get_internalstate(self):
-        """Get a list of all internalstate particles included itself
-
-        Returns:
-            list: internalstate particles
-        """
-        if getattr(self, 'internalstate', None): return self.internalstate
-
-        def _internalstate(feynman):
-            if not any(feynman.products):
-                return []
-
-            internalstates = []
-            for product in feynman.products:
-                internalstates += _internalstate(product)
-            internalstates += [feynman]
-            return internalstates
-        self.internalstate = _internalstate(self)
-        return self.internalstate
-
-    def get_internalstate_types(self):
-        """Get a dictionary for each unique particle type in thie particles internal state
-
-        Returns:
-            dict: dictionary of unique internal state types for this particle
-        """
-        if getattr(self, 'internalstate_types', None): return self.internalstate_types
-
-        internalstate = self.get_internalstate()
-        self.internalstate_type = defaultdict(list)
-        for state in internalstate:
-            self.internalstate_type[state.typeid].append(state)
-        return self.internalstate_type
-        
-    def get_generation_types(self):
-        """Get a dictionary with a list of particles in each geneneration
-
-        Returns:
-            dict: dictionary of particles ordered by generation
-        """
-        if getattr(self, 'generation_types', None): return self.generation_types
-        self.build_diagram()
-
-        generation_types = defaultdict(lambda:defaultdict(list))
-
-        def _generation_types(feynman):
-
-            for product in feynman.products:
-                _generation_types(product)
-
-            generation_types[feynman.generation][feynman.typeid].append(feynman)
-
-        _generation_types(self)
-        self.generation_types = generation_types
-        return self.generation_types        
-
     def build_diagram(self):
         """Build a networkx DiGraph in the direction of decay products
 
         Returns:
-            nx.DiGraph: Directional graph for this process
+            Feynman: the same object with built diagram
         """
         if getattr(self, 'diagram', None): return self.diagram
 
@@ -171,7 +66,117 @@ class Feynman:
 
             return diagram
         self.diagram = _build_diagram(self)
-        return self.diagram
+        return self
+
+    def get_product_types(self):
+        """Get a dictionary for each unique particle type that this particle produces
+        Each value of the dictionary will contain a list of all the particles that match that type
+
+        Returns:
+            dict: dictionary of unique product types for this particle
+        """
+        self.build_diagram()
+        if getattr(self, 'product_types', None): return self.product_types 
+
+        product_types = defaultdict(list)
+        for product in self.products:
+            product_types[product.typeid].append(product)
+        
+        self.product_type = product_types
+        return self.product_type
+
+    def get_finalstate(self):
+        """Get a list of final state particles
+
+        Returns:
+            list: final state particles
+        """
+        self.build_diagram()
+        if getattr(self, 'finalstate', None): return self.finalstate
+
+        def _finalstate(feynman):
+            if not any(feynman.products):
+                return [feynman]
+
+            finalstates = []
+            for product in feynman.products:
+                finalstates += _finalstate(product)
+            return finalstates
+        self.finalstate = _finalstate(self)
+        return self.finalstate
+
+    def get_finalstate_types(self):
+        """Get a dictionary for each unique particle type in this particles final state
+
+        Returns:
+            dict: dictionary of unique finalstate types for this particle
+        """
+        self.build_diagram()
+        if getattr(self, 'finalstate_types', None): return self.finalstate_types
+
+        finalstate = self.get_finalstate()
+        self.finalstate_type = defaultdict(list)
+        for state in finalstate:
+            self.finalstate_type[state.typeid].append(state)
+        return self.finalstate_type
+
+    def get_internalstate(self):
+        """Get a list of all internalstate particles included itself
+
+        Returns:
+            list: internalstate particles
+        """
+        self.build_diagram()
+        if getattr(self, 'internalstate', None): return self.internalstate
+
+        def _internalstate(feynman):
+            if not any(feynman.products):
+                return []
+
+            internalstates = []
+            for product in feynman.products:
+                internalstates += _internalstate(product)
+            internalstates += [feynman]
+            return internalstates
+        self.internalstate = _internalstate(self)
+        return self.internalstate
+
+    def get_internalstate_types(self):
+        """Get a dictionary for each unique particle type in thie particles internal state
+
+        Returns:
+            dict: dictionary of unique internal state types for this particle
+        """
+        self.build_diagram()
+        if getattr(self, 'internalstate_types', None): return self.internalstate_types
+
+        internalstate = self.get_internalstate()
+        self.internalstate_type = defaultdict(list)
+        for state in internalstate:
+            self.internalstate_type[state.typeid].append(state)
+        return self.internalstate_type
+        
+    def get_generation_types(self):
+        """Get a dictionary with a list of particles in each geneneration
+
+        Returns:
+            dict: dictionary of particles ordered by generation
+        """
+        self.build_diagram()
+        if getattr(self, 'generation_types', None): return self.generation_types
+
+        generation_types = defaultdict(lambda:defaultdict(list))
+
+        def _generation_types(feynman):
+
+            for product in feynman.products:
+                _generation_types(product)
+
+            generation_types[feynman.generation][feynman.typeid].append(feynman)
+
+        _generation_types(self)
+        self.generation_types = generation_types
+        return self.generation_types        
 
     def draw_diagram(self):
         """Draws the networkx DiGraph
@@ -218,7 +223,7 @@ class Feynman:
         Returns:
             dict: Dictionary of permutations for each finalstate type
         """
-
+        self.build_diagram()
         nfinalstates_key = frozenset(nfinalstates.items())
         if nfinalstates_key in self._permutation_cache_: 
             return self._permutation_cache_[nfinalstates_key]
@@ -253,6 +258,7 @@ class Feynman:
         Returns:
             list: list of finalstate particles for each product particle
         """
+        self.build_diagram()
         nfinalstate_types = defaultdict(lambda:-1)
 
         assignment = []
@@ -271,6 +277,7 @@ class Feynman:
         Returns:
             dict: Dictionary of permutations for each product type
         """
+        self.build_diagram()
         finalstate_types = self.get_finalstate_types()    
         products = self.products
         product_types = self.get_product_types()
