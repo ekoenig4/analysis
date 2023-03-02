@@ -78,8 +78,9 @@ xsecMap = {
     "QCD_HT1500to2000_BGenFilter": 13.61    ,
     "QCD_HT2000toInf_BGenFilter" : 2.92     ,
  
-    "TTTo2L2Nu":687.1,
-    "TTToSemiLeptonic":687.1,
-    # "TTJets": 831.76,
-    "TTJets": 750.5,
+    "TTTo2L2Nu":831.76*0.3259*0.3259,
+    "TTToSemiLeptonic":831.76*2*0.6741*0.3259,
+    "TTToHadronic":831.76*0.6741*0.6741,
+    "TTJets": 831.76,
+    # "TTJets": 750.5,
 }
