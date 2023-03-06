@@ -41,7 +41,7 @@ class Feynman:
         Returns:
             Feynman: the same object with built diagram
         """
-        if getattr(self, 'diagram', None): return self.diagram
+        if getattr(self, 'diagram', None): return self
 
         _multi = defaultdict(lambda:0)
         _colors = dict()
@@ -67,6 +67,15 @@ class Feynman:
             return diagram
         self.diagram = _build_diagram(self)
         return self
+
+    def draw_diagram(self):
+        """Draws the networkx DiGraph
+        """
+        self.build_diagram()
+        diagram = self.diagram
+        pos = generation_position(diagram)
+        color = list(nx.get_node_attributes(diagram,'color').values())
+        nx.draw(diagram, pos=pos, with_labels=True, node_color=color)
 
     def get_product_types(self):
         """Get a dictionary for each unique particle type that this particle produces
@@ -177,14 +186,6 @@ class Feynman:
         _generation_types(self)
         self.generation_types = generation_types
         return self.generation_types        
-
-    def draw_diagram(self):
-        """Draws the networkx DiGraph
-        """
-        diagram = self.build_diagram()
-        pos = generation_position(diagram)
-        color = list(nx.get_node_attributes(diagram,'color').values())
-        nx.draw(diagram, pos=pos, with_labels=True, node_color=color)
 
     @staticmethod
     def _reco_id(feynman):
