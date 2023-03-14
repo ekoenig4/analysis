@@ -80,6 +80,14 @@ class Graph:
 
         self.set_label(label_stat)
 
+    def set_attrs(self, label_stat=None, **kwargs):
+        kwargs = dict(self.kwargs, **kwargs)
+        self.label = kwargs.get('label',None)
+
+        self.kwargs = kwargs
+        self.set_label(label_stat)
+        return self
+
     def smooth(self, kernel):
         if isinstance(kernel, bool): kernel = 5
         if isinstance(kernel, int): kernel = np.ones(kernel, dtype=float)

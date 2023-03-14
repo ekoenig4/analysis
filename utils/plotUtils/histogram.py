@@ -136,9 +136,10 @@ class Histo:
         if restrict:
             array, weights = restrict_array(array, bins=bins, weights=weights)
 
+        raw_counts, _ = histogram(array, bins, np.ones_like(weights))
         counts, error = histogram(array, bins, weights, sumw2=sumw2)
 
-        histo = cls(counts, bins, error=error, array=array, weights=weights, **kwargs)
+        histo = cls(counts, bins, error=error, raw_counts=raw_counts, array=array, weights=weights, **kwargs)
         return histo
 
     def to_th1d(self, name="", title="", bin_labels=None):
@@ -157,7 +158,7 @@ class Histo:
         return th1d
 
 
-    def __init__(self, counts, bins, error=None, array=None, weights=None,
+    def __init__(self, counts, bins, error=None, array=None, weights=None, raw_counts=None,
                        efficiency=False, density=False, cumulative=False, lumi=None, scale=1, plot_scale=1,
                        is_data=False, is_signal=False, is_model=False, fit=None, continous=False, ndata=None, 
                        systematics=None, label_stat='events', __id__=None, **kwargs):
@@ -173,6 +174,7 @@ class Histo:
 
         self.array = array 
         self.weights = weights
+        self.raw_counts = raw_counts if raw_counts is not None else counts
 
         self.ndata = ndata 
         if ndata is None:
@@ -255,6 +257,9 @@ class Histo:
         for systematic in systematics:
             self.error = apply_systematic(self.histo, self.error, systematic)
 
+    def evaluate(self, x):
+        b = np.digitize(x, self.bins)-1
+        return np.interp(b, np.arange(len(self.histo)), self.histo)
                 
     def cdf(self, cumulative):
         if hasattr(self, 'cumulative'): return self

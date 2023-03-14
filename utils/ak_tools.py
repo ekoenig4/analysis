@@ -9,9 +9,31 @@ from tqdm import tqdm
 
 vector.register_awkward()
 
+def check_instance(instance, classtype):
+    if isinstance(instance, classtype): return True
+
+    # if isinstance( getattr(instance, 'ttree', None), classtype): return True
+
+    return False
+
 def unzip_records(records):
     return {field: array for field, array in zip(records.fields, ak.unzip(records))}
 
+def make_regular(records):
+    variable_arrays = { field: ak.to_regular( records[field], axis=-1 ) for field in records.fields if 'var' in str(records[field].type) }
+    regular_arrays =  { field: records[field] for field in records.fields if not 'var' in str(records[field].type) }
+
+    arrays = dict(**regular_arrays, **variable_arrays)
+    return ak.zip(arrays, depth_limit=1 )
+
+def remove_counters(records):
+    fields = [
+        field 
+        for field in records.fields
+        if not ( field.startswith('n') and field[1:] in records.fields )
+    ]
+
+    return records[fields]
 
 def join_fields(awk1, *args, **kwargs):
     args_unzipped = [unzip_records(awk) for awk in args]
@@ -83,13 +105,13 @@ def build_collection(tree, pattern, name, ordered=None, ptordered=False, replace
 
 
 def _flatten(array):
-    if isinstance(array, ak.Array):
+    if check_instance(array, ak.Array):
         array = ak.flatten(array, axis=None)
         return ak.to_numpy(array)
-    if isinstance(array, torch.Tensor):
+    if check_instance(array, torch.Tensor):
         array = torch.flatten(array)
         return array.cpu().numpy()
-    if isinstance(array, list):
+    if check_instance(array, list):
         array = np.array(array)
         return array.reshape(-1).tolist()
     return np.array(array).reshape(-1)
@@ -103,7 +125,7 @@ def flatten(array, clean=True):
 
 
 def cast_array(array):
-    if isinstance(array, torch.Tensor):
+    if check_instance(array, torch.Tensor):
         return array.cpu().numpy()
     return array
 

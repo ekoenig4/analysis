@@ -7,17 +7,17 @@ get_files() {
     #     echo ${f/\/eos\/uscms/}
     # done
     
-    for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/QCD/*/ntuple.root); do
-        echo ${f/\/eos\/uscms/}
-    done
+    # for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/QCD/*/ntuple.root); do
+    #     echo ${f/\/eos\/uscms/}
+    # done
     
     # for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/TTJets/TTJets*/ntuple_{0,1}.root); do
     #     echo ${f/\/eos\/uscms/}
     # done
-    
-    # for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/JetHT_Data/*/ntuple.root); do
-    #     echo ${f/\/eos\/uscms/}
-    # done
+
+    for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/JetHT_Data/*/ntuple.root); do
+        echo ${f/\/eos\/uscms/}
+    done
 }
 
 get_training() {
@@ -42,6 +42,7 @@ get_training() {
         echo ${f/\/eos\/uscms/}
     done
 }
+
 split_training() {
     path=/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/training/
 
@@ -49,6 +50,12 @@ split_training() {
         echo ${f/\/eos\/uscms/}
     done
 
+}
+
+split_sixb_training() {
+    for f in $(find /eos/uscms/store/user/ekoenig/sixb/ntuples/Summer2018UL/maxbtag/NMSSM -name fully_res_ntuple.root); do 
+        echo ${f/\/eos\/uscms/}
+    done
 }
 
 
@@ -60,4 +67,4 @@ export -f run_function
 
 # time get_files | parallel -j 4 -k run_function $@
 # time get_training | parallel -j 6 -k run_function $@
-time split_training | parallel -j 6 -k run_function $@
+time split_sixb_training | parallel -j 6 -k run_function $@

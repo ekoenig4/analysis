@@ -7,7 +7,13 @@ import os, glob
 
 def load_sixb_weaver(tree, model, fields=['scores']):
     rgxs = [ os.path.basename(os.path.dirname(fn.fname))+".root.awkd" for fn in tree.filelist ]
+
     toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
+
+    if not any(toload):
+        rgxs = [ os.path.basename(os.path.dirname(fn.fname))+'_'+os.path.basename(fn.fname)+".awkd" for fn in tree.filelist ]
+        toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
+
 
     fields = {
         field:np.concatenate([ np.array(ak0.load(fn)[field], dtype=float) for fn in toload ])
@@ -23,19 +29,12 @@ def load_sixb_weaver(tree, model, fields=['scores']):
     #     }
     # return fields
 
-
-def load_yh_trih_ranker(tree, model):
-    ranker = load_sixb_weaver(tree, model, fields=['maxcomb','maxlabel','maxscore','scores'])
-    score, index, label = ranker['maxscore'], ranker['maxcomb'], ranker['maxlabel']
-
-    scores = ranker['scores'].reshape(-1, 45)
-
+def reco_yh_trih(tree, index):
     index = np.stack([index[:,::2], index[:, 1::2]], axis=2)
     jet_index = ak.from_regular(index.astype(int))
     jets = get_collection(tree, 'jet', named=False)
     
     build_all_dijets(tree, pairs=jet_index, name='higgs', ordered='pt')
-    tree.extend(yh_trih_score=score, yy_trih_label=label, yh_trih_scores=ak.from_regular(scores))
     higgs = get_collection(tree, 'higgs', named=False)
     hp4 = build_p4(higgs)
 
@@ -80,3 +79,12 @@ def load_yh_trih_ranker(tree, model):
             for field, array in y.items()
         }
     )
+
+def load_yh_trih_ranker(tree, model):
+    ranker = load_sixb_weaver(tree, model, fields=['maxcomb','maxlabel','maxscore','scores'])
+    score, index, label = ranker['maxscore'], ranker['maxcomb'], ranker['maxlabel']
+
+    scores = ranker['scores'].reshape(-1, 45)
+    tree.extend(yh_trih_score=score, yy_trih_label=label, yh_trih_scores=ak.from_regular(scores))
+
+    reco_yh_trih(tree, index)    

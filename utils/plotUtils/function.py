@@ -294,6 +294,25 @@ class exponential(Function):
   def func(x, a=1, b=1): return a*np.exp(b*x)
   def _func(self, x): return exponential.func(x, self.a, self.b)
 
+class tanh(Function):
+  def __init__(self, x=np.array([0]), a=0, **kwargs):
+    super().__init__(x, dict(a=a), **kwargs)
+    
+  def __str__(self):
+    if not hasattr(self,"spec"):
+      fvar = lambda v : str(v)
+    else: 
+      fvar = lambda v : f'{v:{self.spec}}'
+    return f"$\\tanh( {fvar(self.a)} * x )$"
+  
+  @staticmethod
+  def func(x, a=1): return np.tanh(a*x)
+  def _func(self, x): return tanh.func(x, self.a)
+
+  @staticmethod
+  def best(x, y):
+    return 1/np.mean(x)
+
 class custom_pdf(f_stats.rv_continuous):
   def __init__(self, histo=None, bins=None):
     super().__init__()

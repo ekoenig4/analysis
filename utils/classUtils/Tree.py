@@ -48,7 +48,7 @@ class SixBFile:
         self.normtree = f'{self.fname}:NormWeightTree' 
         with ut.open(self.fname) as f:
             keys = [ key[:-2] for key in f.keys() ]
-            histograms = [ key for key in keys if key not in ('sixBtree','h_cutflow','h_cutflow_unweighted','NormWeightTree') ]
+            histograms = [ key for key in keys if key not in ('sixBtree','h_cutflow','NormWeightTree') ]
             self.histograms = { key : f[key] for key in histograms }
 
         self.sample, self.xsec = next(
@@ -77,8 +77,9 @@ class SixBFile:
                     for key, value in kwargs.items():
                         f[key] = value
 
-                    f.mktree('sixBtree', types)
-                    f['sixBtree'].extend(tree)
+                    # f.mktree('sixBtree', types)
+                    # f['sixBtree'].extend(tree)
+                    f['sixBtree'] = tree
                 break
             except ValueError:
                 ...
@@ -367,6 +368,8 @@ class Tree:
             return tree, types
 
         full_tree, types = _prep_to_write_(self.ttree)
+        full_tree = remove_counters(full_tree)
+        full_tree = make_regular(full_tree)
 
         for i, file in tqdm(enumerate(self.filelist), total=len(self.filelist)):
             file_mask = self.sample_id == i
