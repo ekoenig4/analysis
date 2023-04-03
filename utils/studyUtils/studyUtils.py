@@ -245,6 +245,20 @@ def brazil(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1
     plt.show()
     if study.saveas:
         save_fig(fig, study.saveas)
+        
+def mxmy_phase(signal, f_var, figax=None, interp=True, colorbar=True, xlim=None, ylim=None, xlabel=None, ylabel=None, **kwargs):
+    if figax is None: figax = get_figax(size=(10,8))
+
+    mx = signal.mx.npy 
+    my = signal.my.npy 
+
+    var = f_var
+    if callable(f_var):
+        var = signal.apply(f_var).npy
+    
+
+    graph2d_array(mx, my, var, figax=figax, interp=interp, colorbar=True, **kwargs)
+    graph_array(mx, my, figax=figax, g_color='grey', g_ls='none', g_markersize=10, xlim=xlim, ylim=ylim, xlabel=xlabel, ylabel=ylabel)
 
 
 def h_quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1, -1), flip=False, figax=None, **kwargs):
@@ -724,8 +738,8 @@ def quick2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlis
         return fig, axs
 
 
-def overlay2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlist=[], ybinlist=[], dim=(-1, -1), size=(-1, -1),  flip=False, alpha=0.8, cmin=100, **kwargs):
-    study = Study(*args, h_label_stat=None, alpha=alpha, cmin=cmin, **kwargs)
+def overlay2d(*args, varlist=None, binlist=None, xvarlist=[], yvarlist=[], xbinlist=[], ybinlist=[], dim=(-1, -1), size=(-1, -1),  flip=False, alpha=0.8, **kwargs):
+    study = Study(*args, h_label_stat=None, alpha=alpha, **kwargs)
 
     if varlist is not None:
         xvarlist = varlist[::2]

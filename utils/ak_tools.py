@@ -111,9 +111,6 @@ def _flatten(array):
     if check_instance(array, torch.Tensor):
         array = torch.flatten(array)
         return array.cpu().numpy()
-    if check_instance(array, list):
-        array = np.array(array)
-        return array.reshape(-1).tolist()
     return np.array(array).reshape(-1)
 
 

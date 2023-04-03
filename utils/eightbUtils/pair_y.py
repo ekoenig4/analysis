@@ -95,17 +95,20 @@ def pair_y_from_higgs(t, higgs='higgs', operator=None, pairs=None):
     )
 
 from .reco_genobjs import higgslist, quarklist
-def load_yy_quadh_ranker(tree, model):
-    fields = ['maxcomb','maxscore','minscore']
+def load_yy_quadh_ranker(tree, model, extra=[], reco_event=True):
+    fields = ['maxcomb','maxscore','minscore'] + extra
     ranker = load_weaver_output(tree, model, fields=fields)
 
     score, index, minscore = ranker['maxscore'], ranker['maxcomb'], ranker['minscore']
+    tree.extend(yy_quadh_score=score, yy_quadh_minscore=minscore, **{f'feynnet_{field}':ak.from_regular(ranker[field]) for field in extra})
+
+    if not reco_event: return
+
     index = np.stack([index[:,::2],index[:,1::2]], axis=2)
     jet_index = ak.from_regular( index.astype(int) )
     jets = get_collection(tree, 'jet', named=False)
 
     build_all_dijets(tree, pairs=jet_index, name='higgs', ordered='pt')
-    tree.extend(yy_quadh_score=score, yy_quadh_minscore=minscore)
 
     higgs = get_collection(tree, 'higgs', named=False)
     hp4 = build_p4(higgs)

@@ -25,6 +25,20 @@ def sample_files(path):
     NMSSM_XYY_YToHH_8b_MX_900_MY_300  =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_300_accstudies.root")
     NMSSM_XYY_YToHH_8b_MX_900_MY_400  =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_400_accstudies.root")
 
+    NMSSM_XYY_YToHH_8b_MX_500_MY_250   = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_500_MY_250_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_1400_MY_250  = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1400_MY_250_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_1400_MY_450  = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1400_MY_450_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_1400_MY_700  = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1400_MY_700_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_2000_MY_250  = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_2000_MY_250_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_2000_MY_600  = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_2000_MY_600_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_2000_MY_1000 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_2000_MY_1000_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_2800_MY_250  = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_2800_MY_250_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_2800_MY_800  = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_2800_MY_800_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_2800_MY_1400 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_2800_MY_1400_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_4000_MY_250  = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_4000_MY_250_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_4000_MY_1100 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_4000_MY_1100_accstudies.root")
+    NMSSM_XYY_YToHH_8b_MX_4000_MY_2000 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_4000_MY_2000_accstudies.root")
+
     full_signal_list = [
         NMSSM_XYY_YToHH_8b_MX_700_MY_300 ,
         NMSSM_XYY_YToHH_8b_MX_800_MY_300 ,
@@ -34,6 +48,30 @@ def sample_files(path):
         NMSSM_XYY_YToHH_8b_MX_1000_MY_300,
         NMSSM_XYY_YToHH_8b_MX_1000_MY_450,
         NMSSM_XYY_YToHH_8b_MX_1200_MY_500
+    ]
+
+    extended_signal_list = [
+      NMSSM_XYY_YToHH_8b_MX_500_MY_250  ,
+      NMSSM_XYY_YToHH_8b_MX_700_MY_300  ,
+      NMSSM_XYY_YToHH_8b_MX_800_MY_300  ,
+      NMSSM_XYY_YToHH_8b_MX_800_MY_350  ,
+      NMSSM_XYY_YToHH_8b_MX_900_MY_300  ,
+      NMSSM_XYY_YToHH_8b_MX_900_MY_400  ,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_300 ,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_450 ,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_500 ,
+      NMSSM_XYY_YToHH_8b_MX_1400_MY_250 ,
+      NMSSM_XYY_YToHH_8b_MX_1400_MY_450 ,
+      NMSSM_XYY_YToHH_8b_MX_1400_MY_700 ,
+      NMSSM_XYY_YToHH_8b_MX_2000_MY_250 ,
+      NMSSM_XYY_YToHH_8b_MX_2000_MY_600 ,
+      NMSSM_XYY_YToHH_8b_MX_2000_MY_1000,
+      NMSSM_XYY_YToHH_8b_MX_2800_MY_250 ,
+      NMSSM_XYY_YToHH_8b_MX_2800_MY_800 ,
+      NMSSM_XYY_YToHH_8b_MX_2800_MY_1400,
+      NMSSM_XYY_YToHH_8b_MX_4000_MY_250 ,
+      NMSSM_XYY_YToHH_8b_MX_4000_MY_1100,
+      NMSSM_XYY_YToHH_8b_MX_4000_MY_2000,
     ]
 
     signal_list = [
@@ -71,6 +109,7 @@ def sample_files(path):
     TTJets_old = check_ttjets(f"{path}/TTJets/TTJets/ntuple.root")
     TTJets = check_ttjets(f"{path}/TTJets/TTJets_TuneCP5_13TeV-amcatnloFXFX-pythia8/ntuple.root")
     TTTo2L2Nu = check_ttjets(f"{path}/TTJets/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/ntuple.root")
+    TTToHadronic = check_ttjets(f"{path}/TTJets/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/ntuple.root")
     TTToSemiLeptonic = check_ttjets(f"{path}/TTJets/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/ntuple.root")
 
     TT = TTTo2L2Nu + TTToSemiLeptonic

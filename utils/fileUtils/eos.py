@@ -2,6 +2,7 @@ import os
 import subprocess
 import shutil
 from glob import glob as local_glob
+import re
 
 
 class eos:
@@ -104,3 +105,17 @@ def fullpath(path):
 
 def remove_eos(path):
     return path.replace('/eos/uscms', '')
+
+def remove_url(path, url=None):
+    if url is None: url = eos.url
+    return path.replace(url,'')
+
+def cleanpath(path):
+    path = remove_eos(path)
+    path = remove_url(path)
+
+    extra_slash = re.compile(r'//+')
+    for extra in set(extra_slash.findall(path)):
+        path = path.replace(extra,'/')
+
+    return path

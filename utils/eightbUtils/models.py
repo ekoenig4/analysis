@@ -12,7 +12,7 @@ class WeaverModel:
         self.path = path
         self.load = None
         if self.path is not None:
-            loadlist = ['quadh_ranker','yy_4h_reco_ranker']
+            loadlist = ['quadh_ranker','yy_4h_reco_ranker','feynnet_x_yy_4h_8b']
             self.load = next( (load for load in loadlist if load in self.path), None )
         self.desc = desc
 
@@ -23,6 +23,8 @@ class WeaverModel:
             with open(f'{self.path}/lightning_logs/tb/hparams.yaml', 'r') as f:
                 self._cfg = yaml.safe_load(f)
         return self._cfg
+
+        
 
     def __repr__(self):
         return yaml.dump(self.cfg)
@@ -86,6 +88,9 @@ yy_quadh_bkg10_MX_900_MY_400  =  WeaverModel('exp_mass/yy_4h_reco_ranker/2023021
 yy_quadh_bkg10_MX_1000_MY_300 =  WeaverModel('exp_mass/yy_4h_reco_ranker/20230216_ranger_lr0.0047_batch1024_MX_1000_MY_300_withbkg/')
 yy_quadh_bkg10_MX_1000_MY_450 =  WeaverModel('exp_mass/yy_4h_reco_ranker/20230216_ranger_lr0.0047_batch1024_MX_1000_MY_450_withbkg/')
 yy_quadh_bkg10_MX_1200_MY_500 =  WeaverModel('exp_mass/yy_4h_reco_ranker/20230216_ranger_lr0.0047_batch1024_MX_1200_MY_500_withbkg/')
+
+feynnet_no_gnn = WeaverModel('exp_feynnet/feynnet_no_gnn/20230303_ranger_lr0.0047_batch1024_withbkg')
+feynnet_bkg10_allsig = WeaverModel('exp_feynnet/feynnet_x_yy_4h_8b/20230302_ranger_lr0.0047_batch1024_withbkg/')
 
  
 def get_model_path(model, locals=locals()):

@@ -1,114 +1,192 @@
 from .. import *
 from .. import eightbUtils as eightb
 
+import json
+
 class weaver_input(Analysis):
+    """Analysis skim used to cache and apply reweighting procedure for training 
+
+    Caching: should be done FIRST
+        usage: ./run_files weaver_input --cache /path/to/file1/ /path/to/file2/ ...
+
+    Caching will consider all files reconginzed as signal as their own separate samples and cache them
+    each file with have values cached, background will be group together and should be ran in a single call
+
+    Applying: should be done SECOND
+        usage: ./parallel_files.sh weaver_input --apply
+
+    *NOTE* parallel_files.sh should be modified to give the filelist of training files
+
+    """
     @staticmethod
     def _add_parser(parser):
-        # parser.add_argument("--altfile", required=True,
-        #                     help="output file pattern to write file with. Use {base} to substitute existing file")
+        parser.add_argument("--dout", default="reweight-info",
+                            help="directory to load/save cached reweighting values. Default reweight-info/")
+
+        group = parser.add_mutually_exclusive_group(required=True)
+        group.add_argument("--cache", action='store_true', help="running reweighting caching. Should be done first")
+        group.add_argument("--apply", action='store_true', help="apply reweighting from cache")
         return parser
 
+    def __init__(self, cache=False, apply=False, runlist=None, **kwargs):
+        if cache:
+            runlist = ['cache_reweight_info']
+        elif apply:
+            runlist = ['apply_max_sample_norm','is_bkg','write_trees']
+
+        super().__init__(runlist=runlist, **kwargs)
+    
+    def init_cache(self):
+        if not os.path.exists(self.dout):
+            print(f" ... Making reweightning cache: {self.dout}")
+            os.mkdir(self.dout)
+
+    def init_apply(self):
+        self.reweight_info = dict()
+        for f_info in os.listdir(self.dout):
+            if not f_info.endswith('.json'): continue
+            print(f' ... loading {self.dout}/{f_info}')
+            with open(f'{self.dout}/{f_info}', 'r') as f_info:
+                info = json.load(f_info)
+                self.reweight_info.update(**info)
+        self.max_sample_norm = max(
+            info['max_norm_abs_scale']
+            for info in self.reweight_info.values()
+        )
+
+        for tree in self.trees:
+            fn = fc.cleanpath(tree.filelist[0].fname)
+            tree.reweight_info = self.reweight_info[fn]
+            print(fn)
+            print(tree.reweight_info)
+
+    ###################################################
+    # Define any selections on signal or background
+
+    @required
     def skim_fully_resolved(self, signal):
         fully_resolved = EventFilter('signal_fully_resolved', filter=lambda t: t.nfound_select==8)
-        all_bjets = CollectionFilter('jet', filter=lambda t: t.jet_signalId > -1)
 
         filter = FilterSequence(
-            fully_resolved, all_bjets
+            fully_resolved
         )
 
         self.signal = signal.apply(filter)
 
+    #################################################
+    @dependency(init_cache)
+    def cache_abs_norm(self, signal, bkg):
+        def get_abs_scale(t):
+            scale = t.scale 
+            abs_scale = np.abs(scale)
+            abs_norm = np.sum(scale)/np.sum(abs_scale)
+            t.abs_norm = abs_norm
+            t.extend(abs_scale=abs_norm*abs_scale)
+
+        (signal + bkg).apply(get_abs_scale, report=True)
+
     
-    def select_t8btag(self, bkg):
-        t8btag = CollectionFilter('jet', filter=lambda t: ak_rank(-t.jet_btag, axis=-1) < 8)
-        self.bkg = bkg.apply(t8btag)
+    @dependency(init_apply)
+    def apply_abs_norm(self, signal, bkg):
+        def get_abs_scale(t):
+            scale = t.scale 
+            abs_scale = np.abs(scale)
+            abs_norm = t.reweight_info['abs_norm']
+            t.extend(abs_scale=abs_norm*abs_scale)
 
-    # def calc_rescale(self, signal, bkg):
-    #     sample_scale = {
-    #         # 'MX_700_MY_300':1.2434550400752545e-18, 
-    #         # 'MX_800_MY_300':1.6568129499652848e-18,
-    #         # 'MX_800_MY_350': 1.921792885099276e-18,
-    #         # 'MX_900_MY_300': 2.40911537095554e-18,
-    #         # 'MX_900_MY_400': 3.494872548400683e-18,
-    #         # 'MX_1000_MY_300': 3.551084678512766e-18,
-    #         # 'MX_1000_MY_450':6.4806808031115614e-18, 
-    #         # 'MX_1200_MY_500':1.343392630420647e-17, 
-    #         # 'TTJets':7.294459735548297e-09
-    #     }
+        (signal + bkg).apply(get_abs_scale, report=True)
 
-    #     def rescale(t):
-    #         norm = sample_scale.get(t.sample, None)
-    #         if norm is None: return 
-    #         norm /= t.filelist[0].scale 
-    #         t.extend(scale = norm*t.scale)
+    #################################################
+    @dependency(cache_abs_norm)
+    def cache_sample_norm(self, signal, bkg):
+        def get_sample_norm(sample):
+            if not isinstance(sample, ObjIter): sample = ObjIter([sample])
+            if not any(sample): return
 
-    #     (signal + bkg).apply(rescale)
+            norm_abs_scale = sample.abs_scale.cat
+            norm_abs_scale = 1/np.sum(norm_abs_scale)
+            
+            for tree in sample:
+                tree.norm_abs_scale = norm_abs_scale
+                tree.extend(norm_abs_scale= norm_abs_scale * tree.abs_scale)
 
-    def normalize_signal(self, signal):
-        sample_scale = {
-            'MX_700_MY_300':282.6071876702381, 
-            'MX_800_MY_300': 225.12014605010498,
-            'MX_800_MY_350': 207.70891386133388,
-            'MX_900_MY_300': 200.58352182856032,
-            'MX_900_MY_400': 167.88681160623509,
-            'MX_1000_MY_300': 192.87950460596224,
-            'MX_1000_MY_450':144.54467503648686, 
-            'MX_1200_MY_500':103.01861324839004
+        signal.apply(get_sample_norm)            
+        get_sample_norm(bkg)
+
+    @dependency(apply_abs_norm)
+    def apply_sample_norm(self, signal, bkg):
+        def get_sample_norm(tree):
+            norm_abs_scale = tree.reweight_info['norm_abs_scale']
+            tree.extend(norm_abs_scale= norm_abs_scale * tree.abs_scale)
+
+        (signal+bkg).apply(get_sample_norm)
+
+    #################################################
+    @dependency(cache_sample_norm)
+    def cache_max_sample_norm(self, signal, bkg):
+        def get_max_sample_scale(sample):
+            if not isinstance(sample, ObjIter): sample = ObjIter([sample])
+            if not any(sample): return
+
+            norm_abs_scale = sample.norm_abs_scale.cat
+            max_norm_abs_scale = ak.max(norm_abs_scale)
+
+            for tree in sample:
+                tree.max_norm_abs_scale = max_norm_abs_scale
+
+        signal.apply(get_max_sample_scale)            
+        get_max_sample_scale(bkg)
+
+    @dependency(apply_sample_norm)
+    def apply_max_sample_norm(self, signal, bkg):
+        def get_max_sample_scale(tree):
+                tree.extend(dataset_norm_abs_scale= tree.norm_abs_scale/self.max_sample_norm)
+        (signal + bkg).apply(get_max_sample_scale)
+
+    #################################################
+    @dependency(cache_max_sample_norm)
+    def cache_reweight_info(self, signal, bkg):
+        def cache_signal(t):
+            info = {
+                fc.cleanpath(t.filelist[0].fname):dict(
+                    abs_norm = t.abs_norm,
+                    norm_abs_scale = t.norm_abs_scale,
+                    max_norm_abs_scale = t.max_norm_abs_scale
+                )
+            }
+
+            with open(f"{self.dout}/{t.sample}-info.json", "w") as f:
+                json.dump(info, f, indent=4)
+        signal.apply(cache_signal)
+
+        bkg_info = {
+            fc.cleanpath(tree.filelist[0].fname):dict(
+                abs_norm = tree.abs_norm,
+                norm_abs_scale = tree.norm_abs_scale,
+                max_norm_abs_scale = tree.max_norm_abs_scale
+            )
+            for tree in bkg
         }
-        def use_norm_signal(t):
-            norm = sample_scale.get(t.sample, 1)
-            t.extend(scale=norm*t.scale)
-        signal.apply(use_norm_signal)
 
-    def calc_abs_scale(self, signal, bkg):
+        with open(f"{self.dout}/bkg-info.json", "w") as f:
+            json.dump(bkg_info, f, indent=4)
 
-        sample_norm = {
-            'QCD':0.9990666979650883,
-            'TTJets':0.22838519653423503,
-        }
-
-        def use_abs_scale(t):
-            abs_norm = sample_norm.get(t.sample, 1)
-            abs_scale = abs_norm * np.abs(t.scale)
-            t.extend(abs_scale=abs_scale)
-
-        (signal + bkg).apply(use_abs_scale)
-
-    def calc_sample_norm(self, signal, bkg):
-        signal_norm = {
-            # True:0.3333333333333333,
-            # True:0.125,
-            False:0.04239411075548981
-        }
-
-        def use_sample_norm(t):
-            norm = signal_norm.get(t.is_signal, 1)
-            norm_abs_scale = norm*t.abs_scale
-            t.extend(norm_abs_scale=norm_abs_scale)
-
-        (signal+bkg).apply(use_sample_norm)
-
-    def calc_dataset_norm(self, signal, bkg):
-        max_norm = 806.3899452606947
-
-        def use_dataset_norm(t):
-            norm = max_norm 
-            dataset_norm_abs_scale = norm * t.norm_abs_scale
-            t.extend(dataset_norm_abs_scale=dataset_norm_abs_scale)
-        (signal+bkg).apply(use_dataset_norm)
-
+    #################################################
     def is_bkg(self, signal, bkg):
         signal.apply(lambda t : t.extend(is_bkg=ak.zeros_like(t.Run)))
         bkg.apply(lambda t : t.extend(is_bkg=ak.ones_like(t.Run)))
-    
-    def write_trees(self, signal, bkg, data):
+
+    def write_trees(self, signal, bkg):
+        include=['^jet','^X','.*scale$','is_bkg','gen_X_m','gen_Y1_m','gen_Y_m']
 
         if any(signal.objs):
-            (signal).write(
-                'fully_res_{base}'
+            signal.write(
+                'fully_res_{base}',
+                include=include,
             )
 
         if any(bkg.objs):
-            (bkg).write(
-                'training_{base}'
+            bkg.write(
+                'training_{base}',
+                include=include,
             )

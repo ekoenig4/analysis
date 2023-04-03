@@ -111,7 +111,7 @@ class Histo:
         return cls(y, bins, yerr, **kwargs)
 
     @classmethod 
-    def from_array(cls, array, bins=None, weights=None, nbins=30, rebin=None, restrict=False, sumw2=True, **kwargs):
+    def from_array(cls, array, bins=None, weights=None, nbins=30, rebin=None, binoverride=None, restrict=False, sumw2=True, **kwargs):
         if weights is not None:
             if len(weights) != len(array):
                 raise ValueError(f'shape of the first dimension must be the same for array and weight. Got array ({len(array)}) and weight ({len(weights)}')
@@ -133,6 +133,9 @@ class Histo:
         if rebin and (rebin < len(bins)):
             bins = np.linspace(bins[0], bins[-1], rebin)
 
+        if binoverride:
+            bins = np.linspace(bins[0], bins[-1], binoverride)
+
         if restrict:
             array, weights = restrict_array(array, bins=bins, weights=weights)
 
@@ -141,6 +144,13 @@ class Histo:
 
         histo = cls(counts, bins, error=error, raw_counts=raw_counts, array=array, weights=weights, **kwargs)
         return histo
+
+    @classmethod
+    def convert(cls, obj,  **kwargs):
+        if isinstance(obj, cls):
+            return obj
+
+        return cls.from_th1d(obj, **kwargs)
 
     def to_th1d(self, name="", title="", bin_labels=None):
         from array import array
@@ -156,6 +166,8 @@ class Histo:
         
 
         return th1d
+
+
 
 
     def __init__(self, counts, bins, error=None, array=None, weights=None, raw_counts=None,
@@ -245,8 +257,8 @@ class Histo:
 
         if self.density:
             self.widths = get_bin_widths(self.bins)
-            self.histo /= self.widths 
-            self.error /= self.widths
+            self.histo = self.histo/self.widths
+            self.error = self.error/self.widths
         return self
 
     def add_systematics(self, systematics=None):
@@ -414,6 +426,10 @@ class Stack(HistoList):
             if density or efficiency: 
                 nevents = stack.stats.nevents.npy.sum()
                 stack.apply(lambda histo : histo.rescale(1/nevents))
+            if density:
+                stack.widths = get_bin_widths(stack.bins)
+                stack.apply(lambda histo : histo.rescale(1/stack.widths))
+                
             if cumulative:
                 stack.apply(lambda histo : histo.cdf(cumulative))
         stack.apply(lambda histo : histo.set_attrs(label_stat=label_stat))
@@ -437,6 +453,10 @@ class Stack(HistoList):
             if density or efficiency: 
                 nevents = stack.stats.nevents.npy.sum()
                 stack.apply(lambda histo : histo.rescale(1/nevents))
+            if density:
+                stack.widths = get_bin_widths(stack.bins)
+                stack.apply(lambda histo : histo.rescale(1/stack.widths))
+                
             if cumulative:
                 stack.apply(lambda histo : histo.cdf(cumulative))
 

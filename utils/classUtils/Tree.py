@@ -25,6 +25,78 @@ def _glob_files(pattern):
     if any(files): return files
     return []
 
+class RootFile:
+    def __init__(self, fname, treename='sixBtree', sample=None, xsec=None, normalization=None):
+        self.fname = _check_file(fname)
+        
+        self.treename = treename
+
+        tree = ut.lazy(f'{self.fname}:{self.treename}')
+        self.raw_events = len(tree)
+        self.total_events = self.raw_events
+        self.fields = tree.fields
+        del tree
+
+        if self.fname is None: 
+            print(f'[WARNING] skipping {self.fname}, was not found.')
+            return
+
+        if normalization is not None:
+            if 'cutflow' in normalization:
+                self.set_cutflow_normalization(normalization)
+            elif normalization:
+                self.set_histo_normalization(normalization)   
+
+        _sample, _xsec = next(((key, value) for key, value in xsecMap.items() if key in self.fname), ("unk", 1))
+        self.sample = _sample if sample is None else sample
+        self.xsec = _xsec if xsec is None else xsec
+
+        self.histograms = {}
+        if getattr(self, 'cutflow', None) is None:
+            from ..plotUtils import Histo
+            self.cutflow = Histo(counts=np.array([self.raw_events]), bins=np.array([0,1]))
+
+    def load_histograms(self, keys=None):
+        with ut.open(self.fname) as f:
+            keys = [ key[:-2] for key in f.keys() ]
+            histograms = [ key for key in keys if key not in ('sixBtree','h_cutflow','NormWeightTree') ]
+            self.histograms = { key : f[key] for key in histograms }
+    
+    def set_cutflow_normalization(self, cutflow):
+        with ut.open(f'{self.fname}:{cutflow}') as cutflow:
+            self.cutflow_labels = cutflow.axis().labels()
+            self.cutflow = cutflow
+            if self.cutflow_labels is None: self.cutflow_labels = []
+            self.total_events = self.cutflow.counts()[0]
+
+    def set_histo_normalization(self, histo):
+        with ut.open(f'{self.fname}:{histo}') as histo:
+            self.total_events = histo.Integral()
+
+    def set_tree_normalization(self, tree):
+        raise NotImplementedError("Need to implement NormWeightTree normalization")
+
+    def write(self, altfile, retry=2, tree=None, types=None, **kwargs):
+        dirname, basename = os.path.dirname(self.fname), os.path.basename(self.fname)
+        dirname = dirname.replace(eos.url, '')
+        output = os.path.join(dirname, altfile.format(base=basename))
+
+        tmp_output = '_'.join(output.split('/'))
+        kwargs.update( **getattr(self, 'histograms', {}) )
+
+        print(f'Writing {output}')
+        for i in range(retry):
+            try:
+                with ut.recreate(tmp_output) as f:
+                    for key, value in kwargs.items():
+                        f[key] = value
+                    f[self.treename] = tree
+                break
+            except ValueError:
+                ...
+
+        move_to_eos(tmp_output, output)
+
 class SixBFile:
     def __init__(self, fname, use_cutflow=True):
         self.fname = _check_file(fname)
@@ -86,7 +158,7 @@ class SixBFile:
 
         move_to_eos(tmp_output, output)
 
-def init_files(self, filelist, altfile="{base}", report=True):
+def init_files(self, filelist, treename, normalization, altfile="{base}", report=True):
     if type(filelist) == str:
         filelist = [filelist]
 
@@ -98,7 +170,7 @@ def init_files(self, filelist, altfile="{base}", report=True):
     filelist = [ use_altfile(fn) for flist in filelist for fn in _glob_files(flist) ]
 
     it = tqdm(filelist) if report else iter(filelist)
-    self.filelist = [SixBFile(fn) for fn in it]
+    self.filelist = [ RootFile(fn, treename, normalization=normalization) for fn in it ]
     self.filelist = [ fn for fn in self.filelist if fn.total_events > 0 ]
     # Fix normalization when using multiple files of the same sample
     samples = defaultdict(lambda:0)
@@ -113,7 +185,7 @@ def init_files(self, filelist, altfile="{base}", report=True):
         
         for key, histogram in f.histograms.items():
             from ..plotUtils import Histo
-            histograms[key].append( Histo.from_th1d(histogram, scale=f.scale) )
+            histograms[key].append( Histo.convert(histogram, scale=f.scale) )
         
     self.histograms = {
         key: functools.reduce(Histo.add, histogram)
@@ -142,16 +214,19 @@ def init_sample(self):  # Helper Method For Tree Class
             self.sample = points[0]
             mx, my = self.sample.split("_")[1::2]
             self.mass = f'({mx}, {my})'
+            self.mx = int(mx)
+            self.my = int(my)
         
     self.color = colorMap.get(self.sample, None)
     if self.color is not None and not isinstance(self.color, str): self.color = next(self.color)
+    self.pltargs = dict()
 
 
 def init_tree(self, use_gen=False, cache=None):
     self.fields = list(set.intersection(*[ set(fn.fields) for fn in self.filelist]))
 
     if self.lazy :
-        self.ttree = ut.lazy([ f'{fn.fname}:sixBtree' for fn in self.filelist ], array_cache=cache)
+        self.ttree = ut.lazy([ f'{fn.fname}:{fn.treename}' for fn in self.filelist ])
     else:
         self.ttree = ut.lazy([fn.tree for fn in self.filelist])
 
@@ -168,7 +243,8 @@ def init_tree(self, use_gen=False, cache=None):
     self.raw_events = sum(fn.raw_events for fn in self.filelist)
 
     from ..plotUtils import Histo
-    self.cutflow = [ Histo.from_th1d(fn.cutflow) for fn in self.filelist]
+
+    self.cutflow = [ Histo.convert(fn.cutflow) for fn in self.filelist]
 
     def _trim_cutflow(cutflow):
         cutflow.histo = np.trim_zeros(cutflow.histo, 'b')
@@ -209,17 +285,17 @@ def _regex_field(self, regex):
     return item
 
 class Tree:
-    def __init__(self, filelist, altfile="{base}", report=True, use_gen=True, cache=None):
+    def __init__(self, filelist, altfile="{base}", report=True, use_gen=True, treename='sixBtree', normalization='h_cutflow'):
         self._recursion_safe_guard_stack = []
 
-        init_files(self, filelist, altfile, report)
+        init_files(self, filelist, treename, normalization, altfile, report)
 
         if not any(self.filelist):
             print('[WARNING] unable to open any files.')
             return
 
         init_sample(self)
-        init_tree(self, use_gen, cache)
+        init_tree(self, use_gen)
     def __str__(self):
         sample_string = [
             f"=== File Info ===",
@@ -369,7 +445,7 @@ class Tree:
 
         full_tree, types = _prep_to_write_(self.ttree)
         full_tree = remove_counters(full_tree)
-        full_tree = make_regular(full_tree)
+        # full_tree = make_regular(full_tree)
 
         for i, file in tqdm(enumerate(self.filelist), total=len(self.filelist)):
             file_mask = self.sample_id == i

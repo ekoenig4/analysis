@@ -71,7 +71,8 @@ def _module(mod):
 module = _module(args.module)
 
 def _file(f):
-    if fc.exists(f): return f
+    if fc.glob(f): return fc.glob(f)
+    
     local = dict()
     exec(f"f = module.{f}", globals(), local)
     return local['f']

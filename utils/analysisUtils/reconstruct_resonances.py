@@ -35,7 +35,7 @@ class reconstruct_resonances(Analysis):
                             help="weaver model path for gnn reconstruction")
         return parser
 
-    def select_t8btag(self, signal, bkg, data):
+    def _select_t8btag(self, signal, bkg, data):
         def n_presel_jets(t):
             t.extend(n_presel_jet=t.n_jet)
         (signal+bkg+data).apply(n_presel_jets)
@@ -54,7 +54,7 @@ class reconstruct_resonances(Analysis):
             def load(t):
                 eightb.load_quadh(t, self.model_path.path)
                 eightb.pair_y_from_higgs(t, operator=eightb.y_min_mass_asym)
-        elif self.model_path.load == 'yy_4h_reco_ranker':
+        elif any( self.model_path.load == model for model in ('yy_4h_reco_ranker','feynnet_x_yy_4h_8b') ):
             load = lambda t : eightb.load_yy_quadh_ranker(t, self.model_path.path)
 
         (signal+bkg+data).apply(load, report=True)

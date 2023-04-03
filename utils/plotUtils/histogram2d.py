@@ -163,6 +163,7 @@ class Histo2D:
             #     self.label = f'{self.label} x {scale}'
                 
         self.histo2d, self.error2d = histogram2d(self.x_array, self.y_array, self.x_bins, self.y_bins, self.weights, self.sumw2)
+        self.raw_histo2d, _ = histogram2d(self.x_array, self.y_array, self.x_bins, self.y_bins, np.ones_like(self.weights))
         
         if np.any( self.histo2d < 0 ):
             self.error2d = np.where(self.histo2d < 0, 0, self.error2d)

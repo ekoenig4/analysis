@@ -19,7 +19,7 @@ def _flatten_plotobjs(plotobjs):
         else:
             yield plotobj
 
-def _histo2d_kwargs(show_counts=False, contour=False, interp=False, scatter=False, cmin=None, **kwargs):
+def _histo2d_kwargs(show_counts=False, contour=False, interp=False, scatter=False, **kwargs):
     histo2d_kwargs = { key:value for key, value in locals().items() if key != 'kwargs' }
     return histo2d_kwargs, kwargs
 

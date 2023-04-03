@@ -80,6 +80,11 @@ class _study_args:
             'h_systematics', [ tree.systematics for tree in treelist ]
         )
 
+        pltkeys = set([ key for tree in treelist for key in tree.pltargs ])
+        pltargs = { f'h_{key}':[ tree.pltargs.get(key, None) for tree in treelist ] for key in pltkeys }
+        kwargs = dict(pltargs, **kwargs)
+
+
         self.attrs = dict(
             is_data=[tree.is_data for tree in treelist],
             is_signal=[tree.is_signal for tree in treelist],

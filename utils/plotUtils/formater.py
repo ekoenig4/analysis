@@ -21,7 +21,7 @@ def _set_rescale(ax, **kwargs):
     ax.autoscale()
     return kwargs
 
-def _set_legend(ax, legend=False, legend_loc='upper left', is_2d=False, **kwargs):
+def _set_legend(ax, legend=False, legend_loc='upper left', **kwargs):
     legend_kwargs, kwargs = group_kwargs('legend_', **kwargs)
     legend_kwargs['loc'] = legend_kwargs.get('loc', legend_loc)
 
@@ -30,9 +30,12 @@ def _set_legend(ax, legend=False, legend_loc='upper left', is_2d=False, **kwargs
             legend_kwargs.update(legend)
 
         ax.legend(**legend_kwargs)
+
     return kwargs
 
-def _get_ylabel(density=False, cumulative=False, efficiency=False, scale=None):
+def _get_ylabel(density=False, cumulative=False, efficiency=False, scale=None, is_2d=False):
+    if is_2d: return None
+
     ylabel = "Events"
     if scale == "xs":
         ylabel = "Cross-Section (pb)"
@@ -47,7 +50,7 @@ def _get_ylabel(density=False, cumulative=False, efficiency=False, scale=None):
     return ylabel
 
 def _set_ylabel(ax, density=False, cumulative=False, efficiency=False, scale=None, **kwargs):
-    kwargs['ylabel'] = kwargs.get('ylabel',_get_ylabel(density,cumulative,efficiency, scale))
+    kwargs['ylabel'] = kwargs.get('ylabel',_get_ylabel(density,cumulative,efficiency, scale, kwargs.get('is_2d', False)))
     return kwargs
 
 def _get_ylim(ax, yscale=None, log=False, is_2d=False):
@@ -58,8 +61,10 @@ def _get_ylim(ax, yscale=None, log=False, is_2d=False):
     ymin_scale,ymax_scale = yscale
     return ( min(ymax_scale*ymin,ymin_scale*ymin), max(ymin_scale*ymax,ymax_scale*ymax) )
 
-def _set_ylim(ax, yscale=None, log=False, logy=False, is_2d=False, **kwargs):
-    ylim = kwargs.get('ylim',_get_ylim(ax, yscale, log or logy, is_2d))
+def _set_ylim(ax, yscale=None, log=False, logy=False, **kwargs):
+    if kwargs.get('is_2d', False): log = logy
+
+    ylim = kwargs.get('ylim', _get_ylim(ax, yscale, log or logy, kwargs.get('is_2d', False)))
     if ylim is None: ylim = ax.get_ylim()
     
     ylo, yhi = ylim
@@ -87,12 +92,22 @@ def _set_xlim(ax, logx=False, **kwargs):
 
     return kwargs
 
+def _set_zaxis(ax, zlabel=None, zlim=None, colorbar=None, **kwargs):
+    if not kwargs.get('is_2d', False): return kwargs
+    if colorbar is None: return kwargs
+
+    colorbar.set_label(
+        zlabel, labelpad=15, rotation=-270,
+    )
+
+    return kwargs
+
 def _set_grid(ax, grid=False, **kwargs):
     if grid: ax.grid()
     return kwargs
 
-def _set_lumi(ax, lumi=None, is_2d=False, **kwargs):
-    if is_2d: return kwargs 
+def _set_lumi(ax, lumi=None, **kwargs):
+    if kwargs.get('is_2d', False): return kwargs 
     
     from ..xsecUtils import lumiMap
     
