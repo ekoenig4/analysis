@@ -28,6 +28,10 @@ def _glob_files(pattern):
 class RootFile:
     def __init__(self, fname, treename='sixBtree', sample=None, xsec=None, normalization=None):
         self.fname = _check_file(fname)
+
+        if self.fname is None: 
+            print(f'[WARNING] skipping {self.fname}, was not found.')
+            return
         
         self.treename = treename
 
@@ -36,10 +40,6 @@ class RootFile:
         self.total_events = self.raw_events
         self.fields = tree.fields
         del tree
-
-        if self.fname is None: 
-            print(f'[WARNING] skipping {self.fname}, was not found.')
-            return
 
         if normalization is not None:
             if 'cutflow' in normalization:
@@ -171,7 +171,7 @@ def init_files(self, filelist, treename, normalization, altfile="{base}", report
 
     it = tqdm(filelist) if report else iter(filelist)
     self.filelist = [ RootFile(fn, treename, normalization=normalization) for fn in it ]
-    self.filelist = [ fn for fn in self.filelist if fn.total_events > 0 ]
+    self.filelist = [ fn for fn in self.filelist if fn.fname and fn.total_events > 0 ]
     # Fix normalization when using multiple files of the same sample
     samples = defaultdict(lambda:0)
     for f in self.filelist:

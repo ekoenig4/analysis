@@ -49,8 +49,8 @@ class weaver_input(Analysis):
             with open(f'{self.dout}/{f_info}', 'r') as f_info:
                 info = json.load(f_info)
                 self.reweight_info.update(**info)
-        self.max_sample_norm = max(
-            info['max_norm_abs_scale']
+        self.max_sample_abs_norm = min(
+            info['max_sample_abs_norm']
             for info in self.reweight_info.values()
         )
 
@@ -79,9 +79,9 @@ class weaver_input(Analysis):
         def get_abs_scale(t):
             scale = t.scale 
             abs_scale = np.abs(scale)
-            abs_norm = np.sum(scale)/np.sum(abs_scale)
-            t.abs_norm = abs_norm
-            t.extend(abs_scale=abs_norm*abs_scale)
+            norm = np.sum(scale)/np.sum(abs_scale)
+            t.abs_norm = norm
+            t.extend(abs_scale=norm*abs_scale)
 
         (signal + bkg).apply(get_abs_scale, report=True)
 
@@ -103,12 +103,12 @@ class weaver_input(Analysis):
             if not isinstance(sample, ObjIter): sample = ObjIter([sample])
             if not any(sample): return
 
-            norm_abs_scale = sample.abs_scale.cat
-            norm_abs_scale = 1/np.sum(norm_abs_scale)
+            abs_scale = sample.abs_scale.cat
+            sample_abs_norm = 1/np.sum(abs_scale)
             
             for tree in sample:
-                tree.norm_abs_scale = norm_abs_scale
-                tree.extend(norm_abs_scale= norm_abs_scale * tree.abs_scale)
+                tree.sample_abs_norm = sample_abs_norm
+                tree.extend(norm_abs_scale= sample_abs_norm * tree.abs_scale)
 
         signal.apply(get_sample_norm)            
         get_sample_norm(bkg)
@@ -116,8 +116,8 @@ class weaver_input(Analysis):
     @dependency(apply_abs_norm)
     def apply_sample_norm(self, signal, bkg):
         def get_sample_norm(tree):
-            norm_abs_scale = tree.reweight_info['norm_abs_scale']
-            tree.extend(norm_abs_scale= norm_abs_scale * tree.abs_scale)
+            sample_abs_norm = tree.reweight_info['sample_abs_norm']
+            tree.extend(norm_abs_scale=sample_abs_norm * tree.abs_scale)
 
         (signal+bkg).apply(get_sample_norm)
 
@@ -129,10 +129,10 @@ class weaver_input(Analysis):
             if not any(sample): return
 
             norm_abs_scale = sample.norm_abs_scale.cat
-            max_norm_abs_scale = ak.max(norm_abs_scale)
+            max_sample_abs_norm = 1/ak.max(norm_abs_scale)
 
             for tree in sample:
-                tree.max_norm_abs_scale = max_norm_abs_scale
+                tree.max_sample_abs_norm = max_sample_abs_norm
 
         signal.apply(get_max_sample_scale)            
         get_max_sample_scale(bkg)
@@ -140,7 +140,7 @@ class weaver_input(Analysis):
     @dependency(apply_sample_norm)
     def apply_max_sample_norm(self, signal, bkg):
         def get_max_sample_scale(tree):
-                tree.extend(dataset_norm_abs_scale= tree.norm_abs_scale/self.max_sample_norm)
+                tree.extend(dataset_norm_abs_scale= self.max_sample_abs_norm*tree.norm_abs_scale)
         (signal + bkg).apply(get_max_sample_scale)
 
     #################################################
@@ -150,8 +150,8 @@ class weaver_input(Analysis):
             info = {
                 fc.cleanpath(t.filelist[0].fname):dict(
                     abs_norm = t.abs_norm,
-                    norm_abs_scale = t.norm_abs_scale,
-                    max_norm_abs_scale = t.max_norm_abs_scale
+                    sample_abs_norm = t.sample_abs_norm,
+                    max_sample_abs_norm = t.max_sample_abs_norm
                 )
             }
 
@@ -159,17 +159,18 @@ class weaver_input(Analysis):
                 json.dump(info, f, indent=4)
         signal.apply(cache_signal)
 
-        bkg_info = {
-            fc.cleanpath(tree.filelist[0].fname):dict(
-                abs_norm = tree.abs_norm,
-                norm_abs_scale = tree.norm_abs_scale,
-                max_norm_abs_scale = tree.max_norm_abs_scale
-            )
-            for tree in bkg
-        }
+        if any(bkg.objs):
+            bkg_info = {
+                fc.cleanpath(t.filelist[0].fname):dict(
+                        abs_norm = t.abs_norm,
+                        sample_abs_norm = t.sample_abs_norm,
+                        max_sample_abs_norm = t.max_sample_abs_norm
+                )
+                for t in bkg
+            }
 
-        with open(f"{self.dout}/bkg-info.json", "w") as f:
-            json.dump(bkg_info, f, indent=4)
+            with open(f"{self.dout}/bkg-info.json", "w") as f:
+                json.dump(bkg_info, f, indent=4)
 
     #################################################
     def is_bkg(self, signal, bkg):
