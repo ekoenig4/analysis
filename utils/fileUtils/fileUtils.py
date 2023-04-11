@@ -80,6 +80,33 @@ def sample_files(path):
         NMSSM_XYY_YToHH_8b_MX_1200_MY_500
     ]
 
+    
+    NMSSM_XYH_YToHH_6b_MX_700_MY_300  =  f"{path}/NMSSM_XYH_YToHH_6b/NMSSM_XToYHTo6B_MX-700_MY-300_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
+    NMSSM_XYH_YToHH_6b_MX_800_MY_300  =  f"{path}/NMSSM_XYH_YToHH_6b/NMSSM_XToYHTo6B_MX-800_MY-300_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
+    NMSSM_XYH_YToHH_6b_MX_800_MY_350  =  f"{path}/NMSSM_XYH_YToHH_6b/NMSSM_XToYHTo6B_MX-800_MY-350_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
+    NMSSM_XYH_YToHH_6b_MX_900_MY_300  =  f"{path}/NMSSM_XYH_YToHH_6b/NMSSM_XToYHTo6B_MX-900_MY-300_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
+    NMSSM_XYH_YToHH_6b_MX_900_MY_400  =  f"{path}/NMSSM_XYH_YToHH_6b/NMSSM_XToYHTo6B_MX-900_MY-400_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
+    NMSSM_XYH_YToHH_6b_MX_1000_MY_350 = f"{path}/NMSSM_XYH_YToHH_6b/NMSSM_XToYHTo6B_MX-1000_MY-350_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
+    NMSSM_XYH_YToHH_6b_MX_1000_MY_450 = f"{path}/NMSSM_XYH_YToHH_6b/NMSSM_XToYHTo6B_MX-1000_MY-450_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
+    NMSSM_XYH_YToHH_6b_MX_1200_MY_450 = f"{path}/NMSSM_XYH_YToHH_6b/NMSSM_XToYHTo6B_MX-1200_MY-450_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
+
+    signal_6b_list = [
+      NMSSM_XYH_YToHH_6b_MX_700_MY_300, 
+      NMSSM_XYH_YToHH_6b_MX_1000_MY_350,
+      NMSSM_XYH_YToHH_6b_MX_1200_MY_450,
+    ]
+
+    full_signal_6b_list = [
+      NMSSM_XYH_YToHH_6b_MX_700_MY_300, 
+      NMSSM_XYH_YToHH_6b_MX_800_MY_300, 
+      NMSSM_XYH_YToHH_6b_MX_800_MY_350, 
+      NMSSM_XYH_YToHH_6b_MX_900_MY_300, 
+      NMSSM_XYH_YToHH_6b_MX_900_MY_400, 
+      NMSSM_XYH_YToHH_6b_MX_1000_MY_350,
+      NMSSM_XYH_YToHH_6b_MX_1000_MY_450,
+      NMSSM_XYH_YToHH_6b_MX_1200_MY_450,
+    ]
+
     QCD_bEn_Ht_100to200 = f"{path}/QCD/QCD_bEnriched_HT100to200_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
     QCD_bEn_Ht_200to300 = f"{path}/QCD/QCD_bEnriched_HT200to300_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
     QCD_bEn_Ht_300to500 = f"{path}/QCD/QCD_bEnriched_HT300to500_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"

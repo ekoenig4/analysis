@@ -173,7 +173,7 @@ class Analysis:
         self.bkg = bkg 
         self.data = data
 
-        self.trees = signal + bkg + data
+        # self.trees = signal + bkg + data
 
         methods = { key : method for key, method in vars(self.__class__).items() if (not key.startswith('_') and callable(method)) }
         self.dependency = MethodDependency(self, list(methods.keys()))
@@ -183,6 +183,9 @@ class Analysis:
         self.ignore_error = ignore_error
 
         self.__dict__.update(**kwargs)
+
+    @property
+    def trees(self): return self.signal + self.bkg + self.data
 
     def run(self, runlist=None, **kwargs):
         if runlist is None: 

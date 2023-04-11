@@ -12,12 +12,16 @@ from scipy import stats as f_stats
 class Stats:
     def __init__(self,graph):
         self.x_mean, self.x_std = np.mean(graph.x_array), np.std(graph.x_array)
+        self.x_min, self.x_max = np.min(graph.x_array), np.max(graph.x_array)
         self.y_mean, self.y_std = np.mean(graph.y_array), np.std(graph.y_array)
+        self.y_min, self.y_max = np.min(graph.y_array), np.max(graph.y_array)
         self.x_sum,  self.y_sum = np.sum(graph.x_array), np.sum(graph.y_array)
         self.area = np.trapz(graph.y_array, graph.x_array)
         self.ndf = len(graph.y_array)
-    def __str__(self):
-        return '\n'.join([ f'{key}={float(value):0.3e}' for key,value in vars(self).items() ])
+    def __format__(self, spec):
+        return self.__str__(spec=spec)
+    def __str__(self, spec='0.3e'):
+        return '\n'.join([ f'{key}={float(value):{spec}}' for key,value in vars(self).items() ])
 
 class Graph:
 

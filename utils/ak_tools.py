@@ -162,7 +162,17 @@ def ak_stack(arrays, axis=1):
         [array[reshape] for array in arrays],
         axis=axis
     )
+    
+def ak_quantile(array, weights=None, quantile=0.7):
+    if weights is None: weights = ak.ones_like(array)
+    order = ak.argsort(array)
 
+    array = array[order]
+    weights = weights[order]
+    weights = np.cumsum(weights)
+    weights = weights/ak.max(weights)
+    
+    return np.interp(1 - quantile, weights, array)
 
 def ak_rank(array, axis=1):
     return ak.argsort(ak.argsort(array, axis=axis), axis=axis)

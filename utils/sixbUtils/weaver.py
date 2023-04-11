@@ -36,7 +36,7 @@ def reco_yh_trih(tree, index):
     
     build_all_dijets(tree, pairs=jet_index, name='higgs', ordered='pt')
     higgs = get_collection(tree, 'higgs', named=False)
-    hp4 = build_p4(higgs)
+    hp4 = build_p4(higgs, extra=['signalId'])
 
     h_idx = ak.argsort((higgs.localId+1)//2,axis=-1)
 
@@ -61,17 +61,17 @@ def reco_yh_trih(tree, index):
     tree.extend(
         **{
             f'HX_{field}': hx[field]
-            for field in hx.fields
+            for field in ('pt','m','eta','phi','signalId')
 
         },
         **{
             f'H1_{field}': h1[field]
-            for field in h1.fields
+            for field in ('pt','m','eta','phi','signalId')
 
         },
         **{
             f'H2_{field}': h2[field]
-            for field in h2.fields
+            for field in ('pt','m','eta','phi','signalId')
 
         },
         **{
@@ -81,10 +81,11 @@ def reco_yh_trih(tree, index):
     )
 
 def load_yh_trih_ranker(tree, model):
-    ranker = load_sixb_weaver(tree, model, fields=['maxcomb','maxlabel','maxscore','scores'])
+    ranker = load_sixb_weaver(tree, model, fields=['maxcomb','maxlabel','maxscore','minscore','scores'])
     score, index, label = ranker['maxscore'], ranker['maxcomb'], ranker['maxlabel']
+    minscore = ranker['minscore']
 
     scores = ranker['scores'].reshape(-1, 45)
-    tree.extend(yh_trih_score=score, yy_trih_label=label, yh_trih_scores=ak.from_regular(scores))
+    tree.extend(yh_trih_score=score, yy_trih_label=label, yh_trih_scores=ak.from_regular(scores), yh_trih_minscore=minscore)
 
     reco_yh_trih(tree, index)    

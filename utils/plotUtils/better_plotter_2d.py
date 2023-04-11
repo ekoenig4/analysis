@@ -151,7 +151,8 @@ def bin_histo2d(histo2d, figax=None, show_counts=False, **kwargs):
             fmt = show_counts
         for i,(bx_lo,bx_hi) in enumerate(zip(bx[:-1],bx[1:])):
             for j,(by_lo,by_hi) in enumerate(zip(by[:-1],by[1:])):
-                if vmin is not None and n[j,i] <= vmin: continue
+                if n[j,i] <= 0: continue
+                # if vmin is not None and n[j,i] <= vmin: continue
                 txt = fmt(n[j,i])
                 if txt:
                     ax.text((bx_hi+bx_lo)/2,(by_hi+by_lo)/2,txt,ha="center", va="center", fontweight="bold")

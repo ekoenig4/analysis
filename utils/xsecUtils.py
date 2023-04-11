@@ -39,7 +39,7 @@ xsecMap = {
     "JetHT_Run2018C": 'N/A',
     "JetHT_Run2018D": 'N/A',
 
-    "NMSSM_XYH_YToHH_6b": 0.3,
+    "NMSSM_XYH_YToHH_6b": 1.0 * (5.824E-01)**3,
     # "NMSSM_XYY_YToHH_8b": 0.0016,
     # "NMSSM_XYY_YToHH_8b": 0.3,
     "NMSSM_XYY_YToHH_8b": 1.0 * (5.824E-01)**4,

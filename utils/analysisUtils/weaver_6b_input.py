@@ -1,11 +1,11 @@
 from .. import *
-from .. import eightbUtils as eightb
+from .. import sixbUtils as sixb
 
 from collections import defaultdict
 
 import json
 
-class weaver_input(Analysis):
+class weaver_6b_input(Analysis):
     """Analysis skim used to cache and apply reweighting procedure for training 
 
     Caching: should be done FIRST
@@ -22,7 +22,7 @@ class weaver_input(Analysis):
     """
     @staticmethod
     def _add_parser(parser):
-        parser.add_argument("--dout", default="reweight-info",
+        parser.add_argument("--dout", default="reweight-6b-info",
                             help="directory to load/save cached reweighting values. Default reweight-info/")
 
         group = parser.add_mutually_exclusive_group(required=True)
@@ -67,7 +67,7 @@ class weaver_input(Analysis):
             fn = fc.cleanpath(tree.filelist[0].fname)
             tree.reweight_info = {
                 nb:self.reweight_info[f'{nb}:{fn}']
-                for nb in (8,7,6)
+                for nb in (6,5,4)
             }
             print(fn)
             print(tree.reweight_info)
@@ -106,25 +106,25 @@ class weaver_input(Analysis):
 
     @required
     def skim_fully_resolved(self, signal):
-        eightb_filter = EventFilter('signal_eightb', filter=lambda t: t.nfound_select==8)
-        sevenb_filter = EventFilter('signal_sevenb', filter=lambda t: t.nfound_select==7)
         sixb_filter = EventFilter('signal_sixb', filter=lambda t: t.nfound_select==6)
+        fiveb_filter = EventFilter('signal_fiveb', filter=lambda t: t.nfound_select==5)
+        fourb_filter = EventFilter('signal_fourb', filter=lambda t: t.nfound_select==4)
 
-        self.eightb_signal = signal.apply(eightb_filter)
-        self.sevenb_signal = signal.apply(sevenb_filter)
         self.sixb_signal = signal.apply(sixb_filter)
+        self.fiveb_signal = signal.apply(fiveb_filter)
+        self.fourb_signal = signal.apply(fourb_filter)
 
         if self.apply:
-            for s in self.eightb_signal:
-                s.reweight_info = s.reweight_info[8]
-            
-            for s in self.sevenb_signal:
-                s.reweight_info = s.reweight_info[7]
-
             for s in self.sixb_signal:
                 s.reweight_info = s.reweight_info[6]
+            
+            for s in self.fiveb_signal:
+                s.reweight_info = s.reweight_info[5]
 
-        self.signal = self.eightb_signal + self.sevenb_signal + self.sixb_signal
+            for s in self.fourb_signal:
+                s.reweight_info = s.reweight_info[4]
+
+        self.signal = self.sixb_signal + self.fiveb_signal + self.fourb_signal
 
     #################################################
     # @dependency(cache_sample)
@@ -197,7 +197,7 @@ class weaver_input(Analysis):
 
     #################################################
     @dependency(cache_max_sample_norm)
-    def cache_reweight_info(self, eightb_signal, sevenb_signal, sixb_signal, bkg):
+    def cache_reweight_info(self, sixb_signal, fiveb_signal, fourb_signal, bkg):
         def cache_trees(trees, fname, tag=''):
             info = {
                 f'{tag}{fc.cleanpath(t.filelist[0].fname)}':dict(
@@ -212,7 +212,7 @@ class weaver_input(Analysis):
             with open(f"{self.dout}/{fname}.json", "w") as f:
                 json.dump(info, f, indent=4)
 
-        for nb, trees in zip([8,7,6],[eightb_signal, sevenb_signal, sixb_signal]):
+        for nb, trees in zip([6,5,4],[sixb_signal, fiveb_signal, fourb_signal]):
             for tree in trees:
                 cache_trees([tree], f'{tree.sample}_{nb}b-info', f'{nb}:')
         
@@ -224,24 +224,24 @@ class weaver_input(Analysis):
         signal.apply(lambda t : t.extend(is_bkg=ak.zeros_like(t.Run)))
         bkg.apply(lambda t : t.extend(is_bkg=ak.ones_like(t.Run)))
 
-    def write_trees(self, eightb_signal, sevenb_signal, sixb_signal, bkg):
+    def write_trees(self, sixb_signal, fiveb_signal, fourb_signal, bkg):
         include=['^jet','^X','.*scale$','is_bkg','gen_X_m','gen_Y1_m','gen_Y_m','nfound_select']
-
-        if any(eightb_signal.objs):
-            eightb_signal.write(
-                'reweight_eightb_{base}',
-                include=include,
-            )
-
-        if any(sevenb_signal.objs):
-            sevenb_signal.write(
-                'reweight_sevenb_{base}',
-                include=include,
-            )
 
         if any(sixb_signal.objs):
             sixb_signal.write(
                 'reweight_sixb_{base}',
+                include=include,
+            )
+
+        if any(fiveb_signal.objs):
+            fiveb_signal.write(
+                'reweight_fiveb_{base}',
+                include=include,
+            )
+
+        if any(fourb_signal.objs):
+            fourb_signal.write(
+                'reweight_fourb_{base}',
                 include=include,
             )
 

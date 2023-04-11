@@ -32,21 +32,21 @@ get_training() {
     done
 
 
-    path=/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection/t8btag_minmass/
+    # path=/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/preselection/t8btag_minmass/
 
-    for f in $(ls $path/Run2_Autumn18//QCD/*/ntuple.root); do
-        echo ${f/\/eos\/uscms/}
-    done
+    # for f in $(ls $path/Run2_Autumn18//QCD/*/ntuple.root); do
+    #     echo ${f/\/eos\/uscms/}
+    # done
 
-    for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/TTJets/TTJets*/ntuple_training.root); do
-        echo ${f/\/eos\/uscms/}
-    done
+    # for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/TTJets/TTJets*/ntuple_training.root); do
+    #     echo ${f/\/eos\/uscms/}
+    # done
 }
 
 split_training() {
     path=/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/training/
 
-    for f in $(ls $path/bkg/* $path/sig/*/*); do
+    for f in $(find $path -name training_ntuple.root); do
         echo ${f/\/eos\/uscms/}
     done
 
@@ -72,15 +72,29 @@ ttbar_training() {
     done
 }
 
+get_feynnet_training() {
+    file="reweight*train_ntuple.root"
+    path=/eos/uscms/store/user/ekoenig/8BAnalysis/NTuples/2018/feynnet
+
+    for f in $(ls $path/NMSSM_XYY_YToHH_8b/*/$file); do
+        echo ${f/\/eos\/uscms/}
+    done
+
+    for f in $(ls $path/Run2_UL/RunIISummer20UL18NanoAODv9/QCD/*/$file); do
+        echo ${f/\/eos\/uscms/}
+    done
+}
+
 
 run_function() {
+    echo ./run_files.py $@
     ./run_files.py $@
 }
 
 export -f run_function
 
-# time get_files | parallel -j 4 -k run_function $@
-time get_training | parallel -j 6 -k run_function $@
-# time split_sixb_training | parallel -j 6 -k run_function $@
-# time ttbar_training | parallel -j 4 -k run_function $@
-# ttbar_training
+filelist=$1
+shift 1
+
+time ./fetch_files.sh $filelist | parallel --eta -j 12 run_function $@
+

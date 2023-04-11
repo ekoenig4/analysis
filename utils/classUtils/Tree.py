@@ -161,8 +161,11 @@ class SixBFile:
 def init_files(self, filelist, treename, normalization, altfile="{base}", report=True):
     if type(filelist) == str:
         filelist = [filelist]
+    filelist = list(filelist)
 
     def use_altfile(f):
+        if callable(altfile): return altfile(f)
+
         dirname, basename = os.path.dirname(f), os.path.basename(f)
         basename = altfile.format(base=basename)
         return os.path.join(dirname, basename)
@@ -198,18 +201,30 @@ def init_sample(self):  # Helper Method For Tree Class
     self.is_signal = all("NMSSM" in fn.fname for fn in self.filelist)
     self.is_model = False
     
-    sample_tag = [next((tag for key, tag in tagMap.items(
-    ) if key in fn.sample), None) for fn in self.filelist]
-    if (sample_tag.count(sample_tag[0]) == len(sample_tag)):
-        self.sample = sample_tag[0]
-    else:
-        self.sample = "MC-Bkg"
+    sample_tags = set(fn.sample for fn in self.filelist)
+    if len(sample_tags) == 1:
+        self.sample = list(sample_tags)[0]
 
-    if self.is_data:
-        self.sample = "Data"
+    else:
+        sample_tag = [next((tag for key, tag in tagMap.items(
+        ) if key in fn.sample), None) for fn in self.filelist]
+        if (sample_tag.count(sample_tag[0]) == len(sample_tag)):
+            self.sample = sample_tag[0]
+        else:
+            self.sample = "MC-Bkg"
+
+        if self.is_data:
+            self.sample = "Data"
 
     if self.is_signal:
-        points = [ re.findall('MX_\d+_MY_\d+',fn.fname)[0] for fn in self.filelist ]
+
+        def mass_point(fname):
+            point = re.findall('MX_\d+_MY_\d+', fname)
+            if any(point): return point[0]
+            
+            point = re.findall('MX-\d+_MY-\d+', fname)
+            if any(point): return point[0].replace('-','_')
+        points = [ mass_point(fn.fname) for fn in self.filelist ]
         if len(set(points)) == 1:
             self.sample = points[0]
             mx, my = self.sample.split("_")[1::2]

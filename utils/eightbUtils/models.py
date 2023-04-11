@@ -92,6 +92,11 @@ yy_quadh_bkg10_MX_1200_MY_500 =  WeaverModel('exp_mass/yy_4h_reco_ranker/2023021
 feynnet_no_gnn = WeaverModel('exp_feynnet/feynnet_no_gnn/20230303_ranger_lr0.0047_batch1024_withbkg')
 feynnet_bkg10_allsig = WeaverModel('exp_feynnet/feynnet_x_yy_4h_8b/20230302_ranger_lr0.0047_batch1024_withbkg/')
 
+feynnet_sig_v0 = WeaverModel('exp_feynnet_paper/feynnet_8b/20230407_ranger_lr0.0047_batch1024')
+feynnet_bkg_v0 = WeaverModel('exp_feynnet_paper/feynnet_8b/20230407_ranger_lr0.0047_batch1024_withbkg')
+
+feynnet_sig = WeaverModel('exp_feynnet_paper/feynnet_8b/20230409_ranger_lr0.0047_batch1024')
+feynnet_bkg = WeaverModel('exp_feynnet_paper/feynnet_8b/20230409_ranger_lr0.0047_batch1024_withbkg')
  
 def get_model_path(model, locals=locals()):
     if model not in locals: return model 
