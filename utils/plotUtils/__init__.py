@@ -10,6 +10,10 @@ from .graph import *
 from .model import *
 from . import function
 
-plt.style.use(['science','no-latex'])
+try:
+    plt.style.use(['science','no-latex'])
+except:
+    ...
+    
 plt.rcParams["figure.figsize"] = (6.5,6.5)
 plt.rcParams['font.size'] =  11
