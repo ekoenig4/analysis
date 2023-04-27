@@ -75,6 +75,15 @@ def glob(path):
         return filelist
     return []
 
+def mkdir_eos(path, recursive=False):
+    path = f'/eos/uscms/{cleanpath(path)}'
+
+    if exists(path): return
+
+    if recursive:
+        return os.makedirs(path)
+    return os.mkdir(path)
+
 def ls(path, **kwargs):
     return glob(path, **kwargs)
 

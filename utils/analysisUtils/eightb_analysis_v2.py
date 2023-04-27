@@ -763,6 +763,8 @@ class eightb_analysis_v2(Analysis):
                 saveas=f'{self.dout}/{key}/composition_{region}'
             )
 
+        
+
     @dependency(build_abcd)
     def plot_abcd_composition(self, bkg):
         self._plot_abcd_composition(bkg, self.ar_bdt, 'abcd/ar')
@@ -869,14 +871,16 @@ class eightb_analysis_v2(Analysis):
         bdt.print_results(bkg_model)
 
     def _evaluate_bdt(self, bkg_model, blinded_data, bdt, key):
+        evaluate_variable = 'X_m'
+        evaluate_bins = (200,2000,15)
 
         study.quick_region(
             blinded_data , bkg_model, label=['target','k factor'],
             h_color=['black','red'], legend=True,
             masks=[bdt.c]*len(blinded_data)+[bdt.d]*(len(bkg_model)),
             scale=[1]*len(blinded_data)+[bdt.scale_tree]*len(bkg_model),
-            varlist=['jet_ht'],
-            binlist=[(200,2000,15)],
+            varlist=[evaluate_variable],
+            binlist=[evaluate_bins],
             suptitle='BDT CR Prefit',
             ratio=True, r_ylim=(0.75,1.25),
             **study.kstest,
@@ -887,8 +891,8 @@ class eightb_analysis_v2(Analysis):
             h_color=['black','orange'], legend=True,
             masks=[bdt.c]*len(blinded_data)+[bdt.d]*(len(bkg_model)),
             scale=[1]*len(blinded_data)+[bdt.reweight_tree]*len(bkg_model),
-            varlist=['jet_ht'],
-            binlist=[(200,2000,15)],
+            varlist=[evaluate_variable],
+            binlist=[evaluate_bins],
             suptitle='BDT CR Postfit',
             ratio=True, r_ylim=(0.75,1.25),
             **study.kstest,
@@ -901,8 +905,8 @@ class eightb_analysis_v2(Analysis):
             h_color=['black','blue'], legend=True,
             masks=[bdt.a]*len(blinded_data)+[bdt.b]*(len(bkg_model)),
             scale=[1]*len(blinded_data)+[bdt.scale_tree]*len(bkg_model),
-            varlist=['jet_ht'],
-            binlist=[(200,2000,15)],
+            varlist=[evaluate_variable],
+            binlist=[evaluate_bins],
             suptitle='BDT SR Prefit',
             ratio=True, r_ylim=(0.75,1.25),
             **study.kstest,
@@ -914,8 +918,8 @@ class eightb_analysis_v2(Analysis):
             h_color=['black','green'], legend=True,
             masks=[bdt.a]*len(blinded_data)+[bdt.b]*(len(bkg_model)),
             scale=[1]*len(blinded_data)+[bdt.reweight_tree]*len(bkg_model),
-            varlist=['jet_ht'],
-            binlist=[(200,2000,15)],
+            varlist=[evaluate_variable],
+            binlist=[evaluate_bins],
             suptitle='BDT Postfit',
             ratio=True, r_ylim=(0.75,1.25),
             **study.kstest,
@@ -1023,6 +1027,23 @@ class eightb_analysis_v2(Analysis):
         # )
 
     @dependency(train_ar_bdt)
+    def plot_signal_extraction(self, signal, bkg_model):
+            
+        resonances = ['X_m','Y1_m','Y2_m',None]+[f'{h}_m' for h in eightb.higgslist]
+
+        for i in range(len(signal)):
+            study.quick(
+                signal[[i]] + bkg_model, 
+                legend=True,
+                masks=[self.ar_bdt.a]+[self.ar_bdt.b]*len(bkg_model),
+                scale=[1]+[self.ar_bdt.reweight_tree]*len(bkg_model),
+                varlist=resonances,
+                binlist=[(500,2000,30)]+[(0,1000,30)]*3+[(0,500,30)]*4,
+                # title='BDT Bkg Model',
+                saveas=f'{self.dout}/limits/signal_extraction/{signal[i].sample}_masses'
+            )
+
+    @dependency(train_ar_bdt)
     def calc_limits(self, signal, bkg_model):
         study.quick(
             signal[self.use_signal] + bkg_model, 
@@ -1048,6 +1069,19 @@ class eightb_analysis_v2(Analysis):
             l_poi=np.linspace(0,3,21), 
             saveas=f'{self.dout}/limits/brazil_bdt_bkg_model'
         )
+
+    @dependency(train_ar_bdt)
+    def calc_brazil2d(self, signal, bkg_model):
+        study.brazil2d(
+            signal+bkg_model,
+            masks=[self.ar_bdt.a]*len(signal)+[self.ar_bdt.b]*len(bkg_model),
+            scale=[1]*len(signal)+[self.ar_bdt.reweight_tree]*len(bkg_model),
+            varlist=['X_m'],
+            binlist=[(500,2000,30)],
+            l_poi=np.linspace(0,3,21), 
+            saveas=f'{self.dout}/limits/brazil2d_bdt_bkg_model'
+        )
+    
 
     @dependency(
         plot_global_jet_kin,

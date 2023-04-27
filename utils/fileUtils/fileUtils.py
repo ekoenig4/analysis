@@ -5,8 +5,7 @@ from .eos import *
 def check_accstudies(fn):
     if eos.exists(fn): return fn
     fn = fn.replace("_accstudies.root","/ntuple.root")
-    if eos.exists(fn): return fn
-    return fn.replace("ntuple.root","ntuple_*.root")
+    return fn
 
 def check_ttjets(fn):
   if eos.exists(fn): return [fn]
@@ -25,6 +24,7 @@ def sample_files(path):
     NMSSM_XYY_YToHH_8b_MX_900_MY_300  =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_300_accstudies.root")
     NMSSM_XYY_YToHH_8b_MX_900_MY_400  =  check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_400_accstudies.root")
 
+    # 12_4_8_500k
     NMSSM_XYY_YToHH_8b_MX_500_MY_250   = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_500_MY_250_accstudies.root")
     NMSSM_XYY_YToHH_8b_MX_1400_MY_250  = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1400_MY_250_accstudies.root")
     NMSSM_XYY_YToHH_8b_MX_1400_MY_450  = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1400_MY_450_accstudies.root")
@@ -39,6 +39,32 @@ def sample_files(path):
     NMSSM_XYY_YToHH_8b_MX_4000_MY_1100 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_4000_MY_1100_accstudies.root")
     NMSSM_XYY_YToHH_8b_MX_4000_MY_2000 = check_accstudies(f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_4000_MY_2000_accstudies.root")
 
+    NMSSM_XYY_YToHH_8b_MX_600_MY_250 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_600_MY_250/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_600_MY_300 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_600_MY_300/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_700_MY_250 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_700_MY_250/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_700_MY_350 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_700_MY_350/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_800_MY_250 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_800_MY_250/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_800_MY_400 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_800_MY_400/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_900_MY_250 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_250/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_900_MY_350 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_350/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_900_MY_450 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_900_MY_450/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1000_MY_250 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1000_MY_250/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1000_MY_350 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1000_MY_350/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1000_MY_400 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1000_MY_400/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1000_MY_500 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1000_MY_500/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1100_MY_250 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1100_MY_250/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1100_MY_300 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1100_MY_300/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1100_MY_350 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1100_MY_350/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1100_MY_400 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1100_MY_400/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1100_MY_450 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1100_MY_450/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1100_MY_500 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1100_MY_500/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1200_MY_250 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1200_MY_250/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1200_MY_300 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1200_MY_300/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1200_MY_350 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1200_MY_350/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1200_MY_400 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1200_MY_400/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1200_MY_450 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1200_MY_450/ntuple.root"
+    NMSSM_XYY_YToHH_8b_MX_1200_MY_600 = f"{path}/NMSSM_XYY_YToHH_8b/NMSSM_XYY_YToHH_8b_MX_1200_MY_600/ntuple.root"
+
     full_signal_list = [
         NMSSM_XYY_YToHH_8b_MX_700_MY_300 ,
         NMSSM_XYY_YToHH_8b_MX_800_MY_300 ,
@@ -50,16 +76,77 @@ def sample_files(path):
         NMSSM_XYY_YToHH_8b_MX_1200_MY_500
     ]
 
-    extended_signal_list = [
-      NMSSM_XYY_YToHH_8b_MX_500_MY_250  ,
+    feynnet_signal_list = [
+      NMSSM_XYY_YToHH_8b_MX_600_MY_250 ,
+      NMSSM_XYY_YToHH_8b_MX_600_MY_300 ,
+      NMSSM_XYY_YToHH_8b_MX_700_MY_250 ,
       NMSSM_XYY_YToHH_8b_MX_700_MY_300  ,
+      NMSSM_XYY_YToHH_8b_MX_700_MY_350 ,
+      NMSSM_XYY_YToHH_8b_MX_800_MY_250 ,
       NMSSM_XYY_YToHH_8b_MX_800_MY_300  ,
       NMSSM_XYY_YToHH_8b_MX_800_MY_350  ,
+      NMSSM_XYY_YToHH_8b_MX_800_MY_400 ,
+      NMSSM_XYY_YToHH_8b_MX_900_MY_250 ,
       NMSSM_XYY_YToHH_8b_MX_900_MY_300  ,
+      NMSSM_XYY_YToHH_8b_MX_900_MY_350 ,
       NMSSM_XYY_YToHH_8b_MX_900_MY_400  ,
+      NMSSM_XYY_YToHH_8b_MX_900_MY_450 ,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_250,
       NMSSM_XYY_YToHH_8b_MX_1000_MY_300 ,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_350,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_400,
       NMSSM_XYY_YToHH_8b_MX_1000_MY_450 ,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_500,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_250,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_300,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_350,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_400,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_450,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_500,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_250,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_300,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_350,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_400,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_450,
       NMSSM_XYY_YToHH_8b_MX_1200_MY_500 ,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_600,
+    ]
+
+    extended_signal_list = [
+      NMSSM_XYY_YToHH_8b_MX_500_MY_250  ,
+      NMSSM_XYY_YToHH_8b_MX_600_MY_250 ,
+      NMSSM_XYY_YToHH_8b_MX_600_MY_300 ,
+      NMSSM_XYY_YToHH_8b_MX_700_MY_250 ,
+      NMSSM_XYY_YToHH_8b_MX_700_MY_300  ,
+      NMSSM_XYY_YToHH_8b_MX_700_MY_350 ,
+      NMSSM_XYY_YToHH_8b_MX_800_MY_250 ,
+      NMSSM_XYY_YToHH_8b_MX_800_MY_300  ,
+      NMSSM_XYY_YToHH_8b_MX_800_MY_350  ,
+      NMSSM_XYY_YToHH_8b_MX_800_MY_400 ,
+      NMSSM_XYY_YToHH_8b_MX_900_MY_250 ,
+      NMSSM_XYY_YToHH_8b_MX_900_MY_300  ,
+      NMSSM_XYY_YToHH_8b_MX_900_MY_350 ,
+      NMSSM_XYY_YToHH_8b_MX_900_MY_400  ,
+      NMSSM_XYY_YToHH_8b_MX_900_MY_450 ,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_250,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_300 ,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_350,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_400,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_450 ,
+      NMSSM_XYY_YToHH_8b_MX_1000_MY_500,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_250,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_300,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_350,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_400,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_450,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_500,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_250,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_300,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_350,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_400,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_450,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_500 ,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_600,
       NMSSM_XYY_YToHH_8b_MX_1400_MY_250 ,
       NMSSM_XYY_YToHH_8b_MX_1400_MY_450 ,
       NMSSM_XYY_YToHH_8b_MX_1400_MY_700 ,

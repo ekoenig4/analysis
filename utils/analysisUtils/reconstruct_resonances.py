@@ -8,29 +8,6 @@ class reconstruct_resonances(Analysis):
                             help="output file pattern to write file with. Use {base} to substitute existing file")
         parser.add_argument("--reco-algo", choices=["ranker","minmass"],
                             help="type of reconstruction method to apply")
-
-        # path = '/uscms_data/d3/ekoenig/8BAnalysis/studies/weaver-multiH/weaver/models'
-        # model_paths = dict(
-        #     pn=f'{path}/quadh_ranker/20221115_ranger_lr0.0047_batch512_m7m10m12/',
-
-        #     mp=f'{path}/quadh_ranker_mp/20221124_ranger_lr0.0047_batch512_m7m10m12/',
-        #     mp300k=f'{path}/quadh_ranker_mp/20221205_ranger_lr0.0047_batch512_m7m10m12_300k/',
-        #     mp500k=f'{path}/quadh_ranker_mp/20221205_ranger_lr0.0047_batch512_m7m10m12_500k/',
-
-        #     mpbkg00=f'{path}/quadh_ranker_mp/20221209_b72001172c5d04183ed7bb294252320b_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
-        #     mpbkg005=f'{path}/quadh_ranker_mp/20221212_293790a7fbfb752ded05771058bf5a25_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
-        #     mpbkg01=f'{path}/quadh_ranker_mp/20221209_be9efb5b61eb1c42aeb209728eec84d7_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
-
-        #     # mpbkg01_hard25=f'{path}/quadh_ranker_mp/20221214_d595a9703289900d701416bb7274ab71_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
-        #     # mpbkg01_hard50=f'{path}/quadh_ranker_mp/20221214_13676d884fa50cdaffb748fc057f180a_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
-
-        #     # mpbkg35_hard25=f'{path}/quadh_ranker_mp/20221215_8d087d23e1f72729bdcdd043b3d693e6_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
-        #     # mpbkg01_hard50=f'{path}/quadh_ranker_mp/20221215_13676d884fa50cdaffb748fc057f180a_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
-        #     mpbkg01_hard50=f'{path}/quadh_ranker_mp/20221218_dbe056a55e82ce1d89e004942c741bb3_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
-
-        #     # mpbkg01_exp=f'{path}/quadh_ranker_mp/20221214_2f889467cb0f6c7a9269c92e93c25c1d_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
-        #     # mpbkg05_exp=f'{path}/quadh_ranker_mp/20221214_34452fc51690ae1d20a150a10c0bafa7_ranger_lr0.0047_batch1024_m7m10m12_withbkg/',
-        # )
         parser.add_argument("--model-path", type=lambda f : eightb.models.get_model(f),
                             help="weaver model path for gnn reconstruction")
         return parser
@@ -47,15 +24,7 @@ class reconstruct_resonances(Analysis):
 
     def _load_ranker(self, signal, bkg, data):
 
-        if self.model_path.load is None:
-            raise ValueError("Unknown model arch")
-
-        if self.model_path.load == 'quadh_ranker':
-            def load(t):
-                eightb.load_quadh(t, self.model_path.path)
-                eightb.pair_y_from_higgs(t, operator=eightb.y_min_mass_asym)
-        elif any( self.model_path.load == model for model in ('yy_4h_reco_ranker','feynnet_x_yy_4h_8b') ):
-            load = lambda t : eightb.load_yy_quadh_ranker(t, self.model_path.path)
+        load = lambda t : eightb.load_yy_quadh_ranker(t, self.model_path.storage.replace('weaver/','weaver/analysis/'))
 
         (signal+bkg+data).apply(load, report=True)
 

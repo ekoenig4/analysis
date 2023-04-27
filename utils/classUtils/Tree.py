@@ -77,9 +77,12 @@ class RootFile:
         raise NotImplementedError("Need to implement NormWeightTree normalization")
 
     def write(self, altfile, retry=2, tree=None, types=None, **kwargs):
-        dirname, basename = os.path.dirname(self.fname), os.path.basename(self.fname)
-        dirname = dirname.replace(eos.url, '')
-        output = os.path.join(dirname, altfile.format(base=basename))
+
+        if callable(altfile): output = altfile(self.fname)
+        else:
+            dirname, basename = os.path.dirname(self.fname), os.path.basename(self.fname)
+            dirname = dirname.replace(eos.url, '')
+            output = os.path.join(dirname, altfile.format(base=basename))
 
         tmp_output = '_'.join(output.split('/'))
         kwargs.update( **getattr(self, 'histograms', {}) )
@@ -168,9 +171,15 @@ def init_files(self, filelist, treename, normalization, altfile="{base}", report
 
         dirname, basename = os.path.dirname(f), os.path.basename(f)
         basename = altfile.format(base=basename)
-        return os.path.join(dirname, basename)
+        f_altfile = os.path.join(dirname, basename)
+        return f_altfile
 
-    filelist = [ use_altfile(fn) for flist in filelist for fn in _glob_files(flist) ]
+    glob_filelist = [ use_altfile(fn) for flist in filelist for fn in _glob_files(flist) ]
+
+    if not any(glob_filelist):
+        glob_filelist = [ fn for flist in filelist for fn in _glob_files( use_altfile(flist) ) ]
+
+    filelist = glob_filelist
 
     it = tqdm(filelist) if report else iter(filelist)
     self.filelist = [ RootFile(fn, treename, normalization=normalization) for fn in it ]
@@ -421,7 +430,9 @@ class Tree:
         return tree
     
     def write(self, altfile='new_{base}', retry=2, include=[], exclude=[]):
-        if '{base}' not in altfile: altfile += '_{base}'
+
+        if not callable(altfile):
+            if '{base}' not in altfile: altfile += '_{base}'
 
         exclude += ['^_', '^sample_id$']
 
