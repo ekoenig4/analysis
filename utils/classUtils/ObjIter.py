@@ -130,20 +130,20 @@ class ObjIter:
         split_f = self.filter(lambda obj : obj not in split_t)
         return split_t,split_f
 
-    def parallel_apply(self, obj_function, jobs=2):
+    def parallel_apply(self, obj_function, jobs=2, report=False):
         from multiprocessing import Pool
 
         nitems = len(self.objs)
-        pool = Pool(processes=jobs)
-        workers = pool.map(Worker.start, [ Worker(obj, obj_function) for obj in self.objs ])
-        pool.close()
-        return workers
+        with Pool(jobs) as pool:
+            workers = list( tqdm( pool.imap(Worker.start, [ Worker(obj, obj_function) for obj in self.objs ]), total=nitems) )
+
+        return ObjIter([ worker.result for worker in workers ])
 
     
     def apply(self, obj_function, report=False, parallel=None):
 
         if parallel:
-            return self._parallel_apply(obj_function, jobs=parallel)
+            return self.parallel_apply(obj_function, jobs=parallel, report=report)
 
         it = tqdm(self) if report else self
         out = ObjIter([ obj_function(obj) for obj in it ])

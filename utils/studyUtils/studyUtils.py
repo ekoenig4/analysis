@@ -245,6 +245,65 @@ def brazil(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1
     plt.show()
     if study.saveas:
         save_fig(fig, study.saveas)
+
+def brazil2d(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1, -1), flip=False, figax=None, use_norm=False, **kwargs):
+    study = Study(*args, histo=False, limits=True, **kwargs)
+
+    nvar = 1
+    binlist = AttrArray.init_attr(binlist, None, nvar)
+    xlabels = AttrArray.init_attr(xlabels, None, nvar)
+    varlist = zip(varlist, binlist, xlabels)
+
+    nrows, ncols = autodim(nvar, dim, flip)
+    xsize, ysize = autosize(size, (nrows, ncols))
+
+    if figax is None:
+        figax = plt.subplots(nrows=nrows, ncols=ncols,
+                             figsize=(int(xsize*ncols), ysize*nrows),
+                             dpi=80)
+    fig, axs = figax
+
+    var, bins, xlabel = next(varlist)
+
+    bins, xlabel = format_var(var, bins, xlabel)
+    hists = study.get_array(var)
+    weights = study.get_scale(hists)
+
+    _, _, histos = hist_multi(
+        hists, bins=bins, xlabel=xlabel, weights=weights, **study.attrs, figax=(fig, axs))
+    h_signal = histos[-1]
+
+    if use_norm:
+        ylabel = '95% CL upper limit on r'
+        exp_limits = h_signal.stats.norm_exp_limits.npy.T
+    else:
+        ylabel = '95% CL upper limit on $\sigma(X\\rightarrow YY\\rightarrow 4H)$ pb'
+        exp_limits = h_signal.stats.exp_limits.npy.T
+
+    exp_p2 = exp_limits[2+2]
+    exp_p1 = exp_limits[2+1]
+    exp = exp_limits[2]
+    exp_m1 = exp_limits[2-1]
+    exp_m2 = exp_limits[2-2]
+
+    exp_std2_mu = (exp_p2 + exp_m2)/2
+    exp_std2_err = (exp_p2 - exp_m2)/2
+
+    exp_std1_mu = (exp_p1 + exp_m1)/2
+    exp_std1_err = (exp_p1 - exp_m1)/2
+
+    def get_mxmy(h):
+        mx, my = h.label.split('_')[1::2]
+        return int(mx), int(my)
+    mx, my = h_signal.apply(get_mxmy).npy.T
+
+    graph2d_array(mx, my, exp, figax=figax, interp=interp, colorbar=True, zlabel=ylabel)
+    graph_array(mx, my, figax=figax, g_color='grey', g_ls='none', g_marker='o', g_markersize=10, xlabel='$M_{X}$ (GeV)', ylabel='$M_{Y}$ (GeV)')
+    
+    fig.tight_layout()
+    plt.show()
+    if study.saveas:
+        save_fig(fig, study.saveas)
         
 def mxmy_phase(signal, f_var, figax=None, interp=True, colorbar=True, xlim=None, ylim=None, xlabel=None, ylabel=None, **kwargs):
     if figax is None: figax = get_figax(size=(10,8))
@@ -258,7 +317,7 @@ def mxmy_phase(signal, f_var, figax=None, interp=True, colorbar=True, xlim=None,
     
 
     graph2d_array(mx, my, var, figax=figax, interp=interp, colorbar=True, **kwargs)
-    graph_array(mx, my, figax=figax, g_color='grey', g_ls='none', g_markersize=10, xlim=xlim, ylim=ylim, xlabel=xlabel, ylabel=ylabel)
+    graph_array(mx, my, figax=figax, g_color='grey', g_ls='none', g_marker='o', g_markersize=10, xlim=xlim, ylim=ylim, xlabel=xlabel, ylabel=ylabel)
 
 
 def h_quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1, -1), flip=False, figax=None, **kwargs):

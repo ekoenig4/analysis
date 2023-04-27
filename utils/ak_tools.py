@@ -190,6 +190,19 @@ def ak_binned(array, bins, axis=1, overflow=False):
 
     return 1*ak_stack(binned, axis=axis)
 
+def ak_argavg(arr, axis=None):
+    """Returns the index of the element closest to the average of the array
+
+    Args:
+        arr (ak.Array): Array to be averaged
+        axis (int, optional): Axis to get the index. Defaults to None.
+
+    Returns:
+        ak.Array: Index of the element closest to the average
+    """
+    avg = ak.mean(arr, axis=axis)
+    argavg = ak.argmin( np.abs(arr - avg), axis=axis )
+    return argavg
 
 def build_p4(array, prefix=None, use_regressed=False, extra=[]):
     kin = ['pt', 'eta', 'phi', 'm']+extra

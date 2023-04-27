@@ -95,6 +95,15 @@ def pair_y_from_higgs(t, higgs='higgs', operator=None, pairs=None):
     )
 
 from .reco_genobjs import higgslist, quarklist
+def fully_reconstructed(t):
+    h_b_ids = [ t[f'{quark}_signalId'] // 2 for quark in quarklist ]
+    y_h_ids = [ ak.where(h_b1_id == h_b2_id, h_b1_id, -1) // 2 for h_b1_id, h_b2_id in zip(h_b_ids[::2], h_b_ids[1::2]) ]
+    y1_id, y2_id = [ ak.where(y_h1_id == y_h2_id, y_h1_id, -1) // 2 for y_h1_id, y_h2_id in zip(y_h_ids[::2], y_h_ids[1::2]) ]
+    reco_id = ak.where(y1_id == y2_id, y1_id, -1)
+    t.extend(
+        reco_id = reco_id
+    )
+
 def load_yy_quadh_ranker(tree, model, extra=[], reco_event=True):
     fields = ['maxcomb','maxscore','minscore'] + extra
     ranker = load_weaver_output(tree, model, fields=fields)
@@ -171,3 +180,6 @@ def load_yy_quadh_ranker(tree, model, extra=[], reco_event=True):
             for field in j.fields
         }
     )
+
+    if (tree.is_signal):
+        fully_reconstructed(tree)

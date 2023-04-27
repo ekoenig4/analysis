@@ -22,7 +22,11 @@ import timeit
 import re
 
 sys.path.append( git.Repo('.', search_parent_directories=True).working_tree_dir )
+import utils.analysisUtils as analysis
+analysis.register_modules()
+
 from utils import *
+
 
 # %%
 from argparse import ArgumentParser, RawTextHelpFormatter

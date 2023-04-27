@@ -23,7 +23,15 @@ class train_test_split(Analysis):
             train_split,
             varlist=['jet_pt[:,0]']
         )
-        train_split.write(f'train_{{base}}')
+
+        def move_to_dir(f, dir):
+            f = fc.cleanpath(f)
+            f =  f.replace('/output/',f'/{dir}/')
+            path = os.path.dirname(f)
+            fc.mkdir_eos(path)
+            return f
+
+        train_split.write(lambda f : move_to_dir(f, 'train'))
 
         test_split = trees.copy()
         test_split = test_split.apply(EventFilter(f'test', filter=lambda t : ~t._random_split))
@@ -32,4 +40,4 @@ class train_test_split(Analysis):
             test_split,
             varlist=['jet_pt[:,0]']
         )
-        test_split.write(f'test_{{base}}')
+        test_split.write(lambda f : move_to_dir(f, 'test'))
