@@ -373,3 +373,25 @@ def X_m_hp4_res_corrected(t, higgs='higgs', nhiggs=4):
                 for i, h in enumerate(higgs)
             }
         )
+
+def add_h_j_dr(tree, prefix=''):
+    if prefix and not prefix.endswith('_'): prefix += '_'
+    j_p4 = build_p4(tree, prefix=prefix+'j')
+
+    j1_p4, j2_p4 = j_p4[:,::2], j_p4[:,1::2]
+    h_j_dr = calc_dr_p4(j1_p4, j2_p4)
+
+    tree.extend(
+        **{f'{prefix}h_j_dr': h_j_dr}
+    )
+
+def add_y_h_dr(tree, prefix=''):
+    if prefix and not prefix.endswith('_'): prefix += '_'
+    h_p4 = build_p4(tree, prefix=prefix+'h')
+
+    h1_p4, h2_p4 = h_p4[:,::2], h_p4[:,1::2]
+    y_h_dr = calc_dr_p4(h1_p4, h2_p4)
+
+    tree.extend(
+        **{f'{prefix}y_h_dr': y_h_dr}
+    )

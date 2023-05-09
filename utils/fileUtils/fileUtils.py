@@ -3,12 +3,12 @@ import os, subprocess
 from .eos import *
 
 def check_accstudies(fn):
-    if eos.exists(fn): return fn
+    # if eos.exists(fn): return fn
     fn = fn.replace("_accstudies.root","/ntuple.root")
     return fn
 
 def check_ttjets(fn):
-  if eos.exists(fn): return [fn]
+  # if eos.exists(fn): return [fn]
   return [ fn.replace('ntuple.root',f'ntuple_{i}.root') for i in range(1) ]
   # return [ fn.replace('ntuple.root',f'ntuple_{i}.root') for i in range(2) ]
   # return [ fn.replace('ntuple.root',f'ntuple_{i}.root') for i in range(8) ]

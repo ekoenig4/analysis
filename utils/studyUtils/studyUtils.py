@@ -305,8 +305,9 @@ def brazil2d(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(
     if study.saveas:
         save_fig(fig, study.saveas)
         
-def mxmy_phase(signal, f_var, figax=None, interp=True, colorbar=True, xlim=None, ylim=None, xlabel=None, ylabel=None, **kwargs):
+def mxmy_phase(signal, f_var, figax=None, interp=True, colorbar=True, xlim=None, ylim=None, xlabel=None, ylabel=None, saveas=None, **kwargs):
     if figax is None: figax = get_figax(size=(10,8))
+    fig, ax = figax
 
     mx = signal.mx.npy 
     my = signal.my.npy 
@@ -318,6 +319,28 @@ def mxmy_phase(signal, f_var, figax=None, interp=True, colorbar=True, xlim=None,
 
     graph2d_array(mx, my, var, figax=figax, interp=interp, colorbar=True, **kwargs)
     graph_array(mx, my, figax=figax, g_color='grey', g_ls='none', g_marker='o', g_markersize=10, xlim=xlim, ylim=ylim, xlabel=xlabel, ylabel=ylabel)
+    
+    if saveas:
+        save_fig(fig, saveas)
+
+def mxmy_reduction(tree, f_var, figax=None, interp=True, colorbar=True, xlim=None, ylim=None, xlabel=None, ylabel=None, saveas=None, **kwargs):
+    if figax is None: figax = get_figax(size=(10,8))
+    fig, ax = figax
+
+    mx = tree.mx
+    my = tree.my
+
+    var = f_var
+    if callable(f_var):
+        var = f_var(tree)
+    else:
+        var = tree[f_var]
+
+    graph2d_array(mx, my, var, figax=figax, interp=interp, colorbar=True, **kwargs)
+    graph_array(mx, my, figax=figax, g_color='grey', g_ls='none', g_marker='o', g_markersize=10, xlim=xlim, ylim=ylim, xlabel=xlabel, ylabel=ylabel)
+    
+    if saveas:
+        save_fig(fig, saveas)
 
 
 def h_quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1, -1), flip=False, figax=None, **kwargs):
@@ -557,6 +580,8 @@ def compare_masks(treelist, bkg=None, varlist=[], masks=[], label=[], h_linestyl
             return axs
         if axs.ndim == 2 and n > 1:
             return axs[:, i]
+        elif n == 1:
+            return axs
         return axs[i]
 
     for i, sample in enumerate(treelist):
@@ -865,7 +890,10 @@ def pairplot(*args, varlist=[], binlist=None, scatter=True, dim=None, overlay=Tr
     binlist = AttrArray.init_attr(binlist, None, nvar)
 
     IJ = np.stack(np.meshgrid(np.arange(nvar),
-                  np.arange(nvar)), axis=2).flatten()
+                    np.arange(nvar)), axis=2)
+    uptri = (IJ[:,:,0] >= IJ[:,:,1]).flatten()
+    IJ = IJ.flatten()
+
     varlist = [varlist[i] for i in IJ]
     binlist = [binlist[i] for i in IJ]
 

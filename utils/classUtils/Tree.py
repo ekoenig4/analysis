@@ -320,6 +320,8 @@ class Tree:
 
         init_sample(self)
         init_tree(self, use_gen)
+        self.reductions = dict()
+
     def __str__(self):
         sample_string = [
             f"=== File Info ===",

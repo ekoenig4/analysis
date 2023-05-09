@@ -1,20 +1,38 @@
 import numpy as np
 import awkward as ak
 from tqdm import tqdm
+from threading import Thread
 
 
-class Worker:
-    @staticmethod 
-    def start(worker):
-        return worker()
+class ObjThread(Thread):
+    def __init__(self, obj, obj_function):
+        super().__init__()
+        self.obj = obj
+        self.obj_function = obj_function
+    def run(self):
+        self.result = self.obj_function(self.obj)
 
-    def __init__(self, obj, function):
-        self.obj = obj 
-        self.function = function
+class ThreadManager:
+    def __init__(self, objs, obj_function, order=None):
+        self.threads = [ ObjThread(obj, obj_function) for obj in objs ]
+        self.order = order
 
-    def __call__(self):
-        self.result = self.function( self.obj )
+    def __enter__(self):
         return self
+    
+    def run(self, report=False):
+        threads = self.threads
+        if callable(self.order):
+            threads = sorted(self.threads, key=self.order)
+        for thread in threads: thread.start()
+
+        if report:
+            threads = tqdm(threads)
+        for thread in threads: thread.join()
+        return [thread.result for thread in self.threads]
+        
+    def __exit__(self, *args):
+        return
 
 class ObjTransform:
     def __init__(self,**kwargs):
@@ -130,20 +148,18 @@ class ObjIter:
         split_f = self.filter(lambda obj : obj not in split_t)
         return split_t,split_f
 
-    def parallel_apply(self, obj_function, jobs=2, report=False):
-        from multiprocessing import Pool
+    def parallel_apply(self, obj_function, report=False, thread_order=None, **kwargs):
 
-        nitems = len(self.objs)
-        with Pool(jobs) as pool:
-            workers = list( tqdm( pool.imap(Worker.start, [ Worker(obj, obj_function) for obj in self.objs ]), total=nitems) )
+        with ThreadManager(self.objs, obj_function, order=thread_order) as manager:
+            results = manager.run(report=report)
 
-        return ObjIter([ worker.result for worker in workers ])
+        return ObjIter(results)
 
     
-    def apply(self, obj_function, report=False, parallel=None):
+    def apply(self, obj_function, report=False, parallel=None, **kwargs):
 
         if parallel:
-            return self.parallel_apply(obj_function, jobs=parallel, report=report)
+            return self.parallel_apply(obj_function, report=report, **kwargs)
 
         it = tqdm(self) if report else self
         out = ObjIter([ obj_function(obj) for obj in it ])
