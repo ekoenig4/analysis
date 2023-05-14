@@ -19,6 +19,13 @@ def _flatten_plotobjs(plotobjs):
         else:
             yield plotobj
 
+def _store_objects(store, plotobjs):
+    if store is None: return
+
+    store.append(
+        [ obj for obj in _flatten_plotobjs(plotobjs) ]
+    )
+
 def _histo2d_kwargs(show_counts=False, contour=False, interp=False, scatter=False, colorbar=False, zlim=None, **kwargs):
     histo2d_kwargs = { key:value for key, value in locals().items() if key != 'kwargs' }
     return histo2d_kwargs, kwargs
@@ -49,7 +56,7 @@ def _plot_objects(figax, plotobjs, position='right', size="100%", pad=1, legend=
 def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None, 
                 is_data=False, is_signal=False, is_model=False, stacked=False, 
                 density=False, cumulative=False, efficiency=False, lumi=None,
-                scale=None, overlay=False, signal_stacked=False, figax=None, **kwargs):
+                scale=None, overlay=False, signal_stacked=False, figax=None, store=None, **kwargs):
     fig, ax = get_figax(figax)
 
     # --- Configure kwargs ---
@@ -105,6 +112,8 @@ def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None,
     histo2ds = list(_flatten_plotobjs(plotobjs))
     total = len(histo2ds)
     # sizes = [1, 2, 3]
+
+    _store_objects(store, histo2ds)
 
     if overlay:
         _plot_objects((fig,ax), histo2ds, **kwargs['remaining'])

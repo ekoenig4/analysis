@@ -37,11 +37,11 @@ class Graph2D:
         x_array, y_array, z_array = x_array[~mask_inf], y_array[~mask_inf], z_array[~mask_inf]
 
         if xerr is not None: 
-            xerr = xerr[~mask_inf]
+            xerr = flatten(xerr)[~mask_inf]
         if yerr is not None: 
-            yerr = yerr[~mask_inf]
+            yerr = flatten(yerr)[~mask_inf]
         if zerr is not None:
-            zerr = zerr[~mask_inf]
+            zerr = flatten(zerr)[~mask_inf]
 
         order = x_array.argsort() if order == 'x' else y_array.argsort()
 
@@ -79,6 +79,18 @@ class Graph2D:
         nz = f(nx, ny)
 
         return Graph2D(nx, ny, nz, **self.kwargs)
+    
+    def evaluate(self, x, y, nan=None):
+        import scipy.interpolate as interp
+        linear=interp.LinearNDInterpolator
+        f = linear(np.array([self.x_array, self.y_array]).T, self.z_array)
+
+        x, y = flatten(x), flatten(y)
+        z = f(x, y)
+        
+        if nan is not None:
+            z[np.isnan(z)] = nan
+        return z
 
     
     def set_attrs(self, label_stat=None, **kwargs):
@@ -130,4 +142,58 @@ class Graph2DList(ObjIter):
         super().__init__([
             Graph2D(x_array,y_array,z_array, **{ key:value[i] for key,value in kwargs.items() })
             for i,(x_array,y_array,z_array) in enumerate(zip(x_arrays,y_arrays,z_arrays))
-        ])
+    ])
+        
+
+class Graph2DFromHisto2D(Graph2D):
+    def __init__(self, histo, **kwargs):
+        z, zerr = histo.histo2d, histo.error2d
+        x, xerr = get_bin_centers(histo.x_bins), get_bin_widths(histo.x_bins)
+        y, yerr = get_bin_centers(histo.y_bins), get_bin_widths(histo.y_bins)
+
+        X, Y = np.meshgrid(x, y)
+        Xerr, Yerr = np.meshgrid(xerr, yerr)
+
+        super().__init__(X, Y, z, xerr=Xerr, yerr=Yerr, zerr=zerr)
+        
+def _to_graph(obj):
+    if hasattr(obj, 'histo2d'): return Graph2DFromHisto2D(obj)
+    return obj
+
+def _get_kwargs(num, den, **kwargs):
+    kwargs['color'] = kwargs.get('color',den.kwargs.get('color',None))
+    kwargs['linestyle'] = kwargs.get('linestyle',den.kwargs.get('linestyle',None))
+
+    return kwargs
+
+def get_data(obj):
+    y, yerr = obj.y_array, obj.yerr
+    x, xerr = obj.x_array, obj.xerr
+    z, zerr = obj.z_array, obj.zerr
+
+    if xerr is None: xerr = np.zeros_like(x)
+    if yerr is None: yerr = np.zeros_like(y)
+    if zerr is None: zerr = np.zeros_like(z)
+
+    return x, y, z, xerr, yerr, zerr
+
+class Ratio2D(Graph2D):
+    def __init__(self, num, den, inv=False, method=None, num_transform=None, den_transform=None, **kwargs):
+        kwargs = _get_kwargs(num, den, **kwargs)
+
+        if inv: num, den = den, num
+        num, den = _to_graph(num), _to_graph(den)
+
+        try:
+            np.testing.assert_allclose(num.x_array, den.x_array)
+            np.testing.assert_allclose(num.y_array, den.y_array)
+        except AssertionError as e:
+            raise e
+       
+        num_x, num_y, num_z, num_xerr, num_yerr, num_zerr = get_data(num)
+        den_x, den_y, den_z, den_xerr, den_yerr, den_zerr = get_data(den)
+
+        ratio = safe_divide(num_z, den_z, np.nan)
+        error = ratio * np.sqrt( safe_divide(num_zerr, num_z, np.nan)**2 + safe_divide(den_zerr, den_z, np.nan)**2 ) 
+
+        super().__init__(num_x, num_y, ratio, xerr=num_xerr, yerr=num_yerr, zerr=error, **kwargs)

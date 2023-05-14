@@ -24,6 +24,7 @@ date_tag = date.today().strftime("%Y%m%d")
 def save_fig(fig, saveas=None, base=f"{GIT_WD}/plots/{date_tag}_plots", fmt=['jpg']):
     outfn = os.path.join(base, saveas)
     directory = '/'.join(outfn.split('/')[:-1])
+    print('saving to', outfn)
     if not os.path.isdir(directory):
         os.makedirs(directory)
 
@@ -1024,7 +1025,10 @@ def quick2d_region(*rtrees, varlist=None, binlist=None, xvarlist=[], yvarlist=[]
             else:
                 ax = axs.flat[k]
 
-            hist2d_simple(xhist, yhist, weights=weight, **
+            # hist2d_simple(xhist, yhist, weights=weight, **
+            #               info, **study.attrs, figax=(fig, ax))
+            
+            hist2d_multi([xhist], [yhist], weights=[weight], **
                           info, **study.attrs, figax=(fig, ax))
     fig.suptitle(study.title)
     fig.tight_layout()

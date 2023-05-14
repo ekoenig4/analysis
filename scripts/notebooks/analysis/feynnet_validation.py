@@ -34,6 +34,7 @@ class FeynNetNotebook(Notebook):
         parser.add_argument("--dout", default='feynnet', help="output directory to write files to")
         parser.add_argument("--model", default="feynnet_sig_innersig", help="model to use for loading feynnet")
         parser.add_argument("--no-signal", action='store_true', help="skip signal loading", default=False)
+        parser.add_argument("--use-signal", help="use signal for plotting", default='feynnet_signal_list')
         return parser
 
     @required
@@ -53,7 +54,10 @@ class FeynNetNotebook(Notebook):
 
         self.signal = ObjIter([])
         if not self.no_signal:
-            self.signal = ObjIter([Tree(f, report=False, altfile='test_{base}') for f in tqdm(module.feynnet_signal_list)])
+            signal_list = getattr(module,self.use_signal)
+            if isinstance(signal_list, str): signal_list = [signal_list]
+
+            self.signal = ObjIter([Tree(f, report=False, altfile='test_{base}') for f in tqdm(signal_list) ])
             self.unique_mx = np.unique(self.signal.mx.npy)
             self.unique_my = np.unique(self.signal.my.npy)
 
@@ -62,27 +66,71 @@ class FeynNetNotebook(Notebook):
 # %%
     @required
     def load_feynnet(self, signal, bkg, model):
-        model = eightb.models.get_model(model)
-        (signal + bkg).apply( lambda t : eightb.load_yy_quadh_ranker(t, model.storage), report=True, parallel=True, thread_order=lambda thread : len(thread.obj) )
+        if model == 'random':
+            (signal + bkg).apply( lambda t : eightb.load_random_assignment(t), report=True, parallel=True, thread_order=lambda thread : len(thread.obj) )
+
+        else:
+            model = eightb.models.get_model(model)
+            (signal + bkg).apply( lambda t : eightb.load_feynnet_assignment(t, model.storage), report=True, parallel=True, thread_order=lambda thread : len(thread.obj) )
+
+        (signal + bkg).apply(
+            lambda t : t.extend(
+                **{
+                    f"{h}_m":t.h_m[:,i]
+                    for i, h in enumerate(eightb.higgslist)
+                },
+                **{
+                    f"{y}_m":t.y_m[:,i]
+                    for i, y in enumerate(eightb.ylist)
+                },
+            )
+        )
 
 # %%
-    def get_bkg_mx_vs_mh(self, bkg):
-        def higgs_m_chi2(t):
-            return np.sqrt( ak.sum( (t.higgs_m-125)**2, axis=1 ) )
-        higgs_m_chi2.bins = (0,300,30)
+    def get_mass_chi2(self, signal, bkg):
+        (signal+bkg).apply(
+            lambda tree : tree.extend(h_m_chi2=np.sqrt( ak.sum((tree.h_m-125)**2,axis=1) ))
+        )
+
+    @dependency(get_mass_chi2)
+    def bkg_mx_chi2(self, signal, bkg):
+        study.quick(
+            signal+bkg,
+            varlist=['X_m','Y1_m','h_m_chi2'],
+            binlist=[(250,2000,20),(0,1000,20),(0,300,20)],
+            dim=-1,
+            legend=True,
+            saveas=f'{self.dout}/bkg_mx_mh_chi2',
+            efficiency=True,
+        )
+
+        study.quick(
+            signal+bkg,
+            masks=lambda t : t.h_m_chi2 < 50,
+            varlist=['X_m','Y1_m','h_m_chi2'],
+            binlist=[(250,2000,20),(0,1000,20),(0,300,20)],
+            dim=-1,
+            legend=True,
+            saveas=f'{self.dout}/bkg_mx_mh_chi2_50',
+            efficiency=True,
+        )
+
+        for t in bkg:
+            t.lumi_scale_sum = lumiMap[2018][0] * ak.sum(t.scale)
+
         study.compare_masks(
             [],bkg,
             label=['Full','mD < 150','mD < 100','mD < 50'],
-            masks =[None, lambda t : higgs_m_chi2(t) < 150, lambda t : higgs_m_chi2(t) < 100, lambda t : higgs_m_chi2(t) < 50],
-            varlist=['X_m'],
-            binlist=[(250,2000,20)],
+            scale=lambda t : 1/t.lumi_scale_sum,
+            masks =[None, lambda t : t.h_m_chi2 < 150, lambda t : t.h_m_chi2 < 100, lambda t : t.h_m_chi2 < 50],
+            varlist=['X_m','Y1_m'],
+            binlist=[(250,2000,20),(0,1000,20)],
             legend=True,
 
             ratio=True, r_inv=True, r_log=True, r_ylim=(1e-3,1.5),
             r_size="90%", 
             # efficiency=True,
-
-            saveas=f'{self.dout}/bkg_mx_vs_dmh.png'
+            saveas=f'{self.dout}/bkg_mx_my_vs_mh_chi2',
         )
 # %%
     @required
@@ -97,7 +145,7 @@ class FeynNetNotebook(Notebook):
         study.statsplot(
             eightb_signal,
             label=eightb_signal.mass.list,
-            varlist=['reco_id'],
+            varlist=['x_signalId'],
             xlabels=['Reconstruction Efficiency'],
             efficiency=True,
 
@@ -115,7 +163,7 @@ class FeynNetNotebook(Notebook):
 # %%
     def get_extrema_efficiency(self, eightb_signal):
         from utils.ak_tools import ak_argavg
-        eightb_signal_eff = eightb_signal.apply( lambda t : ak.mean(t.reco_id == 0) ).npy
+        eightb_signal_eff = eightb_signal.apply( lambda t : ak.mean(t.x_signalId == 0) ).npy
         self.extrema_signal = [eightb_signal_eff .argmin(), ak_argavg(eightb_signal_eff), eightb_signal_eff.argmax()]
         print(eightb_signal_eff[self.extrema_signal])
         # print('\n'.join( [ f'{eightb_signal[i].mass}: {eightb_signal_eff[i]:0.3f}' for i in self.extrema_signal ] ))
@@ -156,7 +204,7 @@ class FeynNetNotebook(Notebook):
             zlabel='Reconstruction Efficiency',
             efficiency=True,
 
-            f_var=lambda t: ak.mean(t.reco_id==0),
+            f_var=lambda t: ak.mean(t.x_signalId==0),
             g_cmap='jet',
 
             xlabel='$M_X$ (GeV)',
@@ -179,7 +227,7 @@ class FeynNetNotebook(Notebook):
             eightb_signal[extrema_signal]+bkg,
             # legend=True,
             h_label_stat=None,
-            varlist=['yy_quadh_score','yy_quadh_minscore'],
+            varlist=['feynnet_maxscore','feynnet_minscore'],
             xlabels=['FeynNet Max Score','FeynNet Min Score'],
             binlist=[(-0.5,1.5,30)]*2,
             suptitle='FeynNet Reconstruction',

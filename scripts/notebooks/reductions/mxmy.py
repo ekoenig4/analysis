@@ -28,8 +28,8 @@ class SignalReduction(RunReduction):
         self.model = eightb.models.get_model(model)
 
     @required
-    def load_feynnet(self, signal, model):
-        signal.apply(lambda tree : eightb.load_feynnet_assignment(tree, model=model.storage), report=True, parallel=True, thread_order=lambda thread : len(thread.obj) )
+    def load_feynnet(self, signal, bkg, model):
+        (signal+bkg).apply(lambda tree : eightb.load_feynnet_assignment(tree, model=model.storage), report=True, parallel=True, thread_order=lambda thread : len(thread.obj) )
 
     def signal_masks(self, signal):
         signal.apply(lambda tree : tree.extend(all_eightb=tree.nfound_select==8))        
@@ -43,15 +43,15 @@ class SignalReduction(RunReduction):
 
         signal.apply(_efficiency, report=True)
 
-    def signal_dr(self, signal):
-        signal.apply(
+    def get_obj_dr(self, signal, bkg):
+        (signal+bkg).apply(
             lambda tree : (
                 add_h_j_dr(tree),
                 add_y_h_dr(tree),
             )
-        )    
+        )  
 
-    @dependency(signal_dr)
+    @dependency(get_obj_dr)
     def eightb_dr(self, signal):
         def _dr(tree):
             tree.reductions['eightb_h_dr'] = ak.mean( tree.h_j_dr[tree.all_eightb], axis=0 )
@@ -64,8 +64,6 @@ class SignalReduction(RunReduction):
             tree.reductions['eightb_incorr_y_dr'] = ak.mean( tree.y_h_dr[tree.all_eightb & (tree.x_signalId!=0)], axis=0 )
 
         signal.apply(_dr, report=True)
-
-
 
     @dependency(signal_masks)
     def eightb_efficiency(self, signal):
@@ -87,6 +85,7 @@ class SignalReduction(RunReduction):
             tree.reductions['eightb_y_res'] = ak.mean( (tree.y_m/tree.true_y_m)[tree.all_eightb], axis=0 )
 
         signal.apply(_resolution, report=True)
+
     
     def write_reductions(self, signal):
         import uproot as ut

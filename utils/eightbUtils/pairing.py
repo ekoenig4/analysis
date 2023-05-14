@@ -86,3 +86,10 @@ def load_true_assignment(tree):
     true_assignment = ak.argsort(jet_p4.signalId, axis=1)
     true_reconstruction = reconstruct(jet_p4, true_assignment, tag='true_')
     tree.extend(**true_reconstruction)
+
+def load_random_assignment(tree, tag=''):
+    jet_p4 = build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag'])
+
+    random_assignment = ak.from_regular( np.stack([ np.random.permutation(8) for _ in range(len(tree)) ]) )
+    random_reconstruction = reconstruct(jet_p4, random_assignment, tag=tag)
+    tree.extend(**random_reconstruction)

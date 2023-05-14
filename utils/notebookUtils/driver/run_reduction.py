@@ -51,7 +51,6 @@ class RunReduction(Notebook):
 
         files = [ _file(f) for f in files ]
         files = [ f for fs in files for f in iter_files(fs) ]
-
         trees = [ Tree(f, altfile=altfile, report=False) for f in tqdm(files) ]
         self.signal = ObjIter([ tree for tree in trees if tree.is_signal ])
         self.bkg = ObjIter([ tree for tree in trees if (not tree.is_data and not tree.is_signal) ])

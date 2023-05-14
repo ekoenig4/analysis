@@ -269,6 +269,9 @@ class FileCollection:
     return self
 
   def __getattr__(self, f): 
+    if re.match(f'MX_\d+_MY_\d+', f):
+      return getattr(self, f'NMSSM_XYY_YToHH_8b_{f}')
+
     path = f'{self.path}/{f}'
     if not eos.exists(path): raise AttributeError(f'{path} could not be found')
     return FileCollection(path)
