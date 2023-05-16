@@ -245,16 +245,26 @@ def init_sample(self):  # Helper Method For Tree Class
     if self.color is not None and not isinstance(self.color, str): self.color = next(self.color)
     self.pltargs = dict()
 
+def init_empty(self):
+    self.ttree = ak.Array(dict())
+
+    self.is_data = False
+    self.is_signal = False
+    self.is_model = False
+    self.sample = None
+    self.color = None
+    self.pltargs = dict()
+    self.systematics = None
 
 def init_tree(self, use_gen=False, cache=None):
-    self.fields = list(set.intersection(*[ set(fn.fields) for fn in self.filelist]))
+    self.fields = sorted(list(set.intersection(*[ set(fn.fields) for fn in self.filelist])))
 
     if self.lazy :
         self.ttree = ut.lazy([ f'{fn.fname}:{fn.treename}' for fn in self.filelist ])
     else:
         self.ttree = ut.lazy([fn.tree for fn in self.filelist])
-
     self.ttree = self.ttree[self.fields]
+
 
     scale = self.ttree['genWeight'] if (use_gen and 'genWeight' in self.fields) else 1
 
@@ -315,6 +325,7 @@ class Tree:
         init_files(self, filelist, treename, normalization, altfile, report)
 
         if not any(self.filelist):
+            init_empty(self)
             print('[WARNING] unable to open any files.')
             return
 

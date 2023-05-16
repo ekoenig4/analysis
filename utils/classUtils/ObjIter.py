@@ -2,6 +2,7 @@ import numpy as np
 import awkward as ak
 from tqdm import tqdm
 from threading import Thread
+from multiprocess.pool import ThreadPool
 
 
 class ObjThread(Thread):
@@ -13,22 +14,29 @@ class ObjThread(Thread):
         self.result = self.obj_function(self.obj)
 
 class ThreadManager:
-    def __init__(self, objs, obj_function, order=None):
+    def __init__(self, objs, obj_function):
         self.threads = [ ObjThread(obj, obj_function) for obj in objs ]
-        self.order = order
 
     def __enter__(self):
         return self
     
     def run(self, report=False):
         threads = self.threads
-        if callable(self.order):
-            threads = sorted(self.threads, key=self.order)
         for thread in threads: thread.start()
 
-        if report:
-            threads = tqdm(threads)
-        for thread in threads: thread.join()
+        waiting_for = list(range(len(threads)))
+        pbar = tqdm(total=len(waiting_for)) if report else None
+        while len(waiting_for) > 0:
+            for i in waiting_for:
+                thread = threads[i]
+                if thread.is_alive(): continue
+
+                waiting_for.remove(i)
+                if pbar: pbar.update(1)
+                thread.join()
+        if pbar: pbar.close()
+
+        # for thread in threads: thread.join()
         return [thread.result for thread in self.threads]
         
     def __exit__(self, *args):
@@ -148,10 +156,34 @@ class ObjIter:
         split_f = self.filter(lambda obj : obj not in split_t)
         return split_t,split_f
 
-    def parallel_apply(self, obj_function, report=False, thread_order=None, **kwargs):
+    def parallel_apply(self, obj_function, report=False, nthreads=-1, **kwargs):
 
-        with ThreadManager(self.objs, obj_function, order=thread_order) as manager:
+        with ThreadManager(self.objs, obj_function) as manager:
             results = manager.run(report=report)
+
+        # if nthreads < 0: nthreads = len(self)
+        # elif nthreads < 1: nthreads = int(nthreads*len(self))
+
+        # with ThreadPool(nthreads) as pool:
+        #     result = pool.imap(obj_function, self.objs, chunksize=len(self)//nthreads)
+
+        #     if report:
+        #         result = tqdm(result, total=len(self))
+
+        #     results = list( result )
+
+        return ObjIter(results)
+    
+    def pool_apply(self, obj_function, report=False, pool=None):
+        if pool is None:
+            pool = ThreadPool(len(self))
+
+        result = pool.imap(obj_function, self.objs, chunksize=1)
+
+        if report:
+            result = tqdm(result, total=len(self))
+
+        results = list( result )
 
         return ObjIter(results)
 

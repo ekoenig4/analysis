@@ -7,6 +7,7 @@ from .multi_plotter_2d import hist2d_multi, hist2d_simple
 from .histogram import *
 from .histogram2d import *
 from .graph import *
+from .graph2d import *
 from .model import *
 from . import function
 
