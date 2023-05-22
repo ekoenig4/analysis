@@ -72,7 +72,7 @@ def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None,
     if len(datas) > 0: 
         data_kwargs = datas.unzip(datas.fields[1:])
         # data_kwargs.update(dict(color='black', marker='o', linestyle='None'))
-        datas = Data2DList(datas.x_arrays, x_bins=x_bins, y_bins=y_bins, density=density, cumulative=cumulative, efficiency=efficiency, **data_kwargs)
+        datas = Data2DList.from_arrays(datas.x_arrays, x_bins=x_bins, y_bins=y_bins, density=density, cumulative=cumulative, efficiency=efficiency, **data_kwargs)
         x_bins = datas[0].x_bins
         y_bins = datas[0].y_bins
         plotobjs.append(datas)
@@ -83,7 +83,7 @@ def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None,
             bkg_kwargs = bkgs.unzip(bkgs.fields[1:])
             bkg_kwargs.update(label='MC-Bkg', color='grey')
             # bkg_kwargs.update(label='MC-Bkg', color='black')
-            stack = Stack2D(bkgs.x_arrays, x_bins=x_bins, y_bins=y_bins, density=density, cumulative=cumulative, efficiency=efficiency, **bkg_kwargs)
+            stack = Stack2D.from_arrays(bkgs.x_arrays, x_bins=x_bins, y_bins=y_bins, density=density, cumulative=cumulative, efficiency=efficiency, **bkg_kwargs)
             x_bins = stack.x_bins
             y_bins = stack.y_bins
             plotobjs.append(stack)
@@ -93,7 +93,7 @@ def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None,
         if len(signal) > 0:
             signal_kwargs = signal.unzip(signal.fields[1:])
             signal_kwargs.update(label='Signal', color='red')
-            stack = Stack2D(signal.x_arrays, x_bins=x_bins, y_bins=y_bins, density=density, cumulative=cumulative, efficiency=efficiency, **signal_kwargs)
+            stack = Stack2D.from_arrays(signal.x_arrays, x_bins=x_bins, y_bins=y_bins, density=density, cumulative=cumulative, efficiency=efficiency, **signal_kwargs)
             x_bins = stack.x_bins
             y_bins = stack.y_bins
             plotobjs.append(stack)
@@ -102,7 +102,7 @@ def hist2d_multi(x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None,
     if len(attrs) > 0:
         histo_kwargs = attrs.unzip(attrs.fields[1:])
         # histo_kwargs.update(dict(histtype='step',linewidth=2))
-        histos = Histo2DList(attrs.x_arrays, x_bins=x_bins, y_bins=y_bins, cumulative=cumulative, efficiency=efficiency, **histo_kwargs)
+        histos = Histo2DList.from_arrays(attrs.x_arrays, x_bins=x_bins, y_bins=y_bins, cumulative=cumulative, efficiency=efficiency, **histo_kwargs)
         x_bins = histos[0].x_bins
         y_bins = histos[0].y_bins
         plotobjs.append(histos)

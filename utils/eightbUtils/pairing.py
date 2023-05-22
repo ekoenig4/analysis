@@ -6,6 +6,7 @@ import glob, os
 from ..ak_tools import *
 from ..hepUtils import build_all_dijets
 from ..combinatorics import combinations
+from ..classUtils import ParallelMethod
 
 def reconstruct(jet_p4, assignment, tag=''):
     if tag and not tag.endswith('_'): tag += '_'
@@ -54,31 +55,111 @@ def reconstruct(jet_p4, assignment, tag=''):
         **{f'{tag}h_signalId': h_signalId},
         **{f'{tag}j_{var}': getattr(j_p4, var) for var in j_p4.fields},
     )
+def assign(tree):
+    j = get_collection(tree, 'j', named=False)
+    h = get_collection(tree, 'h', named=False)
+    y = get_collection(tree, 'y', named=False)
+    x = get_collection(tree, 'x', named=False)
 
-def load_weaver_output(tree, model=None, fields=['scores']):
-  rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname)+".awkd" for fn in tree.filelist ]
-  toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
+    tree.extend(
+        **{
+            f'{J}_{field}': j[field][:,i]
+            for field in j.fields
+            for i, J in enumerate(eightb.quarklist)
+        },
+        **{
+            f'{H}_{field}': h[field][:,i]
+            for field in h.fields
+            for i, H in enumerate(eightb.higgslist)
+        },
+        **{
+            f'{Y}_{field}': y[field][:,i]
+            for field in y.fields
+            for i, Y in enumerate(eightb.ylist)
+        },
+        **{
+            f'X_{field}': x[field]
+            for field in x.fields
+        }
+    )
 
-  fields = {
+def load_weaver_from_ak0(toload, fields=['scores']):
+    fields = {
     field:np.concatenate([ np.array(ak0.load(fn)[field], dtype=float) for fn in toload ])
     for field in fields
-  }
-  return fields
+    }
 
-def load_feynnet_assignment(tree, model, extra=[], reco_event=True):
-    fields = ['maxcomb','maxscore','minscore'] + extra
-    ranker = load_weaver_output(tree, model, fields=fields)
+    return fields
+
+def load_weaver_from_root(toload, fields=['scores']):
+    import uproot
+
+    def load_fields(fn, fields):
+        with uproot.open(fn) as f:
+            ttree = f['Events']
+            return { field:ttree[field].array() for field in fields }
+
+    arrays = [
+        load_fields(fn, fields)
+        for fn in toload
+    ]
+
+    return {
+        field:np.concatenate([ array[field] for array in arrays ])
+        for field in fields
+    }
+
+
+
+def load_weaver_output(tree, model=None, fields=['scores']):
+    rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname) for fn in tree.filelist ]
+    toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
+    if any(toload): return load_weaver_from_root(toload, fields=fields)
+  
+    rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname)+".awkd" for fn in tree.filelist ]
+    toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
+
+    if any(toload): return load_weaver_from_ak0(toload, fields=fields)
+
+class f_load_feynnet_assignment(ParallelMethod):
+    def __init__(self, model, extra=[], reco_event=True):
+        self.model = model
+        self.extra = extra
+        self.reco_event = reco_event
+    def start(self, tree):
+        fields = ['maxcomb','maxscore','minscore'] + self.extra
+        return dict(
+            ranker=load_weaver_output(tree, self.model, fields=fields),
+            extra=self.extra,
+            jet_p4=build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag']),
+        )
+    def run(self, jet_p4, ranker, extra):
+        score, assignment, minscore = ranker['maxscore'], ranker['maxcomb'], ranker['minscore']
+        assignment = ak.values_astype(ak.from_regular(assignment), "int64")
+        reconstruction = reconstruct(jet_p4, assignment)
+        return dict(
+            feynnet_maxscore=score,
+            feynnet_minscore=minscore,
+            **{f'feynnet_{field}':ak.from_regular(ranker[field]) for field in extra},
+            **reconstruction,
+        )
+    def end(self, tree, **output):
+        tree.extend(**output)
+
+# def load_feynnet_assignment(tree, model, extra=[], reco_event=True):
+#     fields = ['maxcomb','maxscore','minscore'] + extra
+#     ranker = load_weaver_output(tree, model, fields=fields)
     
-    score, assignment, minscore = ranker['maxscore'], ranker['maxcomb'], ranker['minscore']
-    tree.extend(feynnet_maxscore=score, feynnet_minscore=minscore, **{f'feynnet_{field}':ak.from_regular(ranker[field]) for field in extra})
+#     score, assignment, minscore = ranker['maxscore'], ranker['maxcomb'], ranker['minscore']
+#     tree.extend(feynnet_maxscore=score, feynnet_minscore=minscore, **{f'feynnet_{field}':ak.from_regular(ranker[field]) for field in extra})
 
-    if not reco_event: return
+#     if not reco_event: return
 
-    assignment = ak.from_regular(assignment.astype(int))
+#     assignment = ak.from_regular(assignment.astype(int))
 
-    jet_p4 = build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag'])
-    reconstruction = reconstruct(jet_p4, assignment)
-    tree.extend(**reconstruction)
+#     jet_p4 = build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag'])
+#     reconstruction = reconstruct(jet_p4, assignment)
+#     tree.extend(**reconstruction)
 
 def load_true_assignment(tree):
     jet_p4 = build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag'])
@@ -93,3 +174,34 @@ def load_random_assignment(tree, tag=''):
     random_assignment = ak.from_regular( np.stack([ np.random.permutation(8) for _ in range(len(tree)) ]) )
     random_reconstruction = reconstruct(jet_p4, random_assignment, tag=tag)
     tree.extend(**random_reconstruction)
+
+from .reco_genobjs import quarklist, higgslist, ylist
+
+def assign(tree, tag=''):
+    if tag and not tag.endswith('_'): tag += '_'
+    j = get_collection(tree, tag+'j', named=False)
+    h = get_collection(tree, tag+'h', named=False)
+    y = get_collection(tree, tag+'y', named=False)
+    x = get_collection(tree, tag+'x', named=False)
+
+    tree.extend(
+        **{
+            f'{tag}{J}_{field}': j[field][:,i]
+            for field in j.fields
+            for i, J in enumerate(quarklist)
+        },
+        **{
+            f'{tag}{H}_{field}': h[field][:,i]
+            for field in h.fields
+            for i, H in enumerate(higgslist)
+        },
+        **{
+            f'{tag}{Y}_{field}': y[field][:,i]
+            for field in y.fields
+            for i, Y in enumerate(ylist)
+        },
+        **{
+            f'{tag}X_{field}': x[field]
+            for field in x.fields
+        }
+    )

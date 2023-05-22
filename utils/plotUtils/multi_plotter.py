@@ -118,7 +118,7 @@ def _add_histo(figax, plotobjs, store=None, size='50%', sharex=False, pad=0.6, e
 
     _plot_objects(figax, histos,  size=size, sharex=sharex, pad=pad, xlabel=xlabel, errors=errors, density=density, cumulative=cumulative, efficiency=efficiency, **kwargs['remaining'])
 
-def _add_limits(figax, plotobjs, xy=(0.05,0.95), xycoords='axes fraction', poi=np.linspace(0,2,21), saveas=None, **kwargs):
+def _add_limits(figax, plotobjs, xy=(0.05,0.95), xycoords='axes fraction', poi=np.linspace(0,2,21), saveas=None, parallel=False, report=False, **kwargs):
     # --- Configure kwargs ---d
     kwargs = _configure_kwargs(**kwargs)
 
@@ -130,10 +130,21 @@ def _add_limits(figax, plotobjs, xy=(0.05,0.95), xycoords='axes fraction', poi=n
         elif plotobj.is_bkg:    h_bkgs.append(plotobj)
         elif plotobj.is_data:   h_data = plotobj
 
-    models = [ Model(h_sig, h_bkgs, h_data) for h_sig in h_sigs ]
+    models = ObjIter([ Model(h_sig, h_bkgs, h_data) for h_sig in h_sigs ])
+    upperlimit = Model.f_upperlimit(poi=poi)
+
+    if parallel:
+        if isinstance(parallel, bool): parallel = 4
+        parallel = min(len(models), parallel)
+
+        import multiprocessing as mp
+
+        with mp.Pool(parallel) as pool:
+            models.parallel_apply(upperlimit, pool=pool, report=report)
+    else:
+        models.apply(upperlimit, report=report)
 
     for model in models:
-        model.upperlimit(poi=poi)
         model.h_sig.set_label('exp_lim')
         if saveas:
             model.export_to_root(saveas=saveas)

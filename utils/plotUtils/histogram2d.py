@@ -16,14 +16,18 @@ from .histogram import Histo
 
 class Stats:
     def __init__(self,histo):
-        self.nevents = np.sum(histo.weights)
-        self.ess = np.sum(histo.weights)**2/np.sum(histo.weights**2)
-
-        self.x_mean, self.x_stdv = get_avg_std(histo.x_array, histo.weights, histo.x_bins)
-        self.x_minim, self.x_maxim = np.min(histo.x_array), np.max(histo.x_array)
+        self.nevents = np.sum(histo.histo2d)
+        # self.ess = np.sum(histo.weights)**2/np.sum(histo.weights**2)
+        self.ess = self.nevents**2/np.sum(histo.error2d**2)
         
-        self.y_mean, self.y_stdv = get_avg_std(histo.y_array, histo.weights, histo.y_bins)
-        self.y_minim, self.y_maxim = np.min(histo.y_array), np.max(histo.y_array)
+        if self.nevents > 0:
+            if histo.x_array is not None:
+                self.x_mean, self.x_stdv = get_avg_std(histo.x_array, histo.weights, histo.x_bins)
+                self.x_minim, self.x_maxim = np.min(histo.x_array), np.max(histo.x_array)
+                self.y_mean, self.y_stdv = get_avg_std(histo.y_array, histo.weights, histo.y_bins)
+                self.y_minim, self.y_maxim = np.min(histo.y_array), np.max(histo.y_array)
+            # else:
+        
         
     def __str__(self):
         return '\n'.join([ f'{key}={float(value):0.3e}' for key,value in vars(self).items() ])
@@ -71,67 +75,126 @@ def histogram2d(x_array, y_array, x_bins, y_bins, weights, sumw2=True):
     return numba_weighted_histo2d_sumw2(x_array, y_array, x_bins, y_bins, weights)
 
 class Histo2D:
-    def __init__(self, x_array, y_array, x_bins=None, y_bins=None, weights=None,
-                 efficiency=False, density=False, cumulative=False, lumi=None, restrict=False,
-                 label_stat='events', is_data=False, is_signal=False, is_model=False, sumw2=True, scale=1, __id__=None, fit=None,
-                 continous=False, ndata=None, nbins=30, **kwargs):
-        self.__id__ = __id__
-        if weights is not None: weights = flatten(ak.ones_like(x_array)*weights)
 
-        self.x_array = flatten(x_array)
-        self.y_array = flatten(y_array)
-        self.counts = len(self.x_array)
-
-        
+    @classmethod
+    def from_array(cls, x_array, y_array, x_bins=None, y_bins=None, weights=None, sumw2=True, **kwargs):
         if weights is not None:
-            self.weights = flatten(weights)
-            if self.weights.shape != self.x_array.shape:
-                self.weights = flatten(ak.ones_like(x_array)*weights)
+            if len(weights) != len(x_array):
+                raise ValueError(f'shape of the first dimension must be the same for array and weight. Got array ({len(x_array)}) and weight ({len(weights)}')
+            weights = cast_array(weights)
+
+        x_array = cast_array(x_array)
+        y_array = cast_array(y_array)
+
+        if x_array.ndim > 1:
+            nobjs = ak.to_numpy(ak.count(x_array, axis=1))
+        x_array = flatten(x_array)
+        y_array = flatten(y_array)
+
+        if weights is not None:
+            weights = flatten(weights)
+            if weights.shape != x_array.shape:
+                weights = np.repeat(weights, nobjs)
         else:
-            self.weights= np.ones((self.counts,))
+            weights= np.ones(x_array.shape)
 
-        self.ndata = self.counts if weights is None else weights.sum()
+        x_bins = autobin(x_array, bins=x_bins, nbins=30)
+        y_bins = autobin(y_array, bins=y_bins, nbins=30)
+        
+        raw_counts, _ = histogram2d(x_array, y_array, x_bins, y_bins, np.ones_like(weights))
+        counts, error = histogram2d(x_array, y_array, x_bins, y_bins, weights, sumw2=sumw2)
 
-        self.x_bins = autobin(self.x_array, bins=x_bins, nbins=nbins)
-        self.y_bins = autobin(self.y_array, bins=y_bins, nbins=nbins)
-        self.sumw2 = sumw2
+        histo2d = cls(counts, x_bins=x_bins, y_bins=y_bins, error2d=error, raw_counts=raw_counts, x_array=x_array, y_array=y_array, weights=weights, **kwargs)
+        return histo2d
 
-        if restrict:
-            x_lo = self.x_array >= self.x_bins[0]
-            x_hi = self.x_array < self.x_bins[-1]
-            y_lo = self.y_array >= self.y_bins[0]
-            y_hi = self.y_array < self.y_bins[-1]
-            restrict = x_lo & x_hi & y_lo & y_hi
+    @classmethod
+    def from_graph2d(cls, graph2d, **kwargs):
+        x, xerr = graph2d.x_array, graph2d.xerr
+        y, yerr = graph2d.y_array, graph2d.yerr
+        z, zerr = graph2d.z_array, graph2d.zerr
 
-            self.x_array = self.x_array[restrict]
-            self.y_array = self.y_array[restrict]
-            self.weights = self.weights[restrict]
-            self.counts = len(self.x_array)
-            self.ndata = self.weights.sum()
+        x_lo = np.unique(x - xerr)
+        x_hi = np.unique(x + xerr)
+        x_bins = np.concatenate([x_lo[:1], x_hi])
+        x_digit = np.digitize(x, x_bins) - 1
+
+        y_lo = np.unique(y - yerr)
+        y_hi = np.unique(y + yerr)
+        y_bins = np.concatenate([y_lo[:1], y_hi])
+        y_digit = np.digitize(y, y_bins) - 1
+
+        Z = np.zeros((len(x_bins)-1, len(y_bins)-1))
+        Zerr = np.zeros((len(x_bins)-1, len(y_bins)-1))
+        Z[x_digit, y_digit] = z
+        Zerr[x_digit, y_digit] = zerr
+
+        return cls(Z.T, x_bins, y_bins, error2d=Zerr.T, **kwargs)
+
+    def __init__(self, counts, x_bins, y_bins, error2d=None, x_array=None, y_array=None, weights=None,
+                 efficiency=False, density=False, lumi=None, restrict=False, systematics=None,raw_counts=None,
+                 label_stat='events', is_data=False, is_signal=False, is_model=False, scale=1, plot_scale=1, __id__=None, fit=None,
+                 continous=False, ndata=None, **kwargs):
+        self.__id__ = __id__
+
+        self.histo2d = counts 
+        self.x_bins = x_bins
+        self.y_bins = y_bins
+
+        self.error2d = error2d
+        if error2d is None:
+            self.error2d = np.sqrt(counts)
+        self.systematics = systematics
+        
+        self.x_array = x_array 
+        self.y_array = y_array 
+        self.weights = weights
+        self.raw_counts = raw_counts if raw_counts is not None else counts
+        
+        self.ndata = ndata 
+        if ndata is None:
+            self.ndata = np.sum(self.histo2d)
         
         self.is_data = is_data 
         self.is_signal = is_signal 
         self.is_bkg = not (is_data or is_signal)
         self.is_model = is_model
-        
+
         lumi,_ = lumiMap.get(lumi,(lumi,None))
         self.lumi = lumi
-        if not is_data: self.weights = lumi * self.weights
-    
-        self.density = density 
-        self.cumulative = cumulative
-        self.efficiency = efficiency
+        if not self.is_data: 
+            self.histo2d = lumi*self.histo2d
+            self.error2d = lumi*self.error2d
+            if self.weights is not None:
+                self.weights = lumi*self.weights
+            
         self.continous = continous
         
-        self.stats = Stats(self)      
-        if scale is 'xs': scale = scale/lumi
-        if density or efficiency or cumulative: scale = 1/np.sum(self.weights)
-        self.rescale(scale)
+        self.stats = Stats(self)
+        self.rescale(scale, efficiency=efficiency, density=density)
 
-        self.label = kwargs.get('label', None)
+        fit_kwargs = { key[4:]:value for key,value in kwargs.items() if key.startswith('fit_') }
+        self.kwargs = { key:value for key,value in kwargs.items() if not key.startswith('fit_') }
+        self.fit = vars(function).get(fit, None)
+        if self.fit is not None:
+            self.fit = self.fit.fit_histo(self, **fit_kwargs)
+
+        self.set_attrs(label_stat=label_stat, plot_scale=plot_scale)
+
+    def set_attrs(self, label_stat=None, plot_scale=1, systematics=None, **kwargs):
+        if systematics is not None:
+            self.add_systematics(systematics)
+
+        kwargs = dict(self.kwargs, **kwargs)
+        
+        self.label = kwargs.get('label',None)
+        self.plot_scale = plot_scale
+        
+        if self.plot_scale != 1:
+            self.label = f"{self.label}($\\times${self.plot_scale})"
+
         self.kwargs = kwargs
-        self.kwargs['cmap'] = kwargs.get('cmap', 'YlOrRd' if not self.is_bkg else 'YlGnBu')
         self.set_label(label_stat)
+        return self
     
     def set_label(self, label_stat='events'):
         if label_stat is None: pass
@@ -152,19 +215,19 @@ class Histo2D:
             else:
                 self.kwargs['label'] = f'{label_stat}'
     
-    def rescale(self,scale):
-        if scale is not None:
-            if is_iter(scale): 
-                scale = flatten(scale)      
+    def rescale(self, scale=None, efficiency=False, density=False):
+        if scale is None: scale = 1
+        
+        self.density = density 
+        self.efficiency = efficiency
+        self.scale = scale
 
-            self.weights = scale * self.weights
-        
-            # if scale != 1 and not is_iter(scale) and isinstance(scale,int):
-            #     self.label = f'{self.label} x {scale}'
-                
-        self.histo2d, self.error2d = histogram2d(self.x_array, self.y_array, self.x_bins, self.y_bins, self.weights, self.sumw2)
-        self.raw_histo2d, _ = histogram2d(self.x_array, self.y_array, self.x_bins, self.y_bins, np.ones_like(self.weights))
-        
+        if density or efficiency: scale = 1/np.sum(self.histo)
+
+        self.histo2d = scale * self.histo2d
+        self.error2d = scale * self.error2d
+        self.add_systematics()
+
         if np.any( self.histo2d < 0 ):
             self.error2d = np.where(self.histo2d < 0, 0, self.error2d)
             self.histo2d = np.where(self.histo2d < 0, 0, self.histo2d)
@@ -176,6 +239,30 @@ class Histo2D:
             self.areas = wx*wy
             self.histo2d /= self.areas
             self.error2d /= self.areas
+        return self
+    
+    def add_systematics(self, systematics=None):
+        if systematics is None: systematics = self.systematics
+        if systematics is None: return
+        if not isinstance(systematics, list): systematics = [systematics]
+
+        # for systematic in systematics:
+        #     self.error = apply_systematic(self.histo, self.error, systematic)
+
+    def evaluate(self, x, y, nan=None):
+        x, y = flatten(x), flatten(y)
+
+        xb = np.digitize(x, self.x_bins)-1
+        xb = np.clip(xb, 0, len(self.x_bins)-2)
+
+        yb = np.digitize(y, self.y_bins)-1
+        yb = np.clip(yb, 0, len(self.y_bins)-2)
+
+
+        z = self.histo2d[yb, xb]
+        if nan is not None:
+            z[np.isnan(z)] = nan
+        return z
 
     def x_corr(self, **kwargs):
         x_points, y_points = get_bin_centers(self.x_bins), get_bin_centers(self.y_bins)
@@ -197,7 +284,9 @@ class Histo2D:
         return Graph(mean, y_points, xerr=stdv, order='y', color='grey', **kwargs)
 
 class Histo2DList(ObjIter):
-    def __init__(self, x_arrays, y_arrays, x_bins=None, y_bins=None, **kwargs):
+
+    @classmethod
+    def from_arrays(cls, x_arrays, y_arrays, x_bins=None, y_bins=None, **kwargs):
         attrs = AttrArray(x_arrays=x_arrays, y_arrays=y_arrays,**kwargs)
         kwargs = attrs[attrs.fields[1:]]
         
@@ -209,18 +298,24 @@ class Histo2DList(ObjIter):
             _x_bins = x_bins[i] if x_multi_binned else x_bins
             _y_bins = y_bins[i] if y_multi_binned else y_bins
 
-            histo2d = Histo2D(x_array, y_array,x_bins=_x_bins, y_bins=_y_bins, **{ key:value[i] for key,value in kwargs.items() })
+            histo2d = Histo2D.from_array(x_array, y_array,x_bins=_x_bins, y_bins=_y_bins, **{ key:value[i] for key,value in kwargs.items() })
             if x_bins is None: x_bins = histo2d.x_bins
             if y_bins is None: y_bins = histo2d.y_bins
             histo2dlist.append(histo2d)
-        super().__init__(histo2dlist)
+        return cls(histo2dlist)
+
+    
+    def __repr__(self): return f"Histo2DList<{repr(self.objs)}>"
 
 class Data2DList(Histo2DList):
-    def __init__(self, x_arrays, y_arrays, x_bins=None, y_bins=None, histtype=None, **kwargs):
-        super().__init__(x_arrays, y_arrays, x_bins=x_bins, y_bins=y_bins,**kwargs)
+    ...
+    # @classmethod
+    # def from_arrays(cls, x_arrays, y_arrays, x_bins=None, y_bins=None, histtype=None, **kwargs):
+    #     return Histo2DList.from_arrays(x_arrays, y_arrays, x_bins=x_bins, y_bins=y_bins,**kwargs)
 
 class Stack2D(Histo2D):
-    def __init__(self, x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None, label_stat='events', **kwargs):
+    @classmethod
+    def from_arrays(cls, x_arrays, y_arrays, x_bins=None, y_bins=None, weights=None, label_stat='events', **kwargs):
         if isinstance(label_stat, list): label_stat = label_stat[0]
 
         x_array = ak.concatenate(x_arrays, axis=0)
@@ -232,4 +327,4 @@ class Stack2D(Histo2D):
         kwargs['label'] = kwargs.get('label','MC-Bkg')
         kwargs = { key:value[0] if isinstance(value, list) else value for key, value in kwargs.items() }
 
-        super().__init__(x_array, y_array, x_bins=x_bins, y_bins=y_bins, weights=weights, label_stat=label_stat, **kwargs)
+        return cls.from_array(x_array, y_array, x_bins=x_bins, y_bins=y_bins, weights=weights, label_stat=label_stat, **kwargs)

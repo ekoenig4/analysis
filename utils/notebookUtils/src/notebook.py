@@ -1,6 +1,9 @@
 from .cell_dependency import CellDependency
 from .cell import Cell
 
+# from ...rich_tools import print
+# from rich import print
+
 from argparse import ArgumentParser
 
 import time
@@ -9,11 +12,16 @@ import datetime
 class Stopwatch:
     def __init__(self):
         self.start = time.perf_counter()
+        self.previous_timestamp = -1
 
     def __str__(self):
         now = time.perf_counter() - self.start 
         timestamp = str(datetime.timedelta(seconds=now))
         timestamp = timestamp.split('.')[0]
+
+        if timestamp == self.previous_timestamp: return ' '*len(timestamp)
+        
+        self.previous_timestamp = timestamp
         return timestamp
 
 
@@ -136,6 +144,10 @@ class Notebook:
     @property
     def namespace(self):
         return { key:value for key, value in self.__dict__.items() if not key.startswith('_') }
+    
+    def hello(self):
+        self.print_namespace()
+        print(str(self))
     
     def print_namespace(self):
         print("---Arguments---")

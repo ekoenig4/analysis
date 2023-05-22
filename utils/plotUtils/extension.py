@@ -141,7 +141,7 @@ class draw_circle:
     def __init__(self, x, y, r, efficiency=False, label=None, text=(0, 1), color='k', fill=False, **style):
         self.x, self.y, self.r = x, y, r
         self.style = dict(color=color, fill=fill, **style)
-        self.tx, self.ty = text
+        self.tx, self.ty = text or (None, None)
         self.efficiency = efficiency
         self.label = label
 
@@ -165,6 +165,8 @@ class draw_circle:
         ax.set_aspect('auto')
         ax.set_xlim(xlim)
 
+        if None in (self.tx, self.ty): return
+        
         tx, ty = (self.tx+0.01), (self.ty-0.035)
         txt = ax.text(tx, ty, label,
                 va="center", fontsize=10, transform=ax.transAxes, color='w')

@@ -8,6 +8,7 @@ class WeaverModel:
 
         self.path = path
         self.storage = storage
+        self.analysis = storage.replace('weaver/','weaver/analysis/')
         self.desc = desc
 
     @property

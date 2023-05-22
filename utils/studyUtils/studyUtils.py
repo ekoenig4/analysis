@@ -88,12 +88,12 @@ def autosize(size=(-1, -1), dim=(-1, 1)):
     return xsize, ysize
 
 
-def get_figax(nvar=1, dim=(-1, -1), flip=False, size=(-1, -1)):
+def get_figax(nvar=1, dim=(-1, -1), flip=False, size=(-1, -1), **kwargs):
     nrows, ncols = autodim(nvar, dim, flip)
     xsize, ysize = autosize(size, (nrows, ncols))
     return plt.subplots(nrows=nrows, ncols=ncols,
                         figsize=(int(xsize*ncols), ysize*nrows),
-                        dpi=80)
+                        dpi=80, **kwargs)
 
 
 def cutflow(*args, size=(16, 8), log=1, h_label_stat=None, scale=True, density=False, lumi=2018, **kwargs):
@@ -177,14 +177,118 @@ def boxplot(*args, varlist=[], binlist=None, xlabels=None, dim=None, flip=False,
     if study.return_figax:
         return fig, axs
 
+def limits(*args, varlist=[], binlist=[], report=True, parallel=8, poi=np.linspace(0,2,11), **kwargs):
+    study = Study(*args, histo=False, **kwargs)
 
-def brazil(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1, -1), flip=False, figax=None, use_norm=False, **kwargs):
-    study = Study(*args, histo=False, limits=True, **kwargs)
+    binlist = AttrArray.init_attr(binlist, None, 1)
+    varlist = zip(varlist, binlist)
+    var, bins = next(varlist)
+
+    bins, _ = format_var(var, bins)
+    hists = study.get_array(var)
+    weights = study.get_scale(hists)
+
+    _, _, histos = hist_multi(hists, bins=bins, weights=weights, **study.attrs, figax='none')
+
+    h_bkg, h_sigs = histos
+    sig_models = h_sigs.apply( lambda h : Model(h, h_bkg) )
+
+    if parallel:
+        if isinstance(parallel, bool): parallel = 4
+        parallel = min(len(sig_models), parallel)
+
+        import multiprocessing as mp
+
+        upperlimit = Model.f_upperlimit(poi=poi)
+        with mp.Pool(parallel) as pool:
+            sig_models.parallel_apply(upperlimit, pool=pool, report=report)
+    else:
+        sig_models.apply(Model.upperlimit, report=report)
+
+    return sig_models
+
+def brazil_limits(sig_models, xlabel='my', units='fb', ylim=(0,250), grid=True, figax=None, saveas=None):
+    from ..plotUtils.better_plotter import plot_model_brazil
+    unique_mx = np.unique([ s.mx for s in sig_models])
+    unique_my = np.unique([ s.my for s in sig_models])
+    
+
+    if xlabel == 'my':
+        unique_x = unique_my
+        unique_y = unique_mx
+        check = lambda s, mx : s.mx == mx
+        label = lambda mx : f'Expected for $M_{{X}} = {mx}$ GeV'
+        supxlabel = '$M_{Y}$ [GeV]'
+    elif xlabel == 'mx':
+        unique_x = unique_mx
+        unique_y = unique_my
+        check = lambda s, my : s.my == my
+        label = lambda my : f'Expected for $M_{{Y}} = {my}$ GeV'
+        supxlabel = '$M_{X}$ [GeV]'
+
+    if figax is None:
+        figax = get_figax(nvar=len(unique_y), dim=(len(unique_y),1), size=(5,1.5), sharex=True, sharey=True)
+    fig, axs = figax
+
+    xlim = (min(unique_x)-50, max(unique_x)+50)
+
+    # fig, axs = study.get_figax(nvar=1,)
+    for i, y in enumerate( tqdm(unique_y) ):
+        y_signal = ObjIter([ s for s in sig_models if check(s, y) ])
+
+        plot_model_brazil(
+            y_signal,
+            label=label(y),
+            xlabel=xlabel,
+            units=units,
+            ylim=ylim,
+            xlim=xlim,
+            grid=grid,
+            legend=True,
+            figax=(fig,axs.flat[i])
+        )
+        axs.flat[i].set(xlabel=None)
+
+    fig.supxlabel(supxlabel)
+    fig.supylabel(f'95% CL upper limit on $\sigma(X\\rightarrow YY\\rightarrow 4H)$ [{units}]')
+    fig.tight_layout()
+    fig.subplots_adjust(hspace=0.05)
+
+    if saveas:
+        save_fig(fig, saveas)
+
+def brazil2d_limits(sig_models,  units='fb', figax=None, saveas=None, **kwargs):
+    if figax is None:
+        figax = get_figax()
+    fig, ax = figax
+    
+    mx = np.array([ s.mx for s in sig_models])
+    my = np.array([ s.my for s in sig_models])
+    exp_limits = np.array([ s.h_sig.stats.exp_limits[2] for s in sig_models])
+
+    unitMap = dict(
+        pb=1,
+        fb=1e3,
+    )
+    exp_limits *= unitMap[units]
+
+    xlim = (min(mx), max(mx))
+    ylim = (min(my), max(my))
+
+    zlabel = (f'95% CL upper limit on $\sigma(X\\rightarrow YY\\rightarrow 4H)$ [{units}]')
+
+    graph2d_array(mx, my, exp_limits, figax=figax, interp=interp, colorbar=True, zlabel=zlabel, **kwargs)
+    graph_array(mx, my, figax=figax, g_color='grey', g_ls='none', g_marker='o', g_markersize=10, xlim=xlim, ylim=ylim, xlabel='$M_{X}$ [GeV]', ylabel='$M_{Y}$ [GeV]')
+
+    if saveas:
+        save_fig(fig, saveas)
+
+def brazil(*args, varlist=[], label='Expected', xlabel='mass', ylabel='95% CL upper limit on cross section', binlist=None, dim=(-1, -1), size=(-1, -1), flip=False, figax=None, use_norm=False, units='pb', xlim=None, ylim=None, **kwargs):
+    study = Study(*args, histo=False, limits=True, l_report=True, l_parallel=8, **kwargs)
 
     nvar = 1
     binlist = AttrArray.init_attr(binlist, None, nvar)
-    xlabels = AttrArray.init_attr(xlabels, None, nvar)
-    varlist = zip(varlist, binlist, xlabels)
+    varlist = zip(varlist, binlist)
 
     nrows, ncols = autodim(nvar, dim, flip)
     xsize, ysize = autosize(size, (nrows, ncols))
@@ -195,43 +299,56 @@ def brazil(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1
                              dpi=80)
     fig, axs = figax
 
-    var, bins, xlabel = next(varlist)
+    var, bins = next(varlist)
 
-    bins, xlabel = format_var(var, bins, xlabel)
+    bins, _ = format_var(var, bins)
     hists = study.get_array(var)
     weights = study.get_scale(hists)
 
     _, _, histos = hist_multi(
-        hists, bins=bins, xlabel=xlabel, weights=weights, **study.attrs, figax=(fig, axs))
+        hists, bins=bins, weights=weights, **study.attrs, figax=(fig, axs))
+    
     h_signal = histos[-1]
 
-    if use_norm:
-        ylabel = '95% CL upper limit on r'
-        exp_limits = h_signal.stats.norm_exp_limits.npy.T
-    else:
-        ylabel = '95% CL upper limit on $\sigma(X\\rightarrow YY\\rightarrow 4H)$ pb'
-        exp_limits = h_signal.stats.exp_limits.npy.T
+    exp_limits = h_signal.stats.exp_limits.npy.T
+    unitMap = dict(
+        pb=1,
+        fb=1e3,
+    )
+    exp_limits *= unitMap[units]
 
     exp_p2 = exp_limits[2+2]
     exp_p1 = exp_limits[2+1]
     exp = exp_limits[2]
     exp_m1 = exp_limits[2-1]
     exp_m2 = exp_limits[2-2]
-
     exp_std2_mu = (exp_p2 + exp_m2)/2
     exp_std2_err = (exp_p2 - exp_m2)/2
 
     exp_std1_mu = (exp_p1 + exp_m1)/2
     exp_std1_err = (exp_p1 - exp_m1)/2
 
-    x = np.arange(len(h_signal))
-
-    def get_mass(h):
+    def get_x(h, xlabel=xlabel):
         mx, my = h.label.split('_')[1::2]
+        if xlabel == 'mx':
+            return int(mx)
+        if xlabel == 'my':
+            return int(my)
         return f'({mx}, {my})'
-    label = h_signal.apply(get_mass).list
+    
+    x = h_signal.apply(get_x).npy
 
-    g_exp = Graph(x, exp, color='black', label='Expected',
+    if x.dtype == np.dtype('U1'):
+        xlabel = x.tolist()
+        x = np.arange(len(x))
+
+    if isinstance(xlabel, str):
+        xlabel = dict(
+            mx='$M_{X}$ (GeV)',
+            my='$M_{Y}$ (GeV)',
+        ).get(xlabel, xlabel)
+
+    g_exp = Graph(x, exp, color='black', label=label,
                   linestyle='--', marker=None)
     g_exp_std1 = Graph(x, exp_std1_mu, yerr=exp_std1_err,
                        color='#00cc00', marker=None, linewidth=0)
@@ -239,16 +356,16 @@ def brazil(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1
                        color='#ffcc00', marker=None, linewidth=0)
     plot_graphs([g_exp_std2, g_exp_std1], fill_error=True,
                 fill_alpha=1, figax=(fig, axs))
-    plot_graph(g_exp, figax=(fig, axs), legend=True,
-               xlabel=label, ylabel=ylabel, ylim=(0, 0.35))
-
+    plot_graph(g_exp, figax=(fig, axs), legend=True, grid=True,
+               xlabel=xlabel, ylabel=ylabel, xlim=xlim, ylim=ylim)
+    
     fig.tight_layout()
-    plt.show()
+
     if study.saveas:
         save_fig(fig, study.saveas)
 
-def brazil2d(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1, -1), flip=False, figax=None, use_norm=False, **kwargs):
-    study = Study(*args, histo=False, limits=True, **kwargs)
+def brazil2d(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1, -1), flip=False, figax=None, use_norm=False, units='pb', **kwargs):
+    study = Study(*args, histo=False, limits=True, l_report=True, l_parallel=8, **kwargs)
 
     nvar = 1
     binlist = AttrArray.init_attr(binlist, None, nvar)
@@ -278,8 +395,14 @@ def brazil2d(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(
         ylabel = '95% CL upper limit on r'
         exp_limits = h_signal.stats.norm_exp_limits.npy.T
     else:
-        ylabel = '95% CL upper limit on $\sigma(X\\rightarrow YY\\rightarrow 4H)$ pb'
+        ylabel = f'95% CL upper limit on $\sigma(X\\rightarrow YY\\rightarrow 4H)$ {units}'
         exp_limits = h_signal.stats.exp_limits.npy.T
+
+    unitMap = dict(
+        pb=1,
+        fb=1e3,
+    )
+    exp_limits *= unitMap[units]
 
     exp_p2 = exp_limits[2+2]
     exp_p1 = exp_limits[2+1]
@@ -297,12 +420,13 @@ def brazil2d(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(
         mx, my = h.label.split('_')[1::2]
         return int(mx), int(my)
     mx, my = h_signal.apply(get_mxmy).npy.T
+    xlim = (min(mx), max(mx))
+    ylim = (min(my), max(my))
 
     graph2d_array(mx, my, exp, figax=figax, interp=interp, colorbar=True, zlabel=ylabel)
-    graph_array(mx, my, figax=figax, g_color='grey', g_ls='none', g_marker='o', g_markersize=10, xlabel='$M_{X}$ (GeV)', ylabel='$M_{Y}$ (GeV)')
+    graph_array(mx, my, figax=figax, g_color='grey', g_ls='none', g_marker='o', g_markersize=10, xlabel='$M_{X}$ (GeV)', ylabel='$M_{Y}$ (GeV)', xlim=xlim, ylim=ylim)
     
     fig.tight_layout()
-    plt.show()
     if study.saveas:
         save_fig(fig, study.saveas)
         

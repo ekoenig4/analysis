@@ -42,6 +42,9 @@ class BDTReweighter:
   def reweight(self, x, w):
     return self.reweighter.predict_weights(x, self.k_factor*w,lambda x: np.mean(x, axis=0))/w
   
+  def reweight_error(self, x, w):
+    return self.reweighter.predict_weights(x, self.k_factor*w,lambda x: np.std(x, axis=0))/w
+  
   def scale(self, x, w):
     return self.k_factor*w/w
 
@@ -169,7 +172,7 @@ class ABCD(BDTReweighter):
     print(
       "--- ABCD Results ---\n"
       f"k = {results['k_factor']:0.3e}\n"
-      f"k*(b/a)-1  = {results['k_factor_score']:0.2%}\n"
+      f" (k*b)/a-1 = {results['k_factor_score']:0.2%}\n"
       f"BDT(b)/a-1 = {results['bdt_score']:0.2%}\n"
     )
 
@@ -197,8 +200,22 @@ class ABCD(BDTReweighter):
 
     X, W = self.get_features(tree)
     reweight = self.reweight(X, W)
-    tree.extend(**{self.hash:reweight})
+    reweight_error = self.reweight_error(X, W)
+
+    tree.extend(**{self.hash:reweight, f'{self.hash}_error':reweight_error})
     return reweight
+  
+  def reweight_error_tree(self, tree: Tree):
+    hash = f'{self.hash}_error'
+    if hash in tree.fields:
+      return tree[hash]
+
+    X, W = self.get_features(tree)
+    reweight_error = self.reweight_error(X, W)
+
+    tree.extend(**{hash:reweight_error})
+    return reweight_error
+     
 
 
   def scale_tree(self, tree: Tree):

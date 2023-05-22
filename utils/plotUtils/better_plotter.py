@@ -20,6 +20,7 @@ def execute(exe=None, **local):
         _execute(exe)
 
 def get_figax(figax=None):
+    if figax == 'none': return None,None
     if figax is None: return plt.subplots()
     if figax == 'same':
         if not any(plt.get_fignums()): return plt.subplots()
@@ -118,7 +119,8 @@ def graph_histo(histo, errors=True, figax=None, exe=None, **kwargs):
     bin_centers = get_bin_centers(bins)
     yerr = histo.error if errors else None
     xerr = get_bin_widths(bins) if errors else None
-    ax.errorbar(bin_centers, histo.histo, xerr=xerr, yerr=yerr, **histo.kwargs)
+    container = ax.errorbar(bin_centers, histo.histo, xerr=xerr, yerr=yerr, **histo.kwargs)
+    histo.kwargs['color'] = container[0].get_c() if container[0].get_c() != (0.,0.,0.,0.) else container[0].get_mfc()
     
     if getattr(histo, 'fit', None) is not None:
         plot_function(histo.fit, figax=(fig,ax))
@@ -203,7 +205,7 @@ def histo_arrays(arrays, bins=None, weights=None, density = False,
     kwargs = { key:value for key,value in kwargs.items() if not key.startswith('h_') }
     kwargs.update(ext_kwargs)
     
-    histolist = HistoList(arrays,bins=bins,weights=weights,**hist_kwargs)
+    histolist = HistoList.from_arrays(arrays,bins=bins,weights=weights,**hist_kwargs)
     plot_histos(histolist, figax=(fig,ax), **kwargs)
     
     return fig, ax, histolist
@@ -310,5 +312,66 @@ def plot_model(model, **kwargs):
         plotobjs.append(model.h_data)
     
     return plot_histos(plotobjs, **kwargs)
+
+def plot_model_brazil(models, label=None, xlabel='mass', ylabel=None, units='pb', figax=None, **kwargs):
+    fig, ax = get_figax(figax=figax)
+
+    exp_limits = np.array([model.h_sig.stats.exp_limits for model in models]).T
+    
+    unitMap = dict(
+        pb=1,
+        fb=1e3,
+    )
+    exp_limits *= unitMap[units]
+
+    exp_p2 = exp_limits[2+2]
+    exp_p1 = exp_limits[2+1]
+    exp = exp_limits[2]
+    exp_m1 = exp_limits[2-1]
+    exp_m2 = exp_limits[2-2]
+    exp_std2_mu = (exp_p2 + exp_m2)/2
+    exp_std2_err = (exp_p2 - exp_m2)/2
+
+    exp_std1_mu = (exp_p1 + exp_m1)/2
+    exp_std1_err = (exp_p1 - exp_m1)/2
+
+    def get_x(h, xlabel=xlabel):
+        mx, my = h.label.split('_')[1::2]
+        if xlabel == 'mx':
+            return int(mx)
+        if xlabel == 'my':
+            return int(my)
+        return f'({mx}, {my})'
+    
+    x = np.array( [get_x( model.h_sig ) for model in models] )
+
+    if x.dtype == np.dtype('U1'):
+        xlabel = x.tolist()
+        x = np.arange(len(x))
+
+    if isinstance(xlabel, str):
+        xlabel = dict(
+            mx='$M_{X}$ (GeV)',
+            my='$M_{Y}$ (GeV)',
+        ).get(xlabel, xlabel)
+
+    g_exp = Graph(x, exp, color='black', label=label,
+                  linestyle='--', marker='o')
+    
+    _x = np.concatenate([ x[:1]-25, x, x[-1:]+25 ])
+    _exp_std1_mu = np.concatenate([ exp_std1_mu[:1], exp_std1_mu, exp_std1_mu[-1:] ])
+    _exp_std1_err = np.concatenate([ exp_std1_err[:1], exp_std1_err, exp_std1_err[-1:] ])
+    _exp_std2_mu = np.concatenate([ exp_std2_mu[:1], exp_std2_mu, exp_std2_mu[-1:] ])
+    _exp_std2_err = np.concatenate([ exp_std2_err[:1], exp_std2_err, exp_std2_err[-1:] ])
+
+    g_exp_std1 = Graph(_x, _exp_std1_mu, yerr=_exp_std1_err,
+                       color='#00cc00', marker=None, linewidth=0)
+    g_exp_std2 = Graph(_x, _exp_std2_mu, yerr=_exp_std2_err,
+                       color='#ffcc00', marker=None, linewidth=0)
+    
+    plot_graphs([g_exp_std2, g_exp_std1], fill_error=True,
+                fill_alpha=1, figax=(fig, ax))
+    plot_graph(g_exp, figax=(fig, ax),
+               xlabel=xlabel, ylabel=ylabel, **kwargs)
     
     

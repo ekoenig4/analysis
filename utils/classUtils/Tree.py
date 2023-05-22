@@ -13,6 +13,29 @@ from tqdm import tqdm
 import subprocess
 from collections import defaultdict
 
+def tree_variable(f_variable=None, bins=None, xlabel=None):
+    def wrap_variable(f_variable):
+        f_variable.bins = bins
+        f_variable.xlabel = xlabel or f_variable.__name__
+        return f_variable
+    if f_variable: return wrap_variable(f_variable)
+    return wrap_variable
+
+def cache_variable(f_variable=None, bins=None, xlabel=None):
+
+    def wrap_variable(f_variable):
+        f_hash = f"_{f_variable.__name__}_{hash(f_variable)}_"
+        def cache(tree, **kwargs):
+            if cache.hash in tree.fields: return tree[cache.hash]
+            tree.extend(**{cache.hash: f_variable(tree, **kwargs)})
+            return tree[cache.hash]
+        cache.bins = bins
+        cache.xlabel = xlabel or f_variable.__name__
+        cache.hash = f_hash
+        return cache
+    if f_variable: return wrap_variable(f_variable)
+    return wrap_variable
+
 def _check_file(fname):
     if os.path.isfile(fname): return fname
     if eos.exists(fname): return eos.url+'/'+fname
@@ -319,6 +342,16 @@ def _regex_field(self, regex):
     return item
 
 class Tree:
+
+    @classmethod
+    def from_ak(cls, ak_tree, **kwargs):
+        tree = cls([])
+        tree.extend(ak_tree, scale=np.ones(len(ak_tree)))
+        tree.__dict__.update(**kwargs)
+
+        return tree
+
+
     def __init__(self, filelist, altfile="{base}", report=True, use_gen=True, treename='sixBtree', normalization='h_cutflow'):
         self._recursion_safe_guard_stack = []
 
@@ -368,6 +401,18 @@ class Tree:
     def __setstate__(self, d):
         self.__dict__ = d
     def get(self, key): return self[key]
+    def get_histogram(self, key):
+        if key in self.histograms: return self.histograms[key]
+
+        for file in self.filelist:
+            file.load_histograms([key])
+
+        from ..plotUtils import Histo
+        histograms = [ Histo.convert(file.histograms[key], scale=file.scale) for file in self.filelist ]
+        histogram = functools.reduce(Histo.add, histograms)
+
+        self.histograms[key] = histogram
+        return histogram
 
     def expected_events(self, lumikey=2018):
         lumi, _ = lumiMap[lumikey]

@@ -137,7 +137,7 @@ class _study_args:
         )
 
     def get_histogram(self, key):
-        items = [ tree.histograms[key] for tree in self.treelist ]
+        items = [ tree.get_histogram(key) for tree in self.treelist ]
 
         counts = [ item.histo for item in items ]
         bins = [ item.bins for item in items ]

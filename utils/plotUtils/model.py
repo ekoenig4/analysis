@@ -5,13 +5,55 @@ from pyhf.exceptions import FailedMinimization
 pyhf.set_backend('jax')
 
 from .histogram import Stack
+from ..classUtils import ObjIter, ParallelMethod
+
+class f_upperlimit(ParallelMethod):
+    def __init__(self, poi=np.linspace(0,2,21), level=0.05):
+        self.poi = poi
+        self.level = level
+  
+    def start(self, model):
+        return dict(
+            data=model.data,
+            w=model.w,
+            norm=model.norm,
+            poi=self.poi,
+            level=self.level,
+        )
+    
+    def run(self, data, w, norm, poi, level):
+      try:
+        obs_limit, exp_limit = pyhf.infer.intervals.upperlimit(
+            data, w, poi, level=level,
+        )
+      except FailedMinimization:
+        obs_limit, exp_limit = np.nan, np.array(5*[np.nan])
+
+      norm_obs_limit, norm_exp_limit = obs_limit, [ lim for lim in exp_limit ]
+      obs_limit, exp_limit = norm*obs_limit, [ norm*lim for lim in exp_limit ]
+
+      return dict(
+        obs_limit=obs_limit,
+        exp_limit=exp_limit,
+        norm_obs_limit=norm_obs_limit, 
+        norm_exp_limit=norm_exp_limit,
+      )
+    
+    def end(self, model, norm_obs_limit, norm_exp_limit, obs_limit, exp_limit):
+      model.h_sig.stats.norm_obs_limit, model.h_sig.stats.norm_exp_limits = norm_obs_limit, norm_exp_limit
+      model.h_sig.stats.obs_limit, model.h_sig.stats.exp_limits = obs_limit, exp_limit
+      return obs_limit, exp_limit
 
 class Model:
+  f_upperlimit = f_upperlimit
+
   def __init__(self, h_sig, h_bkg, h_data=None):
     if isinstance(h_bkg, Stack): h_bkg = h_bkg.get_histo()
     if isinstance(h_bkg, list): h_bkg = h_bkg[0]
 
     self.h_sig = h_sig
+    self.mx, self.my = list(map(int, h_sig.label.split("_")[1::2]))
+
     self.h_bkg = h_bkg
     self.h_data = h_bkg if h_data is None else h_data
 
@@ -23,18 +65,18 @@ class Model:
     )
     self.data = self.h_data.histo.tolist()+self.w.config.auxdata
 
-  def upperlimit(self, poi=np.linspace(0,2,21), level=0.05):
-    try:
-      obs_limit, exp_limit = pyhf.infer.intervals.upperlimit(
-          self.data, self.w, poi, level=level,
-      )
-    except FailedMinimization:
-      obs_limit, exp_limit = np.nan, np.array(5*[np.nan])
-    norm_obs_limit, norm_exp_limit = obs_limit, [ lim for lim in exp_limit ]
-    obs_limit, exp_limit = self.norm*obs_limit, [ self.norm*lim for lim in exp_limit ]
-    self.h_sig.stats.norm_obs_limit, self.h_sig.stats.norm_exp_limits = norm_obs_limit, norm_exp_limit
-    self.h_sig.stats.obs_limit, self.h_sig.stats.exp_limits = obs_limit, exp_limit
-    return obs_limit, exp_limit
+  # def upperlimit(self, poi=np.linspace(0,2,21), level=0.05):
+  #   try:
+  #     obs_limit, exp_limit = pyhf.infer.intervals.upperlimit(
+  #         self.data, self.w, poi, level=level,
+  #     )
+  #   except FailedMinimization:
+  #     obs_limit, exp_limit = np.nan, np.array(5*[np.nan])
+  #   norm_obs_limit, norm_exp_limit = obs_limit, [ lim for lim in exp_limit ]
+  #   obs_limit, exp_limit = self.norm*obs_limit, [ self.norm*lim for lim in exp_limit ]
+  #   self.h_sig.stats.norm_obs_limit, self.h_sig.stats.norm_exp_limits = norm_obs_limit, norm_exp_limit
+  #   self.h_sig.stats.obs_limit, self.h_sig.stats.exp_limits = obs_limit, exp_limit
+  #   return obs_limit, exp_limit
 
   def export_to_root(self, saveas="test.root"):
     from array import array

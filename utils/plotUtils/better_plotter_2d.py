@@ -136,7 +136,7 @@ def bin_histo2d(histo2d, figax=None, show_counts=False, **kwargs):
     cmap = histo2d.kwargs.get('cmap','YlOrRd')
     alpha = histo2d.kwargs.get('alpha', None)
 
-    Z = np. where( histo2d.raw_histo2d>0, histo2d.histo2d, np.nan)
+    Z = np. where( histo2d.raw_counts>0, histo2d.histo2d, np.nan)
     # Z = np.where(Z > 0, Z, np.nan)
     cmap_kwargs = get_cmap_kwargs(cmap=cmap, **kwargs)
     container = ax.pcolor(histo2d.x_bins, histo2d.y_bins, Z, alpha=alpha, **cmap_kwargs)

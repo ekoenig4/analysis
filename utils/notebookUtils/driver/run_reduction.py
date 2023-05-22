@@ -18,6 +18,7 @@ class RunReduction(Notebook):
         parser.add_argument("--dout", default='feynnet', help="output directory to write files to")
         parser.add_argument("--altfile", default='{base}',
                             help="output file pattern to write file with. Use {base} to substitute existing file")
+        parser.add_argument("--merge", action='store_true', help="merge all files into one")
         parser.add_argument('files', nargs="*", help=f'files to run')
         return parser
     
@@ -51,7 +52,12 @@ class RunReduction(Notebook):
 
         files = [ _file(f) for f in files ]
         files = [ f for fs in files for f in iter_files(fs) ]
-        trees = [ Tree(f, altfile=altfile, report=False) for f in tqdm(files) ]
+
+        if self.merge:
+            trees = [ Tree(files, altfile=altfile, report=True) ]
+        else:
+            trees = [ Tree(f, altfile=altfile, report=False) for f in tqdm(files) ]
+
         self.signal = ObjIter([ tree for tree in trees if tree.is_signal ])
         self.bkg = ObjIter([ tree for tree in trees if (not tree.is_data and not tree.is_signal) ])
         self.data = ObjIter([ tree for tree in trees if tree.is_data ])

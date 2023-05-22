@@ -8,12 +8,12 @@ from utils.notebookUtils import required, dependency
 from utils.notebookUtils.driver.run_reduction import RunReduction
 
 def main():
-    notebook = SignalReduction.from_parser()
+    notebook = Reduction.from_parser()
     notebook.print_namespace()
     print(notebook)
     notebook.run()
 
-class SignalReduction(RunReduction):
+class Reduction(RunReduction):
     @staticmethod
     def add_parser(parser):
         parser.add_argument("--model", default='feynnet_bkg_33sig', help="model to use for loading feynnet")
@@ -29,7 +29,7 @@ class SignalReduction(RunReduction):
 
     @required
     def load_feynnet(self, signal, bkg, model):
-        (signal+bkg).apply(lambda tree : eightb.load_feynnet_assignment(tree, model=model.storage), report=True, parallel=True, thread_order=lambda thread : len(thread.obj) )
+        (signal+bkg).apply(lambda tree : eightb.load_feynnet_assignment(tree, model=model.storage), report=True)
 
     def signal_masks(self, signal):
         signal.apply(lambda tree : tree.extend(all_eightb=tree.nfound_select==8))        
@@ -86,26 +86,109 @@ class SignalReduction(RunReduction):
 
         signal.apply(_resolution, report=True)
 
+    def mass(self, signal, bkg):
+        def _mass(tree):
+            weights = tree.scale
+            tree.reductions['h1y1_m'] = np.histogram( tree.h_m[:,0], bins=np.linspace(0,300,30), weights=weights )
+            tree.reductions['h2y1_m'] = np.histogram( tree.h_m[:,1], bins=np.linspace(0,300,30), weights=weights )
+            tree.reductions['h1y2_m'] = np.histogram( tree.h_m[:,2], bins=np.linspace(0,300,30), weights=weights )
+            tree.reductions['h2y2_m'] = np.histogram( tree.h_m[:,3], bins=np.linspace(0,300,30), weights=weights )
+            
+            tree.reductions['y1_m'] = np.histogram( tree.y_m[:,0], bins=np.linspace(0,1000,30), weights=weights )
+            tree.reductions['y2_m'] = np.histogram( tree.y_m[:,1], bins=np.linspace(0,1000,30), weights=weights )
+
+        (signal+bkg).apply(_mass, report=True)
+
+    def chi2_mass(self, signal, bkg):
+        def _mass(tree):
+            weights = tree.scale
+            chi = np.sqrt( ak.sum( (tree.h_m-125)**2, axis=1 ) )
+            mask = chi < 50
+
+            tree.reductions['hm_chi'] = np.histogram( chi, bins=np.linspace(0,300,30), weights=tree.scale )
+
+            tree.reductions['h1y1_m_chi50'] = np.histogram( tree.h_m[:,0][mask], bins=np.linspace(0,300,30), weights=weights[mask] )
+            tree.reductions['h2y1_m_chi50'] = np.histogram( tree.h_m[:,1][mask], bins=np.linspace(0,300,30), weights=weights[mask] )
+            tree.reductions['h1y2_m_chi50'] = np.histogram( tree.h_m[:,2][mask], bins=np.linspace(0,300,30), weights=weights[mask] )
+            tree.reductions['h2y2_m_chi50'] = np.histogram( tree.h_m[:,3][mask], bins=np.linspace(0,300,30), weights=weights[mask] )
+            
+            tree.reductions['y1_m_chi50'] = np.histogram( tree.y_m[:,0][mask], bins=np.linspace(0,1000,30), weights=weights[mask] )
+            tree.reductions['y2_m_chi50'] = np.histogram( tree.y_m[:,1][mask], bins=np.linspace(0,1000,30), weights=weights[mask] )
+            tree.reductions['x_m_chi50'] = np.histogram( tree.x_m[mask], bins=np.linspace(0,2000,30), weights=weights[mask] )
+
+        (signal+bkg).apply(_mass, report=True)
     
-    def write_reductions(self, signal):
+    @dependency(load_true)
+    def eightb_mass(self, signal):
+        def _mass(tree):
+            weights = tree.scale[tree.all_eightb]
+            tree.reductions['eightb_h1y1_m'] = np.histogram( tree.h_m[:,0][tree.all_eightb], bins=np.linspace(0,300,30), weights=weights )
+            tree.reductions['eightb_h2y1_m'] = np.histogram( tree.h_m[:,1][tree.all_eightb], bins=np.linspace(0,300,30), weights=weights )
+            tree.reductions['eightb_h1y2_m'] = np.histogram( tree.h_m[:,2][tree.all_eightb], bins=np.linspace(0,300,30), weights=weights )
+            tree.reductions['eightb_h2y2_m'] = np.histogram( tree.h_m[:,3][tree.all_eightb], bins=np.linspace(0,300,30), weights=weights )
+            
+            tree.reductions['eightb_y1_m'] = np.histogram( tree.y_m[:,0][tree.all_eightb], bins=np.linspace(0,1000,30), weights=weights )
+            tree.reductions['eightb_y2_m'] = np.histogram( tree.y_m[:,1][tree.all_eightb], bins=np.linspace(0,1000,30), weights=weights )
+
+        signal.apply(_mass, report=True)
+
+    
+    def write_signal(self, signal):
         import uproot as ut
 
-        def _write_reductions(tree):
+        def _write(tree):
             reduction = getattr(tree, "reductions", None)
             if reduction is None: return
 
             newtree = dict(
                 mx = tree.mx,
                 my = tree.my,
-                **reduction,
+                **{
+                    k : [v] for k, v in reduction.items() if not isinstance(v, tuple)
+                }
             )
+
+            newhistos = {
+                k : v for k, v in reduction.items() if isinstance(v, tuple)
+            }
             
             with ut.recreate(f'{self.dout}/MX_{tree.mx}_MY_{tree.my}.root') as f:
                 f['tree'] = {
                     k : [v] for k, v in newtree.items()
                 }
+                for key, histo in newhistos.items():
+                    f[f"MX_{tree.mx}_MY_{tree.my}_{key}"] = histo
 
-        signal.apply(_write_reductions, report=True)
+        signal.apply(_write, report=True)
+
+    def write_bkg(self, bkg):
+        import uproot as ut
+        def _write(tree):
+            reduction = getattr(tree, "reductions", None)
+            if reduction is None: return
+
+            newtree = dict(
+                **{
+                    k : [v] for k, v in reduction.items() if not isinstance(v, tuple)
+                }
+            )
+
+            newhistos = {
+                k : v for k, v in reduction.items() if isinstance(v, tuple)
+            }
+            
+            with ut.recreate(f'{self.dout}/{tree.sample}.root') as f:
+
+                if any(newtree):
+                    f['tree'] = {
+                        k : [v] for k, v in newtree.items()
+                    }
+
+                for key, histo in newhistos.items():
+                    f[f"{tree.sample}_{key}"] = histo
+
+        bkg.apply(_write, report=True)
+
 
 
 

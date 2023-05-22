@@ -176,8 +176,8 @@ class Histo:
                        systematics=None, label_stat='events', __id__=None, **kwargs):
         self.__id__ = __id__
 
-        self.histo = counts 
-        self.bins = bins 
+        self.histo = np.array(counts)
+        self.bins = np.array(bins)
 
         self.error = error
         if error is None:
@@ -446,7 +446,11 @@ class Stack(HistoList):
         stack.array = np.concatenate([ h.array for h in stack ])
         stack.weights = np.concatenate([ h.weights for h in stack ])
 
-        stack.opts = dict(density=density, efficiency=efficiency, cumulative=cumulative, label_stat=label_stat, color='grey', label='MC-Bkg')
+        stack.opts = dict(density=density, efficiency=efficiency, cumulative=cumulative, label_stat=label_stat)
+        if len(stack) == 1:
+            stack.opts.update(color=stack[0].kwargs.get('color', None), label=stack[0].kwargs.get('label', None))
+        else:
+            stack.opts.update(color='grey',label='MC-Bkg')
 
         if not stack_fill:
             # if density or cumulative or efficiency: 

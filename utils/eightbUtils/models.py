@@ -84,6 +84,8 @@ feynnet_sig_innersig = WeaverModel('exp_feynnet_paper/feynnet_8b/20230425_ranger
 feynnet_sig_boosted = WeaverModel('exp_test/feynnet_8b/20230427_ranger_lr0.0047_batch1024/')
 
 feynnet_mx_reweight = WeaverModel('exp_feynnet_paper/feynnet_8b/20230503_ranger_lr0.0047_batch1024_mx_reweight_withbkg/')
+feynnet_mx_my_reweight = WeaverModel('exp_feynnet_paper/feynnet_8b/20230516_ranger_lr0.0047_batch1024_mx_my_reweight_withbkg/')
+feynnet_trgkin_mx_my_reweight = WeaverModel('exp_feynnet_paper/feynnet_8b/20230516_ranger_lr0.0047_batch1024_trgkin_mx_my_reweight_withbkg/')
  
 def get_model_path(model, locals=locals()):
     if model not in locals: return model 
