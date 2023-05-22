@@ -96,5 +96,6 @@ export -f run_function
 filelist=$1
 shift 1
 
-time ./fetch_files.sh $filelist | parallel --eta -j 12 run_function $@
+# time ./fetch_files.sh $filelist | parallel --eta -j 12 run_function $@
+time ./fetch_files.sh $filelist | parallel --eta -j 12 $@
 
