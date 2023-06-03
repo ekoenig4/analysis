@@ -71,19 +71,15 @@ class FeynNetNotebook(Notebook):
 
         else:
             model = eightb.models.get_model(model)
-            (signal + bkg).apply( lambda t : eightb.load_feynnet_assignment(t, model.storage), report=True, parallel=True, thread_order=lambda thread : len(thread.obj) )
+            load_feynnet = eightb.f_load_feynnet_assignment(model=model.storage)
+
+            import multiprocess as mp
+
+            with mp.Pool(2) as pool:
+                (signal + bkg).parallel_apply( load_feynnet, report=True, pool=pool )
 
         (signal + bkg).apply(
-            lambda t : t.extend(
-                **{
-                    f"{h}_m":t.h_m[:,i]
-                    for i, h in enumerate(eightb.higgslist)
-                },
-                **{
-                    f"{y}_m":t.y_m[:,i]
-                    for i, y in enumerate(eightb.ylist)
-                },
-            )
+            eightb.assign
         )
 
 # %%
@@ -236,6 +232,39 @@ class FeynNetNotebook(Notebook):
             saveas=f'{self.dout}/signal_extrema_score.png'
         )
 
+
+    @dependency(get_extrema_efficiency)
+    def get_for_poster(self, eightb_signal, extrema_signal, bkg):
+        varinfo.X_m =   dict(bins=(400,2000,30), xlabel='$M_{X}$ (GeV)')
+        varinfo.Y1_m =  dict(bins=(100,1000,30), xlabel='Leading Y Boson Mass (GeV)')
+        varinfo.Y2_m =  dict(bins=(100,1000,30), xlabel='Subleading Y Boson Mass (GeV)')
+        varinfo.H1Y1_m =   dict(bins=(0,300,30), xlabel='Leading Y\'s Leading Higgs Boson Mass (GeV)')
+        varinfo.H2Y1_m =   dict(bins=(0,300,30), xlabel='Leading Y\'s Subleading Higgs Boson Mass (GeV)')
+        varinfo.H1Y2_m =   dict(bins=(0,300,30), xlabel='Subleading Y\'s Leading Higgs Boson Mass (GeV)')
+        varinfo.H2Y2_m =   dict(bins=(0,300,30), xlabel='Subleading Y\'s Subleading Higgs Boson Mass (GeV)')
+
+        # %%
+        study.quick(
+            eightb_signal[extrema_signal]+bkg,
+            legend=True,
+            h_label_stat=None,
+            varlist=['Y1_m'],
+            lumi=None,
+            density=True,
+            size=(5,5),
+            saveas=f'{self.dout}/extrema_y1_m.png'
+        )
+        
+        study.quick(
+            eightb_signal[extrema_signal]+bkg,
+            legend=True,
+            h_label_stat=None,
+            varlist=['H1Y1_m'],
+            lumi=None,
+            density=True,
+            size=(5,5),
+            saveas=f'{self.dout}/extrema_h1y1_m.png'
+        )
 # %%
     @dependency(get_extrema_efficiency)
     def get_extrema_mass(self, eightb_signal, extrema_signal, bkg):
