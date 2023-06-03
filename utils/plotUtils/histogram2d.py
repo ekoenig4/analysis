@@ -222,7 +222,7 @@ class Histo2D:
         self.efficiency = efficiency
         self.scale = scale
 
-        if density or efficiency: scale = 1/np.sum(self.histo)
+        if density or efficiency: scale = 1/np.sum(self.histo2d)
 
         self.histo2d = scale * self.histo2d
         self.error2d = scale * self.error2d

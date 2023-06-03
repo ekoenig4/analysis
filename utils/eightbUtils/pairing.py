@@ -30,7 +30,7 @@ def reconstruct(jet_p4, assignment, tag=''):
 
     y_pt_order = ak_rank(y_p4.pt, axis=1)
     h_pt_order = ak_rank(h_p4.pt, axis=1)
-    j_pt_order = ak_rank(jet_p4.pt, axis=1)
+    j_pt_order = ak_rank(j_p4.pt, axis=1)
 
     y_h_pt_order = h_pt_order + 10*y_pt_order[:,[0,0,1,1]]
     y_h_j_pt_order = j_pt_order + 100*y_h_pt_order[:,[0,0,1,1,2,2,3,3]]
@@ -54,33 +54,6 @@ def reconstruct(jet_p4, assignment, tag=''):
         **{f'{tag}h_{var}': getattr(h_p4, var) for var in p4vars},
         **{f'{tag}h_signalId': h_signalId},
         **{f'{tag}j_{var}': getattr(j_p4, var) for var in j_p4.fields},
-    )
-def assign(tree):
-    j = get_collection(tree, 'j', named=False)
-    h = get_collection(tree, 'h', named=False)
-    y = get_collection(tree, 'y', named=False)
-    x = get_collection(tree, 'x', named=False)
-
-    tree.extend(
-        **{
-            f'{J}_{field}': j[field][:,i]
-            for field in j.fields
-            for i, J in enumerate(eightb.quarklist)
-        },
-        **{
-            f'{H}_{field}': h[field][:,i]
-            for field in h.fields
-            for i, H in enumerate(eightb.higgslist)
-        },
-        **{
-            f'{Y}_{field}': y[field][:,i]
-            for field in y.fields
-            for i, Y in enumerate(eightb.ylist)
-        },
-        **{
-            f'X_{field}': x[field]
-            for field in x.fields
-        }
     )
 
 def load_weaver_from_ak0(toload, fields=['scores']):

@@ -44,6 +44,8 @@ xsecMap = {
     # "NMSSM_XYY_YToHH_8b": 0.3,
     "NMSSM_XYY_YToHH_8b": 1.0 * (5.824E-01)**4,
 
+    "GluGluToHHTo4B" : 1.0 * (5.824E-01)**2,
+
     "QCD_Pt_15to30": 1246000000.0,
     "QCD_Pt_30to50": 106500000.0,
     "QCD_Pt_50to80": 15700000.0,

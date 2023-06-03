@@ -15,7 +15,7 @@ class ParallelMethod:
     def parallel(self, *args, pool=None, **kwargs):
         inputs = self.start(*args, **kwargs)
         output = pool.map(self.run_parallel, [inputs])
-        return self.end(*args, **output[0])
+        return self.end(*args, **list(output)[0])
     def run_parallel(self, inputs):
         return self.run(**inputs)
     
@@ -116,6 +116,11 @@ def get_slice(obj,slices):
         return obj[slices[0],slices[1]]
     if len(slices) == 3:
         return obj[slices[0],slices[1],slices[2]]
+    
+def get_function_name(obj):
+    if hasattr(obj,'__name__'): return obj.__name__
+    if hasattr(obj,'__class__'): return obj.__class__.__name__
+    return str(obj)
 
 class ObjIter:
     def __init__(self,objs):
@@ -186,7 +191,7 @@ class ObjIter:
         result = thread_pool.imap( parallel_function, self.objs, chunksize=1 )
         
         if report:
-            result = tqdm(result, total=len(self))
+            result = tqdm(result, total=len(self), desc=get_function_name(obj_function))
 
         result = list( result )
 
@@ -202,7 +207,7 @@ class ObjIter:
         result = pool.imap(obj_function, self.objs, chunksize=1)
 
         if report:
-            result = tqdm(result, total=len(self))
+            result = tqdm(result, total=len(self), desc=get_function_name(obj_function))
 
         result = list( result )
 
@@ -214,7 +219,7 @@ class ObjIter:
         if parallel:
             return self.parallel_apply(obj_function, report=report, **kwargs)
 
-        it = tqdm(self) if report else self
+        it = tqdm(self, desc=get_function_name(obj_function)) if report else self
         out = ObjIter([ obj_function(obj) for obj in it ])
         
         return out

@@ -55,10 +55,12 @@ def scatter_histo2d(histo2d, figax=None, min_counts=10000, fraction=10000, alpha
     prob = _get_probs(histo2d.weights)
     def _sample_probs(prob):
         return prob > np.random.uniform(size=len(prob))
-    index = np.arange(histo2d.counts)
+    
+    counts = len(histo2d.x_array)
+    index = np.arange(counts)
 
-    r = max(min_counts, int(histo2d.counts*fraction)) if fraction < 1 else int(fraction)
-    r = min(histo2d.counts, r)
+    r = max(min_counts, int(counts*fraction)) if fraction < 1 else int(fraction)
+    r = min(counts, r)
     randsample = np.array([]).astype(int)
     while len(randsample) < r:
         randsample = np.append(randsample, index[_sample_probs(prob)])

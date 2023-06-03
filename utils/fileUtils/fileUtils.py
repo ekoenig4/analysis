@@ -112,6 +112,12 @@ def sample_files(path):
       NMSSM_XYY_YToHH_8b_MX_1200_MY_600,
     ]
 
+    poster_signal_list = [
+      NMSSM_XYY_YToHH_8b_MX_800_MY_350,
+      NMSSM_XYY_YToHH_8b_MX_1100_MY_300,
+      NMSSM_XYY_YToHH_8b_MX_1200_MY_250,
+    ]
+
     extended_signal_list = [
       NMSSM_XYY_YToHH_8b_MX_500_MY_250  ,
       NMSSM_XYY_YToHH_8b_MX_600_MY_250 ,

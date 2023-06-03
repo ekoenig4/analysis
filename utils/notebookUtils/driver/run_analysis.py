@@ -35,6 +35,7 @@ class RunAnalysis(Notebook):
     @required
     def init_files(self, altfile='{base}', module=None):
         use_signal = []
+        self.signal = ObjIter([])
         if not self.no_signal:
             use_signal  = getattr(module, self.use_signal)
             self.signal = ObjIter([Tree(f, altfile=altfile, report=False) for f in tqdm(use_signal)])
@@ -42,9 +43,11 @@ class RunAnalysis(Notebook):
         else:
             self.use_signal = []
 
+        self.bkg = ObjIter([])
         if not self.no_bkg and not self.debug:
             self.bkg = ObjIter([Tree(module.Run2_UL18.QCD_B_List, altfile=altfile), Tree(module.Run2_UL18.TTJets, altfile=altfile)])
 
+        self.data = ObjIter([])
         if not self.no_data and not self.debug:
             self.data = ObjIter([ Tree(module.Run2_UL18.JetHT_Data_UL_List, altfile=altfile) ])
 

@@ -28,6 +28,10 @@ def save_fig(fig, saveas=None, base=f"{GIT_WD}/plots/{date_tag}_plots", fmt=['jp
     if not os.path.isdir(directory):
         os.makedirs(directory)
 
+    if len(outfn.split('.')) == 2:
+        outfn, ext = outfn.split('.')
+        fmt = [ext]
+
     if 'pdf' in fmt:
         fig.savefig(f"{outfn}.pdf", format="pdf")
     if 'png' in fmt:
@@ -75,6 +79,14 @@ def autodim(nvar, dim=None, flip=False):
     else:
         nrows = int(np.sqrt(nvar))
         ncols = nvar//nrows
+
+    off = nvar - nrows*ncols
+    if off > 0:
+        if flip:
+            nrows += 1
+        else:
+            ncols += 1
+
     return nrows, ncols
 
 
@@ -598,11 +610,13 @@ def quick(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1,
     study = Study(*args, **kwargs)
 
     nvar = len(varlist)
-    binlist = AttrArray.init_attr(binlist, None, nvar)
-    xlabels = AttrArray.init_attr(xlabels, None, nvar)
+    nrows, ncols = autodim(nvar, dim, flip)
+
+    varlist = varlist + [None]*(nrows*ncols-nvar)
+    binlist = AttrArray.init_attr(binlist, None, len(varlist))
+    xlabels = AttrArray.init_attr(xlabels, None, len(varlist))
     varlist = zip(varlist, binlist, xlabels)
 
-    nrows, ncols = autodim(nvar, dim, flip)
     xsize, ysize = autosize(size, (nrows, ncols))
 
     if figax is None:

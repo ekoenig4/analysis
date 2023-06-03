@@ -13,29 +13,6 @@ from tqdm import tqdm
 import subprocess
 from collections import defaultdict
 
-def tree_variable(f_variable=None, bins=None, xlabel=None):
-    def wrap_variable(f_variable):
-        f_variable.bins = bins
-        f_variable.xlabel = xlabel or f_variable.__name__
-        return f_variable
-    if f_variable: return wrap_variable(f_variable)
-    return wrap_variable
-
-def cache_variable(f_variable=None, bins=None, xlabel=None):
-
-    def wrap_variable(f_variable):
-        f_hash = f"_{f_variable.__name__}_{hash(f_variable)}_"
-        def cache(tree, **kwargs):
-            if cache.hash in tree.fields: return tree[cache.hash]
-            tree.extend(**{cache.hash: f_variable(tree, **kwargs)})
-            return tree[cache.hash]
-        cache.bins = bins
-        cache.xlabel = xlabel or f_variable.__name__
-        cache.hash = f_hash
-        return cache
-    if f_variable: return wrap_variable(f_variable)
-    return wrap_variable
-
 def _check_file(fname):
     if os.path.isfile(fname): return fname
     if eos.exists(fname): return eos.url+'/'+fname
@@ -186,7 +163,12 @@ class SixBFile:
 
 def init_files(self, filelist, treename, normalization, altfile="{base}", report=True):
     if type(filelist) == str:
-        filelist = [filelist]
+        if filelist.endswith('.txt'):
+            with open(filelist, 'r') as f:
+                filelist = f.readlines()
+            filelist = [ f.strip() for f in filelist ]
+        else:
+            filelist = [filelist]
     filelist = list(filelist)
 
     def use_altfile(f):
@@ -205,8 +187,13 @@ def init_files(self, filelist, treename, normalization, altfile="{base}", report
     filelist = glob_filelist
 
     it = tqdm(filelist) if report else iter(filelist)
-    self.filelist = [ RootFile(fn, treename, normalization=normalization) for fn in it ]
-    self.filelist = [ fn for fn in self.filelist if fn.fname and fn.total_events > 0 ]
+    self.filelist = []
+    for fn in it:
+        try:
+            self.filelist.append( RootFile(fn, treename, normalization=normalization) )
+        except Exception:
+            print(f'[WARNING] skipping {fn}, unable to open.')
+            
     # Fix normalization when using multiple files of the same sample
     samples = defaultdict(lambda:0)
     for f in self.filelist:
@@ -226,11 +213,15 @@ def init_files(self, filelist, treename, normalization, altfile="{base}", report
         key: functools.reduce(Histo.add, histogram)
         for key, histogram in histograms.items()
     }
+    
+    self.filelist = [ fn for fn in self.filelist if fn.fname and fn.raw_events > 0 ]
     self.lazy = True
 
 def init_sample(self):  # Helper Method For Tree Class
     self.is_data = any("Data" in fn.fname for fn in self.filelist)
-    self.is_signal = all("NMSSM" in fn.fname for fn in self.filelist)
+    self.nmssm_signal = all("NMSSM" in fn.fname for fn in self.filelist) 
+    self.dih_signal = all("GluGluToHHTo4B" in fn.fname for fn in self.filelist)
+    self.is_signal = self.nmssm_signal or self.dih_signal
     self.is_model = False
     
     sample_tags = set(fn.sample for fn in self.filelist)
@@ -248,7 +239,7 @@ def init_sample(self):  # Helper Method For Tree Class
         if self.is_data:
             self.sample = "Data"
 
-    if self.is_signal:
+    if self.nmssm_signal:
 
         def mass_point(fname):
             point = re.findall('MX_\d+_MY_\d+', fname)

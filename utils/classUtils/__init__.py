@@ -1,4 +1,4 @@
-from .Tree import Tree, tree_variable, cache_variable
+from .Tree import Tree
 from .Filter import Filter,EventFilter,CollectionFilter,FilterSequence
 from .ObjIter import ObjIter, ObjTransform, ParallelMethod
 from .AttrArray import AttrArray

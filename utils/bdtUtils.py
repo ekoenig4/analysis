@@ -140,7 +140,20 @@ class ABCD(BDTReweighter):
   def get_features(self, treeiter: ObjIter, masks=None):
     if not isinstance(treeiter, ObjIter): treeiter = ObjIter([treeiter])
 
-    X = ak_stack([ treeiter[feature].cat for feature in self.feature_names ])
+    def _ndim(array):
+        if array.ndim == 2: return array
+        if array.ndim == 1: return array[:,np.newaxis]
+
+    def _get(treeiter, feature):
+        if callable(feature):
+            return _ndim(treeiter.apply(feature).cat)
+        return _ndim(treeiter[feature].cat)
+
+    features = [
+        _get(treeiter, feature)
+        for feature in self.feature_names
+    ]
+    X = ak.concatenate(features, axis=1)
     W = treeiter['scale'].cat
     
     if masks is not None:
@@ -319,7 +332,22 @@ class BDTClassifier:
     def get_features(self, treeiter : ObjIter):
         if not isinstance(treeiter, ObjIter): treeiter = ObjIter([treeiter])
 
-        X = ak_stack([ treeiter[feature].cat for feature in self.feature_names ])
+
+        def _ndim(array):
+            if array.ndim == 2: return array
+            if array.ndim == 1: return array[:,np.newaxis]
+
+        def _get(treeiter, feature):
+            if callable(feature):
+                return _ndim(treeiter.apply(feature).cat)
+            return _ndim(treeiter[feature].cat)
+
+        features = [
+            _get(treeiter, feature)
+            for feature in self.feature_names
+        ]
+        
+        X = ak.concatenate(features, axis=1)
         W = treeiter['scale'].cat
         W = W/ak.mean(W)
         

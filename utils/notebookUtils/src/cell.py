@@ -1,5 +1,10 @@
 import inspect
-from termcolor import colored
+
+try:
+    from termcolor import colored
+except ModuleNotFoundError:
+    def colored(text, *args, **kwargs):
+        return text
 
 class Status:
     def __init__(self, status, color, attrs=[]):

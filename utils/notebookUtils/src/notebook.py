@@ -194,3 +194,9 @@ class Notebook:
     def __str__(self):
         lines = [ f"{i:>5}: <[{str(cell.status)}] {str(cell)}>" for i, cell in enumerate(self._cells.values()) ]
         return f'<{self.__name__}\n'+'\n'.join(lines)+'\n>'
+
+    @classmethod
+    def main(cls, *args, **kwargs):
+        notebook = cls.from_parser(*args, **kwargs)
+        notebook.hello()
+        notebook.run()

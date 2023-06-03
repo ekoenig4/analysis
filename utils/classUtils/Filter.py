@@ -66,15 +66,14 @@ def build_event_filter(key, value, functions=functions, methods=methods):
 def event_filter(self, tree):
     tree = tree.copy()
 
-    collection = tree.ttree
     if self.mask is not None:
         mask = self.mask
     else:
         mask = True
 
     for filter in self.filters:
-        mask = mask & filter(collection)
-    tree.extend(collection[mask])
+        mask = mask & filter(tree)
+    tree.extend(tree.ttree[mask])
     update_cutflow(tree, self.name)
 
     return tree
