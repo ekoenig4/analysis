@@ -1,5 +1,6 @@
-from .eos import *
-from .fileUtils import FileCollection
+# from .eos import *
+from .fileUtils import FileCollection, eos
+from . import fs_tools as fs
 
 eightb = FileCollection(path='/store/user/ekoenig/8BAnalysis/NTuples/2018/')
 sixb = FileCollection(path='/store/user/ekoenig/6BAnalysis/NTuples/2018/')

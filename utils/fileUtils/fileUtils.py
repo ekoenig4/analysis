@@ -1,6 +1,9 @@
 import os, subprocess
+import re
+# from .eos import *
+from . import fs_tools as fs
 
-from .eos import *
+eos = fs.remote()
 
 def check_accstudies(fn):
     # if eos.exists(fn): return fn
