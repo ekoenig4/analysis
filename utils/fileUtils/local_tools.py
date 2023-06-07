@@ -23,6 +23,11 @@ def join_mnt(path, mnt=None):
 def glob(path, mnt=None, with_path=False):
     path = join_mnt(path, mnt)
     dirlist = [ f[len(mnt):] for f in local_glob(path) ]
+    
+    if with_path:
+        path = os.path.dirname(path)
+        return [ join_mnt(f'{path}/{os.path.basename(d)}', mnt) for d in dirlist]
+    
     return dirlist
 
 def ls(path, mnt=None, with_path=False):

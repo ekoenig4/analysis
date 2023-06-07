@@ -1,5 +1,7 @@
 from . import xrd_tools as xrd
-from . import local_tools as lcl
+from . import local_tools as loc
+
+import os
 
 class store:
     def __init__(self, url = "root://cmseos.fnal.gov/"):
@@ -40,39 +42,39 @@ class mount:
         self.mnt = mnt
 
     def fullpath(self, path):
-        return lcl.join_mnt(path, self.mnt)
+        return loc.join_mnt(path, self.mnt)
     
     def cleanpath(self, path):
-        return lcl.cleanpath(path, self.mnt)
+        return loc.cleanpath(path, self.mnt)
 
     def ls(self, path, with_path=False):
-        return lcl.ls(path, self.mnt, with_path=with_path)
+        return loc.ls(path, self.mnt, with_path=with_path)
 
     def glob(self, path, with_path=False):
-        return lcl.glob(path, self.mnt, with_path=with_path)
+        return loc.glob(path, self.mnt, with_path=with_path)
 
     def exists(self, path):
-        return lcl.exists(path, self.mnt)
+        return loc.exists(path, self.mnt)
 
     def copy_from(self, src, dest):
-        return lcl.copy(src, dest, src_mnt=self.mnt)
+        return loc.copy(src, dest, src_mnt=self.mnt)
 
     def copy_to(self, src, dest):
-        return lcl.copy(src, dest, dest_mnt=self.mnt)
+        return loc.copy(src, dest, dest_mnt=self.mnt)
 
     def move(self, src, dest):
-        return lcl.move(src, dest, dest_mnt=self.mnt)
+        return loc.move(src, dest, dest_mnt=self.mnt)
 
     def batch_copy_from(self, srcs, dests, nproc=8):
-        return lcl.batch_copy(srcs, dests, src_mnt=self.mnt, nproc=nproc)
+        return loc.batch_copy(srcs, dests, src_mnt=self.mnt, nproc=nproc)
 
     def batch_copy_to(self, srcs, dests, nproc=8):
-        return lcl.batch_copy(srcs, dests, dest_mnt=self.mnt, nproc=nproc)
+        return loc.batch_copy(srcs, dests, dest_mnt=self.mnt, nproc=nproc)
     
 class remote:
     def __init__(self, url="root://cmseos.fnal.gov/", mnt='/eos/uscms/'):
         self.store = store(url)
-        self.mount = mount(mnt)
+        self.mount = mount(mnt) if os.path.exists(mnt) else self.store
 
     def fullpath(self, path):
         return self.store.fullpath(path)
@@ -90,10 +92,10 @@ class remote:
         return self.mount.exists(path)
 
     def copy_from(self, src, dest):
-        return self.store.copy(src, dest)
+        return self.store.copy_from(src, dest)
 
     def copy_to(self, src, dest):
-        return self.store.copy(src, dest)
+        return self.store.copy_to(src, dest)
 
     def move(self, src, dest):
         return self.store.move(src, dest)
@@ -103,4 +105,58 @@ class remote:
 
     def batch_copy_to(self, srcs, dests, nproc=8):
         return self.store.batch_copy(srcs, dests, nproc=nproc)
+    
+class repository:
+    def __init__(self, *repos):
+        self.repos = repos
+    def add(self, *repos):
+        self.repos += list(repos)
+
+    def get(self, path):
+        for repo in self.repos:
+            if repo.exists(path):
+                return repo
+        return None
+
+    def fullpath(self, path):
+        for repo in self.repos:
+            if repo.exists(path):
+                return repo.fullpath(path)
+        return None
+
+    def cleanpath(self, path):
+        for repo in self.repos:
+            if repo.exists(path):
+                return repo.cleanpath(path)
+        return None
+    
+    def ls(self, path, with_path=False):
+        for repo in self.repos:
+            if repo.exists(path):
+                return repo.ls(path, with_path=with_path)
+        return None
+    
+    def glob(self, path, with_path=False):
+        for repo in self.repos:
+            if repo.exists(path):
+                return repo.glob(path, with_path=with_path)
+        return None
+    
+    def exists(self, path):
+        for repo in self.repos:
+            if repo.exists(path):
+                return True
+        return False
+    
+    def copy_from(self, src, dest):
+        for repo in self.repos:
+            if repo.exists(src):
+                return repo.copy_from(src, dest)
+        return None
+    
+    def copy_to(self, src, dest):
+        for repo in self.repos:
+            if repo.exists(src):
+                return repo.copy_to(src, dest)
+        return None
     

@@ -35,7 +35,7 @@ def glob(path, url, with_path=False):
 
     blocks = path.split('/')
     nblocks = len(blocks)
-    head = next(i for i, block in enumerate(blocks) if '*' in block)
+    head = next( (i for i, block in enumerate(blocks) if '*' in block), len(blocks))
     head = '/'.join(blocks[:head])
 
     cmd = ['xrdfs', url, 'ls', '-R', head]
@@ -48,7 +48,7 @@ def glob(path, url, with_path=False):
 
     if with_path:
         path = os.path.dirname(path)
-        return [f'{path}/{d}' for d in dirlist]
+        return [ join_url(f'{path}/{os.path.basename(d)}', url) for d in dirlist]
     return dirlist
 
 def exists(path, url):
