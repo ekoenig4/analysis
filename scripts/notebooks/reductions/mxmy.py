@@ -16,10 +16,11 @@ def main():
 class Reduction(RunReduction):
     @staticmethod
     def add_parser(parser):
-        parser.add_argument("--model", default='feynnet_bkg_33sig', help="model to use for loading feynnet")
+        parser.add_argument("--model", default='feynnet_trgkin_mx_my_reweight_v2', help="model to use for loading feynnet")
         parser.set_defaults(
-            altfile='test_{base}',
-            module='fc.eightb.feynnet',
+            # altfile='test_{base}',
+            # module='fc.eightb.feynnet',
+            module='fc.eightb.preselection.t8btag_minmass',
         )
         return parser
     
@@ -27,9 +28,27 @@ class Reduction(RunReduction):
     def init_model(self, model):
         self.model = eightb.models.get_model(model)
 
-    @required
+    def trigger_kinematics(self, signal):
+        pt_filter = eightb.selected_jet_pt('trigger')
+
+        def pfht(t):
+            return ak.sum(t.jet_pt[(t.jet_pt > 30)], axis=-1)
+        pfht_filter = EventFilter('pfht330', filter=lambda t : pfht(t) > 330)
+
+        event_filter = FilterSequence(pfht_filter, pt_filter)
+        self.signal = signal.apply(event_filter)
+
+    def fully_resolved_efficiency(self, signal):
+        def _efficiency(tree):
+            tree.reductions['fully_resolved_efficiency'] = ak.mean( tree.nfound_select==8, axis=0 )
+
+        signal.apply(_efficiency,report=True)
+
+    # @required
     def load_feynnet(self, signal, bkg, model):
-        (signal+bkg).apply(lambda tree : eightb.load_feynnet_assignment(tree, model=model.storage), report=True)
+        
+        load_feynnet = eightb.f_load_feynnet_assignment(self.model.analysis)
+        (signal+bkg).apply(load_feynnet, report=True)
 
     def signal_masks(self, signal):
         signal.apply(lambda tree : tree.extend(all_eightb=tree.nfound_select==8))        

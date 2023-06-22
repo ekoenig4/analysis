@@ -32,20 +32,41 @@ def main():
 class Notebook(RunSkim):
     @staticmethod
     def add_parser(parser):
-        parser.add_argument("--nsplit", default=5, type=int)
+        group = parser.add_mutually_exclusive_group(required=True)
+        group.add_argument("--nsplit", type=int)
+        group.add_argument("--frac", type=float, nargs='+')
+
+
         return parser
+    
+    def init(self):
+        if self.nsplit:
+            self.frac = [1/self.nsplit]*self.nsplit
+
+        self.nsplit = len(self.frac)
+        self.frac = np.array(self.frac)/np.sum(self.frac)
+        self.bins = np.cumsum(np.insert(self.frac,0,0))
+
+        print(f'nsplit: {self.nsplit}')
+        print(f'frac: {self.frac}')
 
     def randomize_split(self, trees):
         (trees).apply(
             lambda t : t.extend(
-                _random_split= ak.from_numpy( np.random.randint(self.nsplit, size=len(t)) )
+                _random_split= ak.from_numpy( np.digitize(np.random.uniform(size=len(t)), self.bins)-1 )
             )
         )
 
     def write_split(self, trees):
+
         for i in range(self.nsplit):
             split = trees.copy()
             split = split.apply(EventFilter(f'split_{i}', filter=lambda t : t._random_split==i))
+
+            def rescale_cutflow(t):
+                frac = ak.mean(t._random_split==i)
+                t.cutflow = [ Histo(frac*cutflow.histo, cutflow.bins, frac*cutflow.error) for cutflow in t.cutflow ]
+            split.apply(rescale_cutflow)
 
             study.quick( 
                 split,
