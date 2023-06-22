@@ -10,22 +10,35 @@ import awkward as ak
 import re
 import copy
 
+def try_func(func, *args, **kwargs):
+    try:
+        return func(*args, **kwargs)
+    except:
+        return None
+    
 class Stats:
     def __init__(self,histo):
-        self.nevents = np.sum(histo.histo)
-        self.ess = self.nevents**2/np.sum(histo.error**2)
-        if self.nevents > 0:
+        try:
+            self.nevents = try_func(lambda:np.sum(histo.histo))
+            self.ess = try_func(lambda:self.nevents**2/np.sum(histo.error**2))
+            if self.nevents > 0:
 
-            if histo.array is not None:
-                self.mean, self.stdv = get_avg_std(histo.array,histo.weights,histo.bins)
-                self.minim, self.maxim = np.min(histo.array), np.max(histo.array)
+                if histo.array is not None:
+                    self.mean, self.stdv = get_avg_std(histo.array,histo.weights,histo.bins)
+                    self.minim, self.maxim = np.min(histo.array), np.max(histo.array)
+                else:
+                    x = get_bin_centers(histo.bins)
+                    self.mean = np.sum(x*histo.histo)/self.nevents
+                    self.stdv = np.sqrt( np.sum( (histo.histo*(x - self.mean))**2 )/self.nevents )
+                    self.minim, self.maxim = x[histo.histo > 0][0], x[histo.histo > 0][-1]
             else:
-                x = get_bin_centers(histo.bins)
-                self.mean = np.sum(x*histo.histo)/self.nevents
-                self.stdv = np.sqrt( np.sum( (histo.histo*(x - self.mean))**2 )/self.nevents )
-                self.minim, self.maxim = x[histo.histo > 0][0], x[histo.histo > 0][-1]
-        else:
-            self.mean = self.stdv = self.minim = self.maxim = 0
+                self.mean = self.stdv = self.minim = self.maxim = 0
+        except:
+            pass
+
+    def __getattr__(self, attr): 
+        if not attr in self.__dict__: return None
+        return self.__dict__[attr]
         
     def __str__(self):
         return '\n'.join([ f'{key}={float(value):0.3e}' for key,value in vars(self).items() ])
@@ -111,7 +124,7 @@ class Histo:
         return cls(y, bins, yerr, **kwargs)
 
     @classmethod 
-    def from_array(cls, array, bins=None, weights=None, nbins=30, rebin=None, binoverride=None, restrict=False, sumw2=True, **kwargs):
+    def from_array(cls, array, bins=None, weights=None, nbins=30, rebin=None, binoverride=None, restrict=False, sumw2=True, overflow=False, **kwargs):
         if weights is not None:
             if len(weights) != len(array):
                 raise ValueError(f'shape of the first dimension must be the same for array and weight. Got array ({len(array)}) and weight ({len(weights)}')
@@ -135,6 +148,10 @@ class Histo:
 
         if binoverride:
             bins = np.linspace(bins[0], bins[-1], binoverride)
+
+        if overflow:
+            lo, hi = bins[0], (bins[-1]+bins[-2])/2
+            array = np.clip(array, lo, hi)
 
         if restrict:
             array, weights = restrict_array(array, bins=bins, weights=weights)

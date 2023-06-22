@@ -87,7 +87,7 @@ class _study_args:
 
         self.attrs = dict(
             is_data=[tree.is_data for tree in treelist],
-            is_signal=[tree.is_signal for tree in treelist],
+            is_signal=[(tree.mass if tree.is_signal else None) for tree in treelist],
             is_model=[tree.is_model for tree in treelist],
             stacked=stacked,
             lumi=lumi,

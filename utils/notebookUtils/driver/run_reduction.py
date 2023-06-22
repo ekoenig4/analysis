@@ -40,7 +40,8 @@ class RunReduction(Notebook):
     @required
     def init_files(self, files, altfile='{base}', module=None):
         def _file(f):
-            if fc.glob(f): return fc.glob(f)
+            from_glob = fc.fs.repo.glob(f)
+            if from_glob: return from_glob
             if not module: return f
             
             local = dict()

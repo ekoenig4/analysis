@@ -1,7 +1,11 @@
 from ..hepUtils import *
 from ..xsecUtils import *
 from ..utils import *
-from ..fileUtils.eos import *
+# from ..fileUtils import eos
+
+from ..fileUtils import fs
+
+eos = fs.default
 
 import uproot as ut
 import awkward as ak
@@ -15,13 +19,13 @@ from collections import defaultdict
 
 def _check_file(fname):
     if os.path.isfile(fname): return fname
-    if eos.exists(fname): return eos.url+'/'+fname
+    if eos.exists(fname): return eos.fullpath(fname)
     return None
 
 def _glob_files(pattern):
     files = glob.glob(pattern)
     if any(files): return files
-    files = eos.ls(pattern, with_path=True)
+    files = eos.ls(pattern)
     if any(files): return files
     return []
 
@@ -98,7 +102,7 @@ class RootFile:
             except ValueError:
                 ...
 
-        move_to_eos(tmp_output, output)
+        eos.move(tmp_output, output)
 
 class SixBFile:
     def __init__(self, fname, use_cutflow=True):
@@ -139,7 +143,7 @@ class SixBFile:
 
     def write(self, altfile, retry=2, tree=None, types=None, **kwargs):
         dirname, basename = os.path.dirname(self.fname), os.path.basename(self.fname)
-        dirname = dirname.replace(eos.url, '')
+        dirname = eos.cleanpath(dirname)
         output = os.path.join(dirname, altfile.format(base=basename))
 
         tmp_output = '_'.join(output.split('/'))
@@ -159,7 +163,7 @@ class SixBFile:
             except ValueError:
                 ...
 
-        move_to_eos(tmp_output, output)
+        eos.move(tmp_output, output)
 
 def init_files(self, filelist, treename, normalization, altfile="{base}", report=True):
     if type(filelist) == str:
@@ -270,7 +274,7 @@ def init_empty(self):
     self.pltargs = dict()
     self.systematics = None
 
-def init_tree(self, use_gen=False, cache=None):
+def init_tree(self, use_gen=False, cache=None, normalization=None):
     self.fields = sorted(list(set.intersection(*[ set(fn.fields) for fn in self.filelist])))
 
     if self.lazy :
@@ -292,28 +296,30 @@ def init_tree(self, use_gen=False, cache=None):
 
     from ..plotUtils import Histo
 
-    self.cutflow = [ Histo.convert(fn.cutflow) for fn in self.filelist]
+    if normalization == 'h_cutflow':
+        self.cutflow = [ Histo.convert(fn.cutflow) for fn in self.filelist]
+        self.cutflow_labels = max([ fn.cutflow_labels for fn in self.filelist])
 
-    def _trim_cutflow(cutflow):
-        cutflow.histo = np.trim_zeros(cutflow.histo, 'b')
-        cutflow.error = cutflow.error[:len(cutflow.histo)]
-        cutflow.bins = np.arange(len(cutflow.histo))
-    for cutflow in self.cutflow: _trim_cutflow(cutflow)
-    ncutflow = max( len(cutflow.histo) for cutflow in self.cutflow )
-    self.cutflow_labels = np.arange(ncutflow).astype(str).tolist()
+        def _trim_cutflow(cutflow):
+            cutflow.histo = np.trim_zeros(cutflow.histo, 'b')
+            cutflow.error = cutflow.error[:len(cutflow.histo)]
+            cutflow.bins = np.arange(len(cutflow.histo))
+        for cutflow in self.cutflow: _trim_cutflow(cutflow)
+        ncutflow = max( len(cutflow.histo) for cutflow in self.cutflow )
+        # self.cutflow_labels = np.arange(ncutflow).astype(str).tolist()
 
-    def _pad_cutflow(cutflow):
-        pad = max(0, ncutflow - len(cutflow.histo))
-        if pad > 0: 
-            cutflow.histo = np.pad( cutflow.histo, (0, pad), constant_values=0 )
-            cutflow.error = np.pad( cutflow.error, (0, pad), constant_values=0 )
-        else:
-            cutflow.histo = cutflow.histo[:ncutflow]
-            cutflow.error = cutflow.error[:ncutflow]
+        def _pad_cutflow(cutflow):
+            pad = max(0, ncutflow - len(cutflow.histo))
+            if pad > 0: 
+                cutflow.histo = np.pad( cutflow.histo, (0, pad), constant_values=0 )
+                cutflow.error = np.pad( cutflow.error, (0, pad), constant_values=0 )
+            else:
+                cutflow.histo = cutflow.histo[:ncutflow]
+                cutflow.error = cutflow.error[:ncutflow]
 
-        cutflow.bins = np.arange(ncutflow+1)
-        return cutflow
-    for cutflow in self.cutflow: _pad_cutflow(cutflow)
+            cutflow.bins = np.arange(ncutflow+1)
+            return cutflow
+        for cutflow in self.cutflow: _pad_cutflow(cutflow)
 
 
     self.systematics = None
@@ -354,7 +360,7 @@ class Tree:
             return
 
         init_sample(self)
-        init_tree(self, use_gen)
+        init_tree(self, use_gen, normalization=normalization)
         self.reductions = dict()
 
     def __str__(self):
@@ -367,10 +373,27 @@ class Tree:
         return "\n".join(sample_string)
 
     def __getitem__(self, key): 
+        if isinstance(key, list):
+            return self.ttree[key]
+
         slice = None
         if isinstance(key,str) and any(re.findall(r'\[.*\]', key)):
             slice = re.findall(r'\[.*\]', key)[0]
             key = key.replace(slice, "")
+
+        if key not in self.ttree.fields:
+            partial = [ field for field in self.ttree.fields if field in key ]
+            if not any(partial):
+                raise KeyError(f"Key {key} not found in tree fields {self.ttree.fields}")
+            
+            # scope = dict(**{field:self.ttree[field] for field in partial}, **globals())
+            scope = {'ak':ak,'np':np}
+            scope.update(**{field:self.ttree[field] for field in partial})
+            result = eval(key, scope)
+            return result
+
+
+
 
         item = self.ttree[key]
         if slice is not None:

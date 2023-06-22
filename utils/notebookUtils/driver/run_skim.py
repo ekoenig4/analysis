@@ -32,7 +32,7 @@ class RunSkim(Notebook):
     @required
     def init_files(self, files, altfile='{base}', module=None):
         def _file(f):
-            if fc.glob(f): return fc.glob(f)
+            if fc.fs.repo.glob(f): return fc.fs.repo.glob(f)
             if not module: return f
             
             local = dict()

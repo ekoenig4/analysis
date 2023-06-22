@@ -76,6 +76,9 @@ class remote:
         self.store = store(url)
         self.mount = mount(mnt) if os.path.exists(mnt) else self.store
 
+        self.url = self.store.url
+        self.mnt = self.mount.mnt
+
     def fullpath(self, path):
         return self.store.fullpath(path)
     

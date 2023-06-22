@@ -235,7 +235,7 @@ def histo2d_array(x_array, y_array, x_bins=None, y_bins=None, weights=None, dens
     kwargs = { key:value for key,value in kwargs.items() if not key.startswith('h_') }
     kwargs.update(ext_kwargs)
     
-    histo2d = Histo2D(x_array,y_array, x_bins=x_bins, y_bins=y_bins,weights=weights,**hist_kwargs)
+    histo2d = Histo2D.from_array(x_array,y_array, x_bins=x_bins, y_bins=y_bins,weights=weights,**hist_kwargs)
     plot_histo2d(histo2d, figax=(fig,ax), **kwargs)
     
     return fig,ax

@@ -9,14 +9,20 @@ import numbers
 import re
 from scipy import stats as f_stats
 
+def try_func(func, *args, **kwargs):
+    try:
+        return func(*args, **kwargs)
+    except:
+        return None
+
 class Stats:
     def __init__(self,graph):
-        self.x_mean, self.x_std = np.mean(graph.x_array), np.std(graph.x_array)
-        self.x_min, self.x_max = np.min(graph.x_array), np.max(graph.x_array)
-        self.y_mean, self.y_std = np.mean(graph.y_array), np.std(graph.y_array)
-        self.y_min, self.y_max = np.min(graph.y_array), np.max(graph.y_array)
-        self.x_sum,  self.y_sum = np.sum(graph.x_array), np.sum(graph.y_array)
-        self.area = np.trapz(graph.y_array, graph.x_array)
+        self.x_mean, self.x_std = try_func(np.mean,graph.x_array), try_func(np.std, graph.x_array)
+        self.x_min, self.x_max = try_func(np.min, graph.x_array), try_func(np.max, graph.x_array)
+        self.y_mean, self.y_std = np.mean(graph.y_array), try_func(np.std, graph.y_array)
+        self.y_min, self.y_max = try_func(np.min, graph.y_array), try_func(np.max, graph.y_array)
+        self.x_sum,  self.y_sum = try_func(np.sum, graph.x_array), try_func(np.sum, graph.y_array)
+        self.area = try_func(np.trapz, graph.y_array, graph.x_array)
         self.ndf = len(graph.y_array)
     def __format__(self, spec):
         return self.__str__(spec=spec)

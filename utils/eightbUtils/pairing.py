@@ -88,23 +88,34 @@ def load_weaver_output(tree, model=None, fields=['scores']):
     rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname) for fn in tree.filelist ]
     toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
     if any(toload): return load_weaver_from_root(toload, fields=fields)
-  
+
+    print(f'No root output found for {rgxs[0]}... trying awkd...')
+
     rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname)+".awkd" for fn in tree.filelist ]
     toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
 
     if any(toload): return load_weaver_from_ak0(toload, fields=fields)
 
+    raise ValueError(f'No weaver output found for model {model}.')
+
 class f_load_feynnet_assignment(ParallelMethod):
     def __init__(self, model, extra=[], reco_event=True):
+        super().__init__()
         self.model = model
         self.extra = extra
         self.reco_event = reco_event
     def start(self, tree):
         fields = ['maxcomb','maxscore','minscore'] + self.extra
+
+        jet_p4 = build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag'])
+        ranker = load_weaver_output(tree, self.model, fields=fields)
+
+        assert len(ranker['maxcomb']) == len(jet_p4), f'Ranker output and jet collection have different lengths. Got {len(ranker["maxcomb"])} and {len(jet_p4)} respectively.'
+
         return dict(
-            ranker=load_weaver_output(tree, self.model, fields=fields),
+            jet_p4=jet_p4,
+            ranker=ranker,
             extra=self.extra,
-            jet_p4=build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag']),
         )
     def run(self, jet_p4, ranker, extra):
         score, assignment, minscore = ranker['maxscore'], ranker['maxcomb'], ranker['minscore']

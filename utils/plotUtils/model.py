@@ -9,6 +9,7 @@ from ..classUtils import ObjIter, ParallelMethod
 
 class f_upperlimit(ParallelMethod):
     def __init__(self, poi=np.linspace(0,2,21), level=0.05):
+        super().__init__()
         self.poi = poi
         self.level = level
   
@@ -52,7 +53,7 @@ class Model:
     if isinstance(h_bkg, list): h_bkg = h_bkg[0]
 
     self.h_sig = h_sig
-    self.mx, self.my = list(map(int, h_sig.label.split("_")[1::2]))
+    self.mx, self.my = list(map(int, h_sig.is_signal[1:-1].split(',')))
 
     self.h_bkg = h_bkg
     self.h_data = h_bkg if h_data is None else h_data

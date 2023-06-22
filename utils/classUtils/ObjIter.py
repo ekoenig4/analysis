@@ -1,23 +1,21 @@
 import numpy as np
 import awkward as ak
+import multiprocessing as mp
+import threading as th
 from threading import Thread
 from multiprocess.pool import ThreadPool
 from functools import partial
+import time
 
 from tqdm import tqdm
 # from ..rich_tools import tqdm
 
 class ParallelMethod:
-    def __call__(self, *args, **kwargs):
-        inputs = self.start(*args, **kwargs)
-        output = self.run(**inputs)
-        return self.end(*args, **output)
-    def parallel(self, *args, pool=None, **kwargs):
-        inputs = self.start(*args, **kwargs)
-        output = pool.map(self.run_parallel, [inputs])
-        return self.end(*args, **list(output)[0])
-    def run_parallel(self, inputs):
-        return self.run(**inputs)
+    def __init__(self):
+        self.__time__ = time.time()
+        self.__start_timing__ = []
+        self.__run_timing__ = []
+        self.__end_timing__ = []
     
     def start(self, *args, **kwargs):
         return dict()
@@ -25,6 +23,93 @@ class ParallelMethod:
         return dict()
     def end(self, *args, **kwargs):
         return 
+
+    @property
+    def start_timing(self):
+        return ak.Array(self.__start_timing__)
+    
+    @property
+    def run_timing(self):
+        return ak.Array(self.__run_timing__)
+    
+    @property
+    def end_timing(self):
+        return ak.Array(self.__end_timing__)
+
+    def __call__(self, *args, **kwargs):
+        inputs, start_timing = self.__start__(0, args, kwargs)
+        output, run_timing = self.__run__(inputs, start_timing)
+        finished, end_timing = self.__end__(args, output, run_timing)
+
+        self.__start_timing__.append(start_timing)
+        self.__run_timing__.append(run_timing)
+        self.__end_timing__.append(end_timing)
+
+        return finished
+    
+    def parallel(self, iargs, pool=None, **kwargs):
+        id, args = iargs[0], iargs[1:]
+        inputs, start_timing = self.__start__(id, args, kwargs)
+        result = pool.starmap(self.__run__, [(inputs, start_timing)])
+        output, run_timing = list(result)[0]
+        finished, end_timing = self.__end__(args, output, run_timing)
+
+        self.__start_timing__.append(start_timing)
+        self.__run_timing__.append(run_timing)
+        self.__end_timing__.append(end_timing)
+
+        return id, finished
+    
+    def __start__(self, id, args, kwargs):
+        start = time.time() - self.__time__
+        result = self.start(*args, **kwargs)
+        worker = mp.current_process().name
+        thread = th.current_thread().name
+        end = time.time() - self.__time__
+
+        timing = dict(
+            id=id,
+            start=start,
+            end=end,
+            worker=worker,
+            thread=thread,
+        )
+
+        return result, timing
+
+    def __run__(self, inputs, timing):
+        start = time.time() - self.__time__
+        result = self.run(**inputs)
+        worker = mp.current_process().name
+        thread = th.current_thread().name
+        end = time.time() - self.__time__
+
+        timing = dict(
+            timing,
+            start=start,
+            end=end,
+            worker=worker,
+            thread=thread,
+        )
+
+        return result, timing
+    
+    def __end__(self, args, outputs, timing):
+        start = time.time() - self.__time__
+        result = self.end(*args, **outputs)
+        worker = mp.current_process().name
+        thread = th.current_thread().name
+        end = time.time() - self.__time__
+        
+        timing = dict(
+            timing,
+            start=start,
+            end=end,
+            worker=worker,
+            thread=thread,
+        )
+
+        return result, timing
 
 class ObjThread(Thread):
     def __init__(self, obj, obj_function):
@@ -123,6 +208,11 @@ def get_function_name(obj):
     return str(obj)
 
 class ObjIter:
+    @classmethod
+    def interweave(cls, *objiters):
+        return cls([ obj for objs in zip(*objiters) for obj in objs ])
+
+
     def __init__(self,objs):
         self.objs = list(objs)
 
@@ -185,16 +275,16 @@ class ObjIter:
         #     print("Warning: parallel_apply is not recommended for non-ParallelMethod functions")
         #     return self.pool_apply(obj_function, report=report, pool=pool)
         
-        thread_pool = ThreadPool(len(self))
+        # thread_pool = ThreadPool(len(self))
+        thread_pool = ThreadPool(2*pool._processes if pool else len(self))
 
         parallel_function = partial(obj_function.parallel, pool=pool)
-        result = thread_pool.imap( parallel_function, self.objs, chunksize=1 )
+        result = thread_pool.imap_unordered( parallel_function, enumerate(self.objs), chunksize=1 )
         
         if report:
             result = tqdm(result, total=len(self), desc=get_function_name(obj_function))
 
-        result = list( result )
-
+        result = map(lambda x : x[1], sorted(result, key=lambda x: x[0]))
         return ObjIter(result)
     
     def pool_apply(self, obj_function, report=False, pool=None):

@@ -20,13 +20,22 @@ from datetime import date
 from .default_args import *
 
 date_tag = date.today().strftime("%Y%m%d")
+default_base = f"{GIT_WD}/plots/{date_tag}_plots"
 
-def save_fig(fig, saveas=None, base=f"{GIT_WD}/plots/{date_tag}_plots", fmt=['jpg']):
-    outfn = os.path.join(base, saveas)
+def get_path(path, base=default_base):
+    outfn = os.path.join(base, path)
+    return outfn
+
+def make_path(path, base=default_base):
+    outfn = get_path(path, base)
     directory = '/'.join(outfn.split('/')[:-1])
-    print('saving to', outfn)
     if not os.path.isdir(directory):
         os.makedirs(directory)
+    return outfn
+
+def save_fig(fig, saveas=None, fmt=['jpg']):
+    outfn = make_path(saveas)
+    print('saving to', outfn)
 
     if len(outfn.split('.')) == 2:
         outfn, ext = outfn.split('.')
@@ -62,30 +71,24 @@ def format_var(var, bins=None, xlabel=None):
 
 def autodim(nvar, dim=None, flip=False):
     if dim == -1:
-        dim = (-1, nvar)
-    if dim == (-1, -1):
-        dim = None
-    if nvar % 2 == 1 and nvar != 1:
-        nvar += 1
-    if dim is not None:
-        nrows, ncols = dim
-        nrows = nrows if nrows > 0 else nvar//ncols
-        ncols = ncols if ncols > 0 else nvar//nrows
-    elif nvar == 1:
-        nrows, ncols = 1, 1
-    elif flip:
-        ncols = nvar//2
-        nrows = nvar//ncols
-    else:
+        dim = (1, nvar)
+    elif dim == (-1, -1) or dim is None:
         nrows = int(np.sqrt(nvar))
-        ncols = nvar//nrows
+        ncols = nvar // nrows
+        dim = (nrows, ncols)
+    else:
+        nrows, ncols = dim
+        nrows = nrows if nrows > 0 else nvar // ncols
+        ncols = ncols if ncols > 0 else nvar // nrows
+        dim = (nrows, ncols)
 
+    nrows, ncols = dim
     off = nvar - nrows*ncols
     if off > 0:
-        if flip:
-            nrows += 1
-        else:
-            ncols += 1
+        ncols += 1
+
+    if flip:
+        nrows, ncols = ncols, nrows
 
     return nrows, ncols
 
@@ -145,7 +148,6 @@ def cutflow(*args, size=(16, 8), log=1, h_label_stat=None, scale=True, density=F
     #     fig, ax, _ = hist_multi(cutflow_bins, bins=bins, weights=flatten_cutflows, xlabel=cutflow_labels, h_histtype=[
     #                     "step"]*len(study.selections), **study.attrs, figax=figax)
     fig.tight_layout()
-    plt.show()
     if study.saveas:
         save_fig(fig, study.saveas)
 
@@ -442,7 +444,7 @@ def brazil2d(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(
     if study.saveas:
         save_fig(fig, study.saveas)
         
-def mxmy_phase(signal, f_var, figax=None, interp=True, colorbar=True, xlim=None, ylim=None, xlabel=None, ylabel=None, saveas=None, **kwargs):
+def mxmy_phase(signal, f_var, figax=None, interp=True, colorbar=True, g_markersize=10, xlim=None, ylim=None, xlabel=None, ylabel=None, saveas=None, **kwargs):
     if figax is None: figax = get_figax(size=(10,8))
     fig, ax = figax
 
@@ -455,7 +457,7 @@ def mxmy_phase(signal, f_var, figax=None, interp=True, colorbar=True, xlim=None,
     
 
     graph2d_array(mx, my, var, figax=figax, interp=interp, colorbar=True, **kwargs)
-    graph_array(mx, my, figax=figax, g_color='grey', g_ls='none', g_marker='o', g_markersize=10, xlim=xlim, ylim=ylim, xlabel=xlabel, ylabel=ylabel)
+    graph_array(mx, my, figax=figax, g_color='grey', g_ls='none', g_marker='o', g_markersize=g_markersize, xlim=xlim, ylim=ylim, xlabel=xlabel, ylabel=ylabel)
     
     if saveas:
         save_fig(fig, saveas)
@@ -1199,3 +1201,51 @@ def table(*args, varlist=[], binlist=None, xlabels=None, dim=(-1, -1), size=(-1,
         fig.canvas.draw()
         study.table(var, xlabel, figax=(fig, ax), **study.attrs)
     plt.close()
+
+def plot_timing(f_method, size=(25,10), saveas=None):
+    from collections import defaultdict
+    fig, ax = get_figax(size=size)
+
+    # create a set of workers used 
+    def draw_process(timing, color='r'):
+        X = (timing.end + timing.start)/2
+        widths = (timing.end - timing.start)/2
+        workers = timing.worker
+        threads = timing.thread
+
+        worker_map = defaultdict(list)
+        worker_map['MainProcess']
+        for worker, thread in zip(workers, threads):
+            worker_map[worker].append(thread)
+
+        for x, width, worker, thread in zip(X, widths, workers, threads):
+            worker_offset = list(worker_map.keys()).index(worker)
+            worker_threads = list(set((worker_map[worker])))
+            thread_offset = worker_threads.index(thread)/len(worker_threads)
+
+            height = 0.5/len(worker_threads) if len(worker_threads) > 1 else 0.8
+            offset = worker_offset + thread_offset + 0.1*height
+
+            rect = plt.Rectangle((x-width, offset), width*2, height, color=color, alpha=0.2)
+            ax.add_patch(rect)
+
+        return len(worker_map)
+
+    nworkers = 0
+    nworkers = max(nworkers, draw_process(f_method.start_timing, color='r'))
+    nworkers = max(nworkers, draw_process(f_method.run_timing, color='g'))
+    nworkers = max(nworkers, draw_process(f_method.end_timing, color='b'))
+
+    end = ak.max(f_method.end_timing.end)
+    ax.set(xlabel='Time (s)', ylabel='Worker')
+    ax.set_xlim(0, end)
+    ax.set_ylim(-0.1, nworkers+0.1)
+
+    ax.set_yticks(np.arange(nworkers))
+    ax.grid()
+
+    if saveas:
+        save_fig(fig, f'debug/{saveas}')
+        return
+
+    plt.show()

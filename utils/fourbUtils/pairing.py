@@ -114,6 +114,7 @@ def assign(tree, tag=''):
 
 class f_load_feynnet_assignment(ParallelMethod):
     def __init__(self, model, extra=[], reco_event=True):
+        super().__init__()
         self.model = model
         self.extra = extra
         self.reco_event = reco_event

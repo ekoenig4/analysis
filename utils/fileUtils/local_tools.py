@@ -26,7 +26,7 @@ def glob(path, mnt=None, with_path=False):
     
     if with_path:
         path = os.path.dirname(path)
-        return [ join_mnt(f'{path}/{os.path.basename(d)}', mnt) for d in dirlist]
+        return [ f'{path}/{os.path.basename(d)}' for d in dirlist]
     
     return dirlist
 

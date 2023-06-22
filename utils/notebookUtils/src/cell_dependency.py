@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import wraps
 
 def f7(seq):
     seen = set()
@@ -87,3 +88,14 @@ class CellDependency:
     
 required = CellDependency.required
 dependency = CellDependency.dependency
+
+# only run method if all arguments are not None
+def optional(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if all([arg is not None for arg in args]):
+            return func(*args, **kwargs)
+        else:
+            return None
+    wrapper.__name__ = func.__name__
+    return wrapper
