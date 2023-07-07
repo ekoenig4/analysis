@@ -3,7 +3,7 @@ from matplotlib import patheffects
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..classUtils import ObjTransform, ObjIter
+# from ..classUtils import ObjTransform, ObjIter
 from .better_plotter import *
 
 class obj_store:

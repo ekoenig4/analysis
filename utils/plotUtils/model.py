@@ -1,8 +1,19 @@
 import numpy as np
-import jax
-import pyhf
-from pyhf.exceptions import FailedMinimization
-pyhf.set_backend('jax')
+
+try:
+  import pyhf
+  from pyhf.exceptions import FailedMinimization
+  PYHF_ENABLED = True
+  
+  try:
+    import jax
+    pyhf.set_backend('jax')
+  except ImportError:
+    pass
+
+except ImportError:
+   PYHF_ENABLED = False
+
 
 from .histogram import Stack
 from ..classUtils import ObjIter, ParallelMethod
@@ -49,6 +60,8 @@ class Model:
   f_upperlimit = f_upperlimit
 
   def __init__(self, h_sig, h_bkg, h_data=None):
+    assert PYHF_ENABLED, "pyhf is not installed"
+
     if isinstance(h_bkg, Stack): h_bkg = h_bkg.get_histo()
     if isinstance(h_bkg, list): h_bkg = h_bkg[0]
 

@@ -1,4 +1,13 @@
-from attrdict import AttrDict
+from typing import Any
+
+
+class AttrDict(dict):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        self.update(*args, **kwargs)
+    def __getattr__(self, key):
+        return self[key]
+    def __setattr__(self, key, value):
+        self[key] = value
 
 def _unzip_kwargs(**kwargs):
     if not any(kwargs): return []

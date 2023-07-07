@@ -4,7 +4,6 @@ from scipy import integrate, interpolate
 import numpy as np
 import re
 
-from sympy import Q
 
 from .binning_tools import get_bin_centers, get_bin_widths
 from ..ak_tools import *

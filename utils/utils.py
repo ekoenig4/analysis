@@ -1,13 +1,17 @@
 import awkward as ak
 from matplotlib.pyplot import isinteractive
 import torch
-import git
 import numpy as np
 import itertools
+import os
 
 from .ak_tools import *
 
-GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
+try:
+    import git
+    GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
+except ImportError:
+    GIT_WD = os.getcwd()
 
 
 
