@@ -68,11 +68,30 @@ def numba_unweighted_histo2d(x_array : np.array, y_array : np.array, x_bins : np
     errors = np.sqrt(counts)
     return counts.T, errors.T
 
+def np_unweighted_histo2d(x_array : np.array, y_array : np.array, x_bins : np.array, y_bins : np.array) -> np.array:
+    counts = np.histogram2d(x_array, y_array, bins=(x_bins, y_bins))[0].T
+    errors = np.sqrt(counts)
+    return counts, errors
+
+def np_weighted_histo2d(x_array : np.array, y_array : np.array, x_bins : np.array, y_bins : np.array, weights : np.array) -> np.array:
+    counts = np.histogram2d(x_array, y_array, bins=(x_bins, y_bins), weights=weights)[0].T
+    errors = np.sqrt(counts)
+    return counts, errors
+
+def np_weighted_histo2d_sumw2(x_array : np.array, y_array : np.array, x_bins : np.array, y_bins : np.array, weights : np.array) -> np.array:
+    counts = np.histogram2d(x_array, y_array, bins=(x_bins, y_bins), weights=weights)[0]
+    errors = np.histogram2d(x_array, y_array, bins=(x_bins, y_bins), weights=weights**2)[0]
+    errors = np.sqrt(errors)
+    return counts.T, errors.T
 
 def histogram2d(x_array, y_array, x_bins, y_bins, weights, sumw2=True):
-    if weights is None: return numba_unweighted_histo2d(x_array, y_array, x_bins, y_bins)
-    elif not sumw2: return numba_weighted_histo2d(x_array, y_array, x_bins, y_bins, weights)
-    return numba_weighted_histo2d_sumw2(x_array, y_array, x_bins, y_bins, weights)
+    # if weights is None: return numba_unweighted_histo2d(x_array, y_array, x_bins, y_bins)
+    # elif not sumw2: return numba_weighted_histo2d(x_array, y_array, x_bins, y_bins, weights)
+    # return numba_weighted_histo2d_sumw2(x_array, y_array, x_bins, y_bins, weights)
+
+    if weights is None: return np_unweighted_histo2d(x_array, y_array, x_bins, y_bins)
+    elif not sumw2: return np_weighted_histo2d(x_array, y_array, x_bins, y_bins, weights)
+    return np_weighted_histo2d_sumw2(x_array, y_array, x_bins, y_bins, weights)
 
 class Histo2D:
 
