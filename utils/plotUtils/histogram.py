@@ -74,10 +74,29 @@ def numba_unweighted_histo(array : np.array, bins : np.array) -> np.array:
     errors = np.sqrt(counts)
     return counts,errors
 
+def np_unweighted_histo(array, bins):
+    counts = np.histogram(array, bins)[0]
+    errors = np.sqrt(counts)
+    return counts, errors
+
+def np_weighted_histo(array, bins, weights):
+    counts = np.histogram(array, bins, weights=weights)[0]
+    errors = np.sqrt(counts)
+    return counts, errors
+
+def np_weighted_histo_sumw2(array, bins, weights):
+    counts = np.histogram(array, bins, weights=weights)[0]
+    errors = np.sqrt(np.histogram(array, bins, weights=weights**2)[0])
+    return counts, errors
+
 def histogram(array, bins, weights, sumw2=False):
-    if weights is None: return numba_unweighted_histo(array, bins)
-    elif not sumw2: return numba_weighted_histo(array,bins,weights)
-    return numba_weighted_histo_sumw2(array, bins, weights)
+    # if weights is None: return numba_unweighted_histo(array, bins)
+    # elif not sumw2: return numba_weighted_histo(array,bins,weights)
+    # return numba_weighted_histo_sumw2(array, bins, weights)
+
+    if weights is None: return np_unweighted_histo(array, bins)
+    elif not sumw2: return np_weighted_histo(array,bins,weights)
+    return np_weighted_histo_sumw2(array, bins, weights)
 
 def apply_systematic(histo, error, systematic):
     if systematic is None: return error 
@@ -293,15 +312,15 @@ class Histo:
     def cdf(self, cumulative):
         if hasattr(self, 'cumulative'): return self
 
+        self.cumulative = cumulative
+
         if cumulative == 1: # CDF Below 
-            self.cumulative = cumulative
             if self.density: 
                 self.histo *= self.widths
                 self.error *= self.widths
             self.histo = np.cumsum(self.histo)
             self.error = np.sqrt( np.cumsum(self.error**2) )
         elif cumulative == -1: # CDF Above
-            self.cumulative = cumulative
             if self.density: 
                 self.histo *= self.widths
                 self.error *= self.widths
@@ -443,7 +462,6 @@ class Stack(HistoList):
             if density or efficiency: 
                 nevents = stack.stats.nevents.npy.sum()
                 stack.apply(lambda histo : histo.rescale(1/nevents))
-
             if density:
                 stack.widths = get_bin_widths(stack.bins)
                 stack.apply(lambda histo : histo.rescale(1/stack.widths))
