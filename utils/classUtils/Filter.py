@@ -63,7 +63,7 @@ def build_event_filter(key, value, functions=functions, methods=methods):
     return operation
 
 
-def event_filter(self, tree):
+def event_filter(self, tree, cutflow=True):
     tree = tree.copy()
 
     if self.mask is not None:
@@ -74,7 +74,9 @@ def event_filter(self, tree):
     for filter in self.filters:
         mask = mask & filter(tree)
     tree.extend(tree.ttree[mask])
-    update_cutflow(tree, self.name)
+
+    if cutflow:
+        update_cutflow(tree, self.name)
 
     return tree
 
@@ -94,7 +96,7 @@ class Filter:
 
 
 class EventFilter:
-    def __init__(self, name, mask=None, filter=None,**kwargs):
+    def __init__(self, name, mask=None, filter=None, cutflow=True, **kwargs):
         self.name = name
         self.mask = mask
         self.kwargs = kwargs
@@ -102,13 +104,15 @@ class EventFilter:
                         for key, value in kwargs.items()]
         if filter is not None:
             self.filters = [filter] + self.filters
+
+        self.cutflow = cutflow
             
     def filter(self, tree, filter=None):
         if filter:
             tree = filter.filter(tree)
         if isinstance(tree,list):
-            return [event_filter(self, t) for t in tree]
-        return event_filter(self, tree)
+            return [event_filter(self, t, self.cutflow) for t in tree]
+        return event_filter(self, tree, self.cutflow)
     
     def __str__(self): return f"<EventFilter: {self.name}>"
     def __repr__(self): return f"<EventFilter: {self.name} {self.kwargs}>"

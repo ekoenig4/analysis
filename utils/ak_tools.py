@@ -177,6 +177,16 @@ def ak_quantile(array, weights=None, quantile=0.7):
 def ak_rank(array, axis=1):
     return ak.argsort(ak.argsort(array, axis=axis), axis=axis)
 
+def ak_rand_like(array):
+    n = ak.count(array, axis=None)
+    x = np.random.rand(n)
+    
+    if array.ndim == 1:
+        return ak.Array(x)
+    if array.ndim == 2:
+        return ak.unflatten(x, ak.count(array, axis=1))
+    
+    raise ValueError(f'Array has too many dimensions: {array.ndim}')
 
 def ak_binned(array, bins, axis=1, overflow=False):
     lo_edges, hi_edges = bins[:-1], bins[1:]

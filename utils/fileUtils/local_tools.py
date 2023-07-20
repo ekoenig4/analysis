@@ -31,7 +31,12 @@ def glob(path, mnt=None, with_path=False):
     return dirlist
 
 def ls(path, mnt=None, with_path=False):
-    return glob(path, mnt)
+    base = path
+    path = join_mnt(path, mnt)
+    dirlist = [ f for f in os.listdir(path) ]
+    
+    if with_path:
+        return [ f'{base}/{os.path.basename(d)}' for d in dirlist]
 
 def exists(path, mnt=None):
     path = join_mnt(path, mnt)

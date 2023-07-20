@@ -273,9 +273,9 @@ class Histo:
             self.histo = np.where(self.histo < 0, 0, self.histo)
 
         if self.density:
-            self.widths = get_bin_widths(self.bins)
-            self.histo = self.histo/self.widths
-            self.error = self.error/self.widths
+            area = np.trapz(self.histo, self.bins[:-1])
+            self.histo = self.histo/area
+            self.error = self.error/area
         return self
 
     def add_systematics(self, systematics=None):
@@ -293,15 +293,15 @@ class Histo:
     def cdf(self, cumulative):
         if hasattr(self, 'cumulative'): return self
 
-        self.cumulative = cumulative
-
         if cumulative == 1: # CDF Below 
+            self.cumulative = cumulative
             if self.density: 
                 self.histo *= self.widths
                 self.error *= self.widths
             self.histo = np.cumsum(self.histo)
             self.error = np.sqrt( np.cumsum(self.error**2) )
         elif cumulative == -1: # CDF Above
+            self.cumulative = cumulative
             if self.density: 
                 self.histo *= self.widths
                 self.error *= self.widths
@@ -443,6 +443,7 @@ class Stack(HistoList):
             if density or efficiency: 
                 nevents = stack.stats.nevents.npy.sum()
                 stack.apply(lambda histo : histo.rescale(1/nevents))
+
             if density:
                 stack.widths = get_bin_widths(stack.bins)
                 stack.apply(lambda histo : histo.rescale(1/stack.widths))

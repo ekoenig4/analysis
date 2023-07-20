@@ -4,7 +4,6 @@ import awkward as ak
 from ..hepUtils import  calc_dphi, calc_dr_p4, build_all_dijets
 from ..ak_tools import *
 from ..combinatorics import combinations, to_pair_combinations
-from .pairing import load_weaver_output
 
 def y_min_mass_asym(ys):
     return ak.argsort((ys.m[:,:,0] - ys.m[:,:,1])**2/(ys.m[:,:,0] + ys.m[:,:,1]),axis=-1)
