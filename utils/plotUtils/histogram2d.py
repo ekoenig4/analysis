@@ -282,6 +282,21 @@ class Histo2D:
         if nan is not None:
             z[np.isnan(z)] = nan
         return z
+    
+    def project_x(self, **kwargs):
+        bins = self.x_bins 
+
+        histo2d = np.where( np.isnan(self.histo2d), 0, self.histo2d )
+
+        counts = np.sum(histo2d, axis=1)
+        return Histo(counts, bins, **kwargs)
+    
+    def project_y(self, **kwargs):
+        bins = self.y_bins 
+        histo2d = np.where( np.isnan(self.histo2d), 0, self.histo2d )
+        counts = np.sum(histo2d, axis=0)
+        return Histo(counts, bins, **kwargs)
+
 
     def x_corr(self, **kwargs):
         x_points, y_points = get_bin_centers(self.x_bins), get_bin_centers(self.y_bins)
