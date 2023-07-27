@@ -7,52 +7,9 @@ from ..ak_tools import *
 from ..hepUtils import build_all_dijets
 from ..combinatorics import combinations
 from ..classUtils import ParallelMethod
+from .. import weaverUtils
 
-def load_weaver_from_ak0(toload, fields=['scores']):
-    fields = {
-    field:np.concatenate([ np.array(ak0.load(fn)[field], dtype=float) for fn in toload ])
-    for field in fields
-    }
-
-    return fields
-
-def load_weaver_from_root(toload, fields=['scores']):
-    import uproot
-
-    def load_fields(fn, fields):
-        with uproot.open(fn) as f:
-            ttree = f['Events']
-            return { field:ttree[field].array() for field in fields }
-
-    arrays = [
-        load_fields(fn, fields)
-        for fn in toload
-    ]
-
-    return {
-        field:np.concatenate([ array[field] for array in arrays ])
-        for field in fields
-    }
-
-def load_weaver_output(tree, model=None, fields=['scores']):
-    rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname) for fn in tree.filelist ]
-
-    def fetch_glob(rgx):
-        fns = glob.glob( os.path.join(model,"predict_output",rgx))
-        if not any(fns):
-            print(f"Warning: no files found for {rgx} in {model}/predict_output")
-
-        return fns
-
-    toload = [ fn for rgx in rgxs for fn in fetch_glob(rgx) ]
-    if any(toload): return load_weaver_from_root(toload, fields=fields)
-  
-    rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname)+".awkd" for fn in tree.filelist ]
-    toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
-
-    if any(toload): return load_weaver_from_ak0(toload, fields=fields)
-
-def reconstruct(jet_p4, assignment, tag=''):
+def reconstruct(jet_p4, assignment, tag='', order='random'):
     if tag and not tag.endswith('_'): tag += '_'
     
     j_p4 = jet_p4[assignment]
@@ -65,8 +22,12 @@ def reconstruct(jet_p4, assignment, tag=''):
     h1_signalId, h2_signalId = h_signalId[:, 0], h_signalId[:, 1]
     x_signalId = ak.where( h1_signalId//2 == h2_signalId//2, h1_signalId//2, -1 )
 
-    h_pt_order = ak_rank(h_p4.pt, axis=1)
-    j_pt_order = ak_rank(j_p4.pt, axis=1)
+    if order == 'pt':
+        h_pt_order = ak_rank(h_p4.pt, axis=1)
+        j_pt_order = ak_rank(j_p4.pt, axis=1)
+    else:
+        h_pt_order = ak.argsort( ak_rand_like(h_p4.pt), axis=1 )
+        j_pt_order = ak.argsort( ak_rand_like(j_p4.pt), axis=1 )
     
     h_j_pt_order = j_pt_order + 10*h_pt_order[:,[0,0,1,1]]
     
@@ -121,7 +82,7 @@ class f_load_feynnet_assignment(ParallelMethod):
     def start(self, tree):
         fields = ['maxcomb','maxscore','minscore'] + self.extra
         return dict(
-            ranker=load_weaver_output(tree, self.model, fields=fields),
+            ranker=weaverUtils.load_output(tree, self.model, fields=fields),
             extra=self.extra,
             jet_p4=build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag']),
         )
@@ -138,11 +99,11 @@ class f_load_feynnet_assignment(ParallelMethod):
     def end(self, tree, **output):
         tree.extend(**output)
 
-def load_true_assignment(tree):
-    jet_p4 = build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag'])
+def load_true_assignment(tree, use_regressed=True, tag='true_'):
+    jet_p4 = build_p4(tree, prefix='jet', use_regressed=use_regressed, extra=['signalId', 'btag'])
 
     true_assignment = ak.argsort(-jet_p4.signalId, axis=1)[:,:4]
-    true_reconstruction = reconstruct(jet_p4, true_assignment, tag='true_')
+    true_reconstruction = reconstruct(jet_p4, true_assignment, tag=tag)
     tree.extend(**true_reconstruction)
 
 def load_random_assignment(tree, tag=''):

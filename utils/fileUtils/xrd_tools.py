@@ -55,11 +55,13 @@ def exists(path, url):
     dirlist = ls(path, url)
     return any(dirlist)
 
-def copy(src, dest, src_url=None, dest_url=None):
+def copy(src, dest, src_url=None, dest_url=None, return_cmd=False):
     src = join_url(src, src_url)
     dest= join_url(dest, dest_url)
 
     cmd = ['xrdcp','-f', src, dest]
+    if return_cmd:
+        return ' '.join(cmd)
     return subprocess.run(
         [' '.join(cmd)], shell=True)
 

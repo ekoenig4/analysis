@@ -296,9 +296,9 @@ class Histo:
             self.histo = np.where(self.histo < 0, 0, self.histo)
 
         if self.density:
-            self.widths = get_bin_widths(self.bins)
-            self.histo = self.histo/self.widths
-            self.error = self.error/self.widths
+            area = np.trapz(self.histo, self.bins[:-1])
+            self.histo = self.histo/area
+            self.error = self.error/area
         return self
 
     def add_systematics(self, systematics=None):

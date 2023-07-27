@@ -5,6 +5,14 @@ from . import fs_tools as fs
 
 eos = fs.remote()
 
+def cleanpath(path):
+    
+    extra_slash = re.compile(r'//+')
+    for extra in set(extra_slash.findall(path)):
+        path = path.replace(extra,'/')
+
+    return path
+
 def check_accstudies(fn):
     # if eos.exists(fn): return fn
     fn = fn.replace("_accstudies.root","/ntuple.root")
@@ -246,6 +254,8 @@ def sample_files(path):
       NMSSM_XYH_YToHH_6b_MX_1200_MY_450,
     ]
 
+    GluGluToHHTo4B = f"{path}/GluGluToHHTo4B_node_cHHH1_TuneCP5_13TeV-powheg-pythia8/ntuple.root"
+
     QCD_bEn_Ht_100to200 = f"{path}/QCD/QCD_bEnriched_HT100to200_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
     QCD_bEn_Ht_200to300 = f"{path}/QCD/QCD_bEnriched_HT200to300_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
     QCD_bEn_Ht_300to500 = f"{path}/QCD/QCD_bEnriched_HT300to500_TuneCP5_13TeV-madgraph-pythia8/ntuple.root"
@@ -331,7 +341,7 @@ class FileCollection:
   @property
   def ls(self):
     if self.contents is None:
-      self.contents = eos.ls(self.path)
+      self.contents = eos.ls(self.path, with_path=True)
     return self.contents
 
   @property

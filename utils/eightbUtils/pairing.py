@@ -7,6 +7,7 @@ from ..ak_tools import *
 from ..hepUtils import build_all_dijets
 from ..combinatorics import combinations
 from ..classUtils import ParallelMethod
+from .. import weaverUtils
 
 def reconstruct(jet_p4, assignment, tag=''):
     if tag and not tag.endswith('_'): tag += '_'
@@ -56,47 +57,6 @@ def reconstruct(jet_p4, assignment, tag=''):
         **{f'{tag}j_{var}': getattr(j_p4, var) for var in j_p4.fields},
     )
 
-def load_weaver_from_ak0(toload, fields=['scores']):
-    fields = {
-    field:np.concatenate([ np.array(ak0.load(fn)[field], dtype=float) for fn in toload ])
-    for field in fields
-    }
-
-    return fields
-
-def load_weaver_from_root(toload, fields=['scores']):
-    import uproot
-
-    def load_fields(fn, fields):
-        with uproot.open(fn) as f:
-            ttree = f['Events']
-            return { field:ttree[field].array() for field in fields }
-
-    arrays = [
-        load_fields(fn, fields)
-        for fn in toload
-    ]
-
-    return {
-        field:np.concatenate([ array[field] for array in arrays ])
-        for field in fields
-    }
-
-
-
-def load_weaver_output(tree, model=None, fields=['scores']):
-    rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname) for fn in tree.filelist ]
-    toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
-    if any(toload): return load_weaver_from_root(toload, fields=fields)
-
-    print(f'No root output found for {rgxs[0]}... trying awkd...')
-
-    rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname)+".awkd" for fn in tree.filelist ]
-    toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
-
-    if any(toload): return load_weaver_from_ak0(toload, fields=fields)
-
-    raise ValueError(f'No weaver output found for model {model}.')
 
 class f_load_feynnet_assignment(ParallelMethod):
     def __init__(self, model, extra=[], reco_event=True):
@@ -108,7 +68,7 @@ class f_load_feynnet_assignment(ParallelMethod):
         fields = ['maxcomb','maxscore','minscore'] + self.extra
 
         jet_p4 = build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag'])
-        ranker = load_weaver_output(tree, self.model, fields=fields)
+        ranker = weaverUtils.load_output(tree, self.model, fields=fields)
 
         assert len(ranker['maxcomb']) == len(jet_p4), f'Ranker output and jet collection have different lengths. Got {len(ranker["maxcomb"])} and {len(jet_p4)} respectively.'
 

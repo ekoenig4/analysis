@@ -176,13 +176,14 @@ def plot_histos(histos, figax=None, errors=True, fill_error=False, exe=None, **k
     if any(kwargs): format_axes(ax,**kwargs)
     return fig, ax
 
-def histo_array(array, bins=None, weights=None, density = False, 
-                cumulative=False, scale=None, lumi=None,
+def histo_array(array, bins=None, weights=None, 
+                density = False, cumulative=False, efficiency=False,
+                scale=None, lumi=None,
                 figax=None, **kwargs):
     fig, ax = get_figax(figax=figax)
     
     # --- Configure kwargs ---
-    ext_kwargs = dict(density=density,cumulative=cumulative,scale=scale, lumi=lumi)
+    ext_kwargs = dict(density=density,cumulative=cumulative, efficiency=efficiency, scale=scale, lumi=lumi)
     hist_kwargs = { key[2:]:value for key,value in kwargs.items() if key.startswith('h_') }
     hist_kwargs.update(ext_kwargs)
     kwargs = { key:value for key,value in kwargs.items() if not key.startswith('h_') }

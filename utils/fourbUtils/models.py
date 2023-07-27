@@ -16,7 +16,7 @@ feynnet_4b_5jet = WeaverModel('exp_fourb/feynnet_4b/20230523_ranger_lr0.0047_bat
 feynnet_4b_6jet_bkg = WeaverModel('exp_fourb/feynnet_4b/20230523_ranger_lr0.0047_batch1024_6jet_withbkg/')
 feynnet_4b_6jet_bkg05_hm10 = WeaverModel('exp_fourb/feynnet_4b/20230524_b5b957b4ed1f2a286c340f07c2ff1fe4_ranger_lr0.0047_batch1024_bkg0.5_hm10_withbkg/')
 
-
+feynnet_etpiece = WeaverModel('exp_fourb/feynnet_4b/20230623_7e4a73e376c8020ebacb48d37ed34444_ranger_lr0.0047_batch1024_withbkg/')
 
 
 

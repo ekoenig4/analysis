@@ -5,7 +5,7 @@ from ..utils import *
 
 from ..fileUtils import fs
 
-eos = fs.default
+eos = fs.eos
 
 import uproot as ut
 import awkward as ak
@@ -25,7 +25,7 @@ def _check_file(fname):
 def _glob_files(pattern):
     files = glob.glob(pattern)
     if any(files): return files
-    files = eos.ls(pattern)
+    files = eos.glob(pattern)
     if any(files): return files
     return []
 
@@ -82,13 +82,19 @@ class RootFile:
 
     def write(self, altfile, retry=2, tree=None, types=None, **kwargs):
 
-        if callable(altfile): output = altfile(self.fname)
+        fname = eos.cleanpath(self.fname)
+        if callable(altfile): output = altfile(fname)
         else:
-            dirname, basename = os.path.dirname(self.fname), os.path.basename(self.fname)
-            dirname = dirname.replace(eos.url, '')
+            dirname, basename = os.path.dirname(fname), os.path.basename(fname)
             output = os.path.join(dirname, altfile.format(base=basename))
 
         tmp_output = '_'.join(output.split('/'))
+
+        # character limit for filenames is 255 bytes
+        # remove the start of the filename to make it fit
+        if len(tmp_output) > 255:
+            tmp_output = tmp_output[-255:]
+
         kwargs.update( **getattr(self, 'histograms', {}) )
 
         print(f'Writing {output}')
@@ -98,67 +104,6 @@ class RootFile:
                     for key, value in kwargs.items():
                         f[key] = value
                     f[self.treename] = tree
-                break
-            except ValueError:
-                ...
-
-        eos.move(tmp_output, output)
-
-class SixBFile:
-    def __init__(self, fname, use_cutflow=True):
-        self.fname = _check_file(fname)
-        self.raw_events = 0
-        self.total_events = 0
-
-        if self.fname is None: 
-            print(f'[WARNING] skipping {self.fname}, was not found.')
-            return
-        
-        if use_cutflow:
-            try:
-                with ut.open(f'{self.fname}:h_cutflow') as cutflow:
-                    self.cutflow_labels = cutflow.axis().labels()
-                    self.cutflow = cutflow
-                    if self.cutflow_labels is None: self.cutflow_labels = []
-                    self.total_events = self.cutflow.counts()[0]
-            except ut.KeyInFileError:
-                return
-
-        self.normtree = f'{self.fname}:NormWeightTree' 
-        with ut.open(self.fname) as f:
-            keys = [ key[:-2] for key in f.keys() ]
-            histograms = [ key for key in keys if key not in ('sixBtree','h_cutflow','NormWeightTree') ]
-            self.histograms = { key : f[key] for key in histograms }
-
-        self.sample, self.xsec = next(
-            ((key, value) for key, value in xsecMap.items() if key in self.fname), ("unk", 1))
-
-        self.scale = self.xsec / \
-            self.total_events if type(self.xsec) == float else 1
-
-        tree = ut.lazy(f'{self.fname}:sixBtree')
-        self.raw_events = len(tree)
-        self.fields = tree.fields
-        del tree
-
-    def write(self, altfile, retry=2, tree=None, types=None, **kwargs):
-        dirname, basename = os.path.dirname(self.fname), os.path.basename(self.fname)
-        dirname = eos.cleanpath(dirname)
-        output = os.path.join(dirname, altfile.format(base=basename))
-
-        tmp_output = '_'.join(output.split('/'))
-        kwargs.update( **self.histograms )
-
-        print(f'Writing {output}')
-        for i in range(retry):
-            try:
-                with ut.recreate(tmp_output) as f:
-                    for key, value in kwargs.items():
-                        f[key] = value
-
-                    # f.mktree('sixBtree', types)
-                    # f['sixBtree'].extend(tree)
-                    f['sixBtree'] = tree
                 break
             except ValueError:
                 ...
@@ -356,7 +301,8 @@ class Tree:
 
         if not any(self.filelist):
             init_empty(self)
-            print('[WARNING] unable to open any files.')
+            print('[WARNING] unable to open any files with filelist')
+            print('          ', filelist)
             return
 
         init_sample(self)

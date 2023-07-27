@@ -34,6 +34,9 @@ class Function:
 
   def evaluate(self, x):
     return self.func(x)
+  
+  def __call__(self, x):
+    return self.evaluate(x)
 
   def plot(self, x):
     self.x_array, self.xerr = x, None
@@ -245,14 +248,38 @@ class crystalball(Function):
   def func(x, n=1, mu=0, sigma=1, beta=1, m=2): return n*crystalball.pdf(x, mu, sigma, beta, m)
   def _func(self, x): return crystalball.func(x, self.n, self.mu, self.sigma, self.beta, self.m)
   
+class crystalball_right(crystalball):
   @staticmethod
   def best(x, y):
     fit_peak = gaussian.fit(x, y, peak=True)
     n, mu, sigma = fit_peak.n, fit_peak.mu, fit_peak.sigma
     func = lambda n : np.sum((crystalball.func(x, n, mu, sigma, beta=1, m=2)-y)**2)
     n = fmin(func, x0=n, maxiter=10, full_output=False, disp=False)[0]
-    return n, mu, sigma, 1.0, 2.0
 
+    func = lambda beta : np.sum((crystalball.func(x, n, mu, sigma, beta=beta, m=2)-y)**2)
+    beta = fmin(func, x0=1, maxiter=10, full_output=False, disp=False)[0]
+
+    func = lambda m : np.sum((crystalball.func(x, n, mu, sigma, beta=beta, m=m)-y)**2)
+    m = fmin(func, x0=2, maxiter=10, full_output=False, disp=False)[0]
+
+    return n, mu, sigma, beta, m
+  
+class crystalball_left(crystalball):
+  @staticmethod
+  def best(x, y):
+    fit_peak = gaussian.fit(x, y, peak=True)
+    n, mu, sigma = fit_peak.n, fit_peak.mu, fit_peak.sigma
+
+    func = lambda n : np.sum((crystalball.func(x, n, mu, sigma, beta=1, m=2)-y)**2)
+    n = fmin(func, x0=n, maxiter=10, full_output=False, disp=False)[0]
+
+    func = lambda beta : np.sum((crystalball.func(x, n, mu, sigma, beta=beta, m=2)-y)**2)
+    beta = fmin(func, x0=1, maxiter=10, full_output=False, disp=False)[0]
+
+    func = lambda m : np.sum((crystalball.func(x, n, mu, sigma, beta=beta, m=m)-y)**2)
+    m = fmin(func, x0=2, maxiter=10, full_output=False, disp=False)[0]
+
+    return n, mu, -sigma, beta, m
 
 class linear(Function):
   def __init__(self, x=np.array([0]), c0=1, c1=1, **kwargs):
@@ -327,3 +354,15 @@ class custom_pdf(f_stats.rv_continuous):
 class custom_pdf_from_histo(custom_pdf):
     def __init__(self, histo):
       super().__init__(histo.histo, histo.bins)
+
+
+class help(Function):
+  def __init__(self, x=np.array([0]), **kwargs):
+    super().__init__(x, dict(), **kwargs)
+
+  def __str__(self):
+    return "HELP"
+
+  @staticmethod
+  def func(x): return 0
+  def _func(self, x): return help.func(x)
