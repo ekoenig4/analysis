@@ -143,7 +143,7 @@ class Histo:
         return cls(y, bins, yerr, **kwargs)
 
     @classmethod 
-    def from_array(cls, array, bins=None, weights=None, nbins=30, rebin=None, binoverride=None, restrict=False, sumw2=True, overflow=False, **kwargs):
+    def from_array(cls, array, bins=None, weights=None, norm=None, nbins=30, rebin=None, binoverride=None, restrict=False, sumw2=True, overflow=False, **kwargs):
         if weights is not None:
             if len(weights) != len(array):
                 raise ValueError(f'shape of the first dimension must be the same for array and weight. Got array ({len(array)}) and weight ({len(weights)}')
@@ -177,6 +177,10 @@ class Histo:
 
         raw_counts, _ = histogram(array, bins, np.ones_like(weights))
         counts, error = histogram(array, bins, weights, sumw2=sumw2)
+
+        if norm == 'weight':
+            counts /= raw_counts
+            error /= raw_counts
 
         histo = cls(counts, bins, error=error, raw_counts=raw_counts, array=array, weights=weights, **kwargs)
         return histo
