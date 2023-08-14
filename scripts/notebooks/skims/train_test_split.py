@@ -44,7 +44,7 @@ class Notebook(RunSkim):
 
     def write_split(self, trees):
         train_split = trees.copy()
-        train_split = train_split.apply(EventFilter(f'train', filter=lambda t : t._random_split))
+        train_split = train_split.apply(EventFilter(f'train', filter=lambda t : t._random_split, cutflow=False))
 
         study.quick( 
             train_split,
@@ -52,16 +52,15 @@ class Notebook(RunSkim):
         )
 
         def move_to_dir(f, dir):
-            f = fc.cleanpath(f)
+            # f = fc.cleanpath(f)
             f =  f.replace('/output/',f'/{dir}/')
-            path = os.path.dirname(f)
-            fc.mkdir_eos(path)
+            f = f.replace('mkolosov','ekoenig')
             return f
 
         train_split.write(lambda f : move_to_dir(f, 'train'))
 
         test_split = trees.copy()
-        test_split = test_split.apply(EventFilter(f'test', filter=lambda t : ~t._random_split))
+        test_split = test_split.apply(EventFilter(f'test', filter=lambda t : ~t._random_split, cutflow=False))
 
         study.quick( 
             test_split,

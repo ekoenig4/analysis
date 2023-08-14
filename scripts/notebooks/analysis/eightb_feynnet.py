@@ -41,6 +41,12 @@ def Y1_hm_chi(t):
 def Y2_hm_chi(t):
     return np.sqrt( ak.sum( (t.h_m[:,2:]-125)**2, axis=1 ) )
 
+hm_r = dict(
+    ar=50,
+    vr=100,
+    cr=125,
+)
+
 bdtVersions = {
     'org': {
         'ar': ABCD(
@@ -61,23 +67,17 @@ bdtVersions = {
     "new":{
         'ar': ABCD(
             features=org_features,
-            a=lambda t : (t.n_medium_btag > 4) & ( hm_chi(t) < 50 ),
-            # b=lambda t : ((t.n_medium_btag == 4) | (t.n_medium_btag == 3)) & ( hm_chi(t) < 50 ),
-            b=lambda t : ((t.n_medium_btag == 4)) & ( hm_chi(t) < 50 ),
-            # c=lambda t : (t.n_medium_btag > 4) & ( hm_chi(t) > 50 ),
-            # d=lambda t : ((t.n_medium_btag == 4) | (t.n_medium_btag == 3)) & ( hm_chi(t) > 50 ),
-            c=lambda t : (t.n_medium_btag > 4) & ( hm_chi(t) > 75 ),
-            d=lambda t : ((t.n_medium_btag == 4)) & ( hm_chi(t) > 75 ),
-            # d=lambda t : ((t.n_medium_btag == 4) | (t.n_medium_btag == 3)) & ( hm_chi(t) > 75 ),
+            a=lambda t : (t.n_medium_btag > 4) & ( hm_chi(t) < hm_r['ar'] ),
+            b=lambda t : ((t.n_medium_btag == 4)) & ( hm_chi(t) < hm_r['ar'] ),
+            c=lambda t : (t.n_medium_btag > 4) & ( hm_chi(t) > hm_r['vr'] ) & ( hm_chi(t) < hm_r['cr'] ),
+            d=lambda t : ((t.n_medium_btag == 4)) & ( hm_chi(t) > hm_r['vr'] ) & ( hm_chi(t) < hm_r['cr'] ),
         ),
         'vr': ABCD(
             features=org_features,
-            a=lambda t : (t.n_medium_btag > 4) & ( hm_chi(t) > 50 ) & ( hm_chi(t) < 75 ),
-            b=lambda t : ((t.n_medium_btag == 4)) & ( hm_chi(t) > 50 ) & ( hm_chi(t) < 75 ),
-            # b=lambda t : ((t.n_medium_btag == 4) | (t.n_medium_btag == 3)) & ( hm_chi(t) > 50 ) & ( hm_chi(t) < 75 ),
-            c=lambda t : (t.n_medium_btag > 4) & ( hm_chi(t) > 75 ),
-            d=lambda t : ((t.n_medium_btag == 4)) & ( hm_chi(t) > 75 ),
-            # d=lambda t : ((t.n_medium_btag == 4) | (t.n_medium_btag == 3)) & ( hm_chi(t) > 75 ),
+            a=lambda t : (t.n_medium_btag > 4) & ( hm_chi(t) > 50 ) & ( hm_chi(t) < hm_r['vr'] ),
+            b=lambda t : ((t.n_medium_btag == 4)) & ( hm_chi(t) > 50 ) & ( hm_chi(t) < hm_r['vr'] ),
+            c=lambda t : (t.n_medium_btag > 4) & ( hm_chi(t) > hm_r['vr'] ) & ( hm_chi(t) < hm_r['cr'] ),
+            d=lambda t : ((t.n_medium_btag == 4)) & ( hm_chi(t) > hm_r['vr'] ) & ( hm_chi(t) < hm_r['cr'] ),
         )
 
     }
@@ -122,7 +122,7 @@ class Notebook(RunAnalysis):
         self.bkg = bkg.apply(event_filter)
         self.data = data.apply(event_filter)
 
-    # @required
+    @required
     def load_feynnet(self, signal, bkg, data):
 
         load_feynnet = eightb.f_load_feynnet_assignment(self.model.analysis)
@@ -134,7 +134,7 @@ class Notebook(RunAnalysis):
             # import concurrent.futures as cf
             # with cf.ProcessPoolExecutor(5) as pool:
                 (data+bkg+signal).parallel_apply( load_feynnet, report=True, pool=pool )
-            study.plot_timing(load_feynnet, saveas=f'{self.dout}/load_feynnet_timing')
+            # study.plot_timing(load_feynnet, saveas=f'{self.dout}/load_feynnet_timing')
 
         (signal+bkg+data).apply( add_h_j_dr, report=True )
         (signal+bkg+data).apply( eightb.assign, report=True )
@@ -185,7 +185,6 @@ class Notebook(RunAnalysis):
             saveas=f'{self.dout}/cutflow',
         )
 
-    @optional
     def plot_signal_mcbkg(self, signal, bkg):
         study.quick(
             signal[self.use_signal]+bkg,
@@ -237,6 +236,28 @@ class Notebook(RunAnalysis):
             # log=True,
         )
 
+    
+    def plot_feynnet_scores(self, signal, bkg, blinded_data):
+        study.quick(
+            signal[self.use_signal]+bkg,
+            varlist=['feynnet_maxscore', 'feynnet_minscore'],
+            h_rebin=15,
+            legend=True,
+            efficiency=True,
+            saveas=f'{self.dout}/feynnet_scores',
+        )
+
+        study.quick(
+            blinded_data+bkg,
+            masks=lambda t : t.n_medium_btag == 3,
+            varlist=['feynnet_maxscore', 'feynnet_minscore'],
+            h_rebin=15,
+            legend=True,
+            ratio=True,
+            efficiency=True,
+            saveas=f'{self.dout}/feynnet_scores_3btag',
+        )
+
     @optional
     def plot_abcd_region(self, blinded_data, bkg):
         study.quick(
@@ -246,6 +267,8 @@ class Notebook(RunAnalysis):
             h_rebin=15,
             legend=True,
             ratio=True,
+            efficiency=True,
+            saveas=f'{self.dout}/hm_chi2',
         )
 
         study.quick2d(
@@ -263,6 +286,9 @@ class Notebook(RunAnalysis):
 
                 draw_circle(x=125,y=125,r=75, text=None, linewidth=2, color='red'),
                 lambda ax, **kwargs : ax.text(200, 200, 'VR', horizontalalignment='center', verticalalignment='center', fontsize=20, color='red'),
+
+                draw_circle(x=125,y=125,r=125, text=None, linewidth=2, color='purple'),
+                lambda ax, **kwargs : ax.text(250, 250, 'CR', horizontalalignment='center', verticalalignment='center', fontsize=20, color='purple'),
             ],
             saveas=f'{self.dout}/abcd_region',
         )
@@ -331,6 +357,21 @@ class Notebook(RunAnalysis):
             g_cmap='jet',
             saveas=f'{self.dout}/{tag}_2d_limits',
         )
+
+        fig, ax = study.get_figax()
+        pltargs = dict(
+            g_markersize=2,
+            legend=dict(loc='upper right'),
+            ylim=(0,150),
+            xlabel='$M_{X}$ [GeV]',
+            ylabel=r'$\sigma(X\rightarrow YY\rightarrow 4H)$ [fb] @ 95% CL',
+            grid=True,
+        )
+        for my in np.unique( limits[:,1] ):
+            mx = limits[:,0][limits[:,1]==my]
+            lim = limits[:,4][limits[:,1]==my]
+            graph_array(mx, lim, g_label=f'MY={my} GeV', figax='same', **pltargs) 
+        study.save_fig(fig, f'{self.dout}/{tag}_limits_mx_simple')
 
         nmodels = len(sig_models)
         fig, axs = study.get_figax(nmodels, sharey=True)

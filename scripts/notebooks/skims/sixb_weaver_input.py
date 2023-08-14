@@ -33,9 +33,8 @@ class Notebook(RunSkim):
     
     @staticmethod
     def add_parser(parser):
-        parser.add_argument("--dout", default="reweight-info-4b",
+        parser.add_argument("--dout", default="reweight-info-6b",
                             help="directory to load/save cached reweighting values. Default reweight-info/")
-        parser.add_argument("--njet", default=4, type=int,)
 
         group = parser.add_mutually_exclusive_group(required=True)
         group.add_argument("--cache", action='store_true', help="running reweighting caching. Should be done first")
@@ -51,14 +50,13 @@ class Notebook(RunSkim):
         super().__init__(only=only, cache=cache, apply=apply, **kwargs)
     
     def init_cache(self):
-        self.dout = f'{self.dout}-{self.njet}jet'
         if not os.path.exists(self.dout):
             print(f" ... Making reweightning cache: {self.dout}")
             os.mkdir(self.dout)
 
 
     def init_apply(self):
-        self.dout = f'{self.dout}-{self.njet}jet'
+        self.dout = f'{self.dout}'
         self.reweight_info = dict()
         for f_info in os.listdir(self.dout):
             if not f_info.endswith('.json'): continue
@@ -81,7 +79,7 @@ class Notebook(RunSkim):
             fn = fc.cleanpath(tree.filelist[0].fname)
             tree.reweight_info = {
                 nb:self.reweight_info[f'{nb}:{fn}']
-                for nb in (4,)
+                for nb in ('full',)
             }
             print(fn)
             print(tree.reweight_info)
@@ -90,24 +88,19 @@ class Notebook(RunSkim):
     # Define any selections on signal or background
 
     @required
-    def select_t4btag(self, signal, bkg):
-        t4btag = CollectionFilter('jet', filter=lambda t : ak_rank(-t.jet_btag) < self.njet)
-        self.signal = signal.apply(t4btag, report=True)
-        self.bkg = bkg.apply(t4btag, report=True)
-
-        self.signal.apply(lambda t : t.extend(nfound_select=ak.sum(t.jet_signalId>-1,axis=1)))
-
-    @required
     def skim_fully_resolved(self, signal):
-        fourb_filter = EventFilter('signal_fourb', filter=lambda t: t.nfound_select==4)
+        sixb_filter = EventFilter('signal_sixb', filter=lambda t: t.nfound_select==6)
 
-        self.fourb_signal = signal.apply(fourb_filter)
+        self.full_signal = signal
+        # self.sixb_signal = signal.apply(sixb_filter)
 
         if self.apply:
-            for s in self.fourb_signal:
-                s.reweight_info = s.reweight_info[4]
+            # for s in self.sixb_signal:
+            #     s.reweight_info = s.reweight_info[6]
+            for s in self.full_signal:
+                s.reweight_info = s.reweight_info['full']
             
-        self.signal = self.fourb_signal
+        self.signal = self.full_signal
 
     
     #################################################
@@ -206,7 +199,7 @@ class Notebook(RunSkim):
 
     #################################################
     @dependency(cache_max_sample_norm)
-    def cache_reweight_info(self, fourb_signal, bkg):
+    def cache_reweight_info(self, full_signal, bkg):
         def cache_trees(trees, fname, tag=''):
             info = {
                 f'{tag}{fc.cleanpath(t.filelist[0].fname)}':dict(
@@ -221,7 +214,7 @@ class Notebook(RunSkim):
             with open(f"{self.dout}/{fname}.json", "w") as f:
                 json.dump(info, f, indent=4)
 
-        for nb, trees in zip([4],[fourb_signal,]):
+        for nb, trees in zip(['full'],[full_signal,]):
             for tree in trees:
                 cache_trees([tree], f'{tree.sample}_{nb}b-info', f'{nb}:')
         
@@ -233,25 +226,41 @@ class Notebook(RunSkim):
         signal.apply(lambda t : t.extend(is_bkg=ak.zeros_like(t.Run)))
         bkg.apply(lambda t : t.extend(is_bkg=ak.ones_like(t.Run)))
 
-    def write_trees(self, fourb_signal, bkg):
-        include=['^jet','.*scale$','is_bkg','nfound_select']
+    def write_trees(self, full_signal, sixb_signal, bkg):
+        include=['^jet','.*scale$','is_bkg','nfound_select', '^X', 'gen_X_m','gen_Y_m']
 
-        if any(fourb_signal.objs):
-            fourb_signal.write(
-                f'reweight_{self.njet}jet_fourb_{{base}}',
+        def suzs_to_evan(f):
+            return f.replace('srosenzw','ekoenig')
+
+        if sixb_signal and any(sixb_signal.objs):
+            sixb_signal.write(
+                f'reweight_sixb_{{base}}',
                 include=include,
             )
 
-        if any(bkg.objs):
+        if full_signal and any(full_signal.objs):
+
+            def rename(f):
+                f = suzs_to_evan(f)
+                path = os.path.dirname(f)
+                base = os.path.basename(f)
+                return f'{path}/reweight_{base}'
+            
+            full_signal.write(
+                rename,
+                include=include,
+            )
+
+        if bkg and any(bkg.objs):
             def move_to_local(f):
                 # f = fc.cleanpath(f)
                 # marina = 'mkolosov/MultiHiggs/DiHiggs/RunII/FeynNetTraining/ForFeynNet_UL18_Background_23May2023'
-                # evan = 'ekoenig/4BAnalysis/NTuples/feynnet'
+                # evan = 'ekoenig/6bAnalysis/NTuples/feynnet'
                 # f =  f.replace(marina, evan)
                 path = os.path.dirname(f)
                 base = os.path.basename(f)
                 # fc.mkdir_eos(path, recursive=True)
-                return f'{path}/reweight_{self.njet}jet_{base}'
+                return f'{path}/reweight_{base}'
 
             bkg.write(
                 move_to_local,
