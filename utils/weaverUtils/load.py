@@ -1,9 +1,10 @@
+from collections import defaultdict
 import numpy as np
 import awkward as ak
 import glob, os
-import awkward0 as ak0
 
 def load_from_ak0(toload, fields=['scores']):
+    import awkward0 as ak0
     fields = {
     field:np.concatenate([ np.array(ak0.load(fn)[field], dtype=float) for fn in toload ])
     for field in fields
@@ -29,26 +30,40 @@ def load_from_root(toload, fields=['scores']):
         for field in fields
     }
 
-def load_output(tree, model=None, fields=['scores']):
+def get_rgx(fn):
+    return os.path.basename(os.path.dirname(fn.fname))
+
+def rgx_with_base(fn, rgx):
+    return rgx + "_" + os.path.basename(fn.fname)
+
+def rgx_with_year(fn, rgx):
+    years = {
+        'Summer2016':'2016postVFP',
+        'Summer2016/preVFP':'2016preVFP',
+        'Summer2017':'2017',
+        'Summer2018':'2018',
+    }
+
+    year = next( (key for year, key in years.items() if year in fn.fname), None )
+    if year is None: return rgx
+    return year + '/' + rgx
+
+def load_output(tree, model=None, fields=['scores'], try_base=True, try_year=False):
     predict_path = os.path.join(model,"predict_output")
     if not os.path.exists(predict_path):
         raise ValueError(f'No predict_output found for model {model}.')
+    
+    try_rgxs = []
+    if try_base: try_rgxs += [rgx_with_base]
+    if try_year: try_rgxs += [rgx_with_year]
 
-    rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname) for fn in tree.filelist ]
-    toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(predict_path,rgx) ) ]
-    if any(toload): return load_from_root(toload, fields=fields)
+    rgxs = [ get_rgx(fn) for fn in tree.filelist ]
+    for try_rgx in try_rgxs:
+        rgxs = [ try_rgx(fn, rgx) for fn, rgx in zip(tree.filelist, rgxs) ]
 
-    print(f'No root output found for {rgxs[0]}... trying without base...')
-
-    rgxs = [ os.path.basename(os.path.dirname(fn.fname))+'.root' for fn in tree.filelist ]
-    toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
-    if any(toload): return load_from_root(toload, fields=fields)
-
-    print(f'No root output found for {rgxs[0]}... trying awkd...')
-
-    rgxs = [ os.path.basename(os.path.dirname(fn.fname))+"_"+os.path.basename(fn.fname)+".awkd" for fn in tree.filelist ]
-    toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]
-
-    if any(toload): return load_from_ak0(toload, fields=fields)
-
-    raise ValueError(f'No weaver output found for model {model}.')
+    toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(predict_path,rgx)+'*' ) ]
+    if not any(toload): 
+        raise ValueError(f'No weaver output found for model {model}. With rgxs {rgxs}')
+        
+    load = load_from_root if all( fn.endswith('.root') for fn in toload ) else load_from_ak0
+    return load(toload, fields=fields)

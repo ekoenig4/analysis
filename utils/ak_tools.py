@@ -214,6 +214,40 @@ def ak_argavg(arr, axis=None):
     argavg = ak.argmin( np.abs(arr - avg), axis=axis )
     return argavg
 
+def ak_cumsum(array, axis=1):
+    """Returns the cumulative sum of an array
+
+    Args:
+        array (ak.Array): Array to be summed
+        axis (int, optional): Axis to sum over. Defaults to 1.
+    """
+    max_count = ak.max(ak.count(array, axis=axis))
+    a = ak.pad_none(array, max_count)
+    pad_mask = ak.is_none(a, axis=axis)
+    a = ak.fill_none(a, 0)
+    c = ak.from_regular(np.cumsum(a, axis=axis))[~pad_mask]
+    return c
+
+def ak_histogram(array, bins, axis=1):
+    """Returns a histogram of an array
+
+    Args:
+        array (ak.Array): Array to be histogrammed
+        bins (bin edges): Bin edges
+        axis (int, optional): Axis to histogram. Defaults to 1.
+
+    Returns:
+        np.array: Histogram
+    """
+    flat_array = ak.flatten(array)
+    digit_array = np.digitize(flat_array, bins)
+    unique = np.unique(digit_array)
+    digit_array = ak.unflatten(digit_array, ak.num(array))
+    histograms = np.zeros((len(array), len(bins)), dtype=int)
+    for index in unique:
+        histograms[:,index-1] = ak.sum(digit_array == index, axis=axis)
+    return histograms
+
 def build_p4(array, prefix=None, use_regressed=False, extra=[]):
     kin = ['pt', 'eta', 'phi', 'm']+extra
     regmap = {}

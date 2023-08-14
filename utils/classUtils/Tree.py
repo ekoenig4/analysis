@@ -212,6 +212,7 @@ def init_empty(self):
     self.ttree = ak.Array(dict())
 
     self.is_data = False
+    self.nmssm_signal = False
     self.is_signal = False
     self.is_model = False
     self.sample = None

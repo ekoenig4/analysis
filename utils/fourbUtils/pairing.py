@@ -74,11 +74,16 @@ def assign(tree, tag=''):
 
 
 class f_load_feynnet_assignment(ParallelMethod):
-    def __init__(self, model, extra=[], reco_event=True):
+    def __init__(self, model, extra=[], reco_event=True, onnx=False):
         super().__init__()
         self.model = model
         self.extra = extra
         self.reco_event = reco_event
+
+        if onnx:
+            self.start = self.start_onnx
+            self.run = self.run_onnx
+            
     def start(self, tree):
         fields = ['maxcomb','maxscore','minscore'] + self.extra
         return dict(
@@ -86,6 +91,12 @@ class f_load_feynnet_assignment(ParallelMethod):
             extra=self.extra,
             jet_p4=build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag']),
         )
+    def start_onnx(self, tree):
+        return dict(
+            ranker=weaverUtils.WeaverONNX(self.model),
+            jet_p4=build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag']),
+        )
+    
     def run(self, jet_p4, ranker, extra):
         score, assignment, minscore = ranker['maxscore'], ranker['maxcomb'], ranker['minscore']
         assignment = ak.values_astype(ak.from_regular(assignment), "int64")
@@ -96,6 +107,34 @@ class f_load_feynnet_assignment(ParallelMethod):
             **{f'feynnet_{field}':ak.from_regular(ranker[field]) for field in extra},
             **reconstruction,
         )
+    def run_onnx(self, jet_p4, ranker):
+        tree = ak.zip(dict(
+            jet_ptRegressed=jet_p4.pt,
+            jet_mRegressed=jet_p4.mass,
+            jet_eta=jet_p4.eta,
+            jet_phi=jet_p4.phi,
+        ))
+        results = ranker(tree, batch_size=5000)
+
+        ranks = ak.from_regular(results['sorted_rank'], axis=1)
+        ranks = ranks[~np.isinf(ranks)]
+
+        combs = results['sorted_comb']
+
+        max_rank = ak.max(ranks, axis=1)
+        assignment = combs[:,0]
+
+        min_rank = ak.min(ranks, axis=1)
+
+
+        assignment = ak.values_astype(ak.from_regular(assignment), "int64")
+        reconstruction = reconstruct(jet_p4, assignment)
+        return dict(
+            feynnet_maxscore=max_rank,
+            feynnet_minscore=min_rank,
+            **reconstruction,
+        )
+
     def end(self, tree, **output):
         tree.extend(**output)
 
@@ -109,14 +148,7 @@ def load_true_assignment(tree, use_regressed=True, tag='true_'):
 def load_random_assignment(tree, tag=''):
     jet_p4 = build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag'])
 
-    rng = np.random.default_rng()
-    idx = ak.local_index(jet_p4.pt)
-    maxjets = ak.max(idx, axis=None)+1
-
-    padded_idx = ak.fill_none( ak.pad_none(idx, maxjets, axis=1), -1 )
-    permuted_idx = ak.from_regular(rng.permuted(padded_idx, axis=1))
-    permuted_idx = permuted_idx[permuted_idx != -1]
-
-    random_assignment = permuted_idx[:,:4]
+    rand = ak_rand_like(jet_p4.pt)
+    random_assignment = ak.argsort(rand, axis=1)[:,:4]
     random_reconstruction = reconstruct(jet_p4, random_assignment, tag=tag)
     tree.extend(**random_reconstruction)

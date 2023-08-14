@@ -96,7 +96,12 @@ class ParallelMethod:
     
     def __end__(self, args, outputs, timing):
         start = time.time() - self.__time__
-        result = self.end(*args, **outputs)
+
+        if outputs:
+            result = self.end(*args, **outputs)
+        else:
+            result = self.end(*args)
+            
         worker = mp.current_process().name
         thread = th.current_thread().name
         end = time.time() - self.__time__
@@ -216,6 +221,11 @@ class ObjIter:
     def __init__(self,objs):
         self.objs = list(objs)
 
+    def __getstate__(self):
+        return self.objs
+    def __setstate__(self, state):
+        self.objs = state
+
     def __len__(self): return len(self.objs)
     def __str__(self): return str(self.objs)
     def __iter__(self): return iter(self.objs)
@@ -258,6 +268,9 @@ class ObjIter:
     def list(self): return self.objs
     @property
     def cat(self): return ak.concatenate(self.objs)
+    @property
+    def flat(self):
+        return ObjIter([ obj for objs in self.objs for obj in objs ])
 
     def zip(self, other):
         return ObjIter(list(zip(self.objs, other.objs)))

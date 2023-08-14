@@ -9,6 +9,7 @@ import numba
 import awkward as ak
 import re
 import copy
+from collections import defaultdict
 
 def try_func(func, *args, **kwargs):
     try:
@@ -202,9 +203,19 @@ class Histo:
         
 
         return th1d
-
-
-
+    
+    def __getstate__(self):
+        return dict(
+            counts=self.histo / self.scale,
+            bins=self.bins,
+            error=self.error / self.scale,
+            efficiency=self.efficiency,
+            density=self.density,
+            **dict(self.kwargs, label=self.label)
+        )
+    
+    def __setstate__(self, state):
+        self.__init__(**state)
 
     def __init__(self, counts, bins, error=None, array=None, weights=None, raw_counts=None,
                        efficiency=False, density=False, cumulative=False, lumi=None, scale=1, plot_scale=1,
@@ -277,11 +288,11 @@ class Histo:
 
         self.density = density 
         self.efficiency = efficiency
-        self.scale = scale
 
         # if scale is 'xs': scale = scale/lumi
         # if density or efficiency or cumulative: scale = 1/np.sum(self.weights)
         if density or efficiency: scale = 1/np.sum(self.histo)
+        self.scale = scale
 
         self.histo = scale*self.histo
         self.error = scale*self.error
@@ -447,6 +458,32 @@ class DataList(HistoList):
 
 class Stack(HistoList):
 
+    def __getstate__(self):
+        return dict(
+            objs=self.objs,
+            bins=self.bins,
+            stack_fill=self.stack_fill,
+            efficiency=self.opts['efficiency'],
+            density=self.opts['density'],
+            label_stat=self.opts['label_stat'],
+        )
+
+    
+    def __setstate__(self, state):
+        objs = state.pop('objs')
+        counts = [ h.histo for h in objs ]
+        errors = [ h.error for h in objs ]
+        kwargs = defaultdict(list)
+        for h in objs:
+            for key,value in h.kwargs.items():
+                if key == 'label':
+                    kwargs[key].append(h.label)
+                else:
+                    kwargs[key].append(value)
+
+        stack = Stack.from_counts(counts, error=errors, **state, **kwargs)
+        self.__dict__.update(stack.__dict__)
+
     @classmethod
     def from_counts(cls, counts, bins=None, density=False, cumulative=False, efficiency=False, stack_fill=False, label_stat='events', histtype=None, **kwargs):
         stack = super(cls,cls).from_counts(counts, bins=bins, label_stat=None, **kwargs)
@@ -503,7 +540,7 @@ class Stack(HistoList):
         stack.apply(lambda histo : histo.set_attrs(label_stat=label_stat))
 
         return stack
-
+    
     def get_histo(self):
         if hasattr(self, 'array'):
             return Histo.from_array(self.array, self.bins, self.weights, systematics=self[0].systematics, **self.opts)

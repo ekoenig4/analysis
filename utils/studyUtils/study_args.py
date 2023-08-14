@@ -45,6 +45,8 @@ def _mask_item_from_tree(tree, item, mask):
         # if len(signature(mask).parameters) > 1:
         #     return mask(tree, item)
         mask = mask(tree)
+    elif isinstance(mask, str):
+        mask = tree[mask]
 
     if item is 'n_mask':
         return ak.sum(mask, axis=-1)
