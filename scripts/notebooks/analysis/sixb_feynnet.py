@@ -26,10 +26,12 @@ def main():
     notebook.run()
 
 
+def sr(t):
+    return ak.sum( np.abs(t.h_m - 125)**2, axis=1 ) < 25
 
-varinfo.HX_m = dict(bins=(0,500,30))
-varinfo.H1_m = dict(bins=(0,500,30))
-varinfo.H2_m = dict(bins=(0,500,30))
+varinfo.HX_m = dict(bins=(0,300,30))
+varinfo.H1_m = dict(bins=(0,300,30))
+varinfo.H2_m = dict(bins=(0,300,30))
 
 varinfo.Y_m = dict(bins=(0,1500,30))
 varinfo.X_m = dict(bins=(0,2000,30))
@@ -79,8 +81,8 @@ class FeynNet(Notebook):
         f_signal = list(f_signal[mask])
         self.use_signal = [ (i+1) * (len(f_signal) // 5) for i in range(3) ]
 
-        # f_signal = [ f_signal[i] for i in self.use_signal ]
-        # self.use_signal = [0,1,2]
+        f_signal = [ f_signal[i] for i in self.use_signal ]
+        self.use_signal = [0,1,2]
 
         f_qcd = fc.sixb.QCD_B_List
         f_tt = list(map(lambda f : f.replace('ntuple_0','ntuple'), fc.sixb.TTJets))
@@ -175,7 +177,6 @@ class FeynNet(Notebook):
         )
 
     def feynnet_sr_soverb(self, signal, bkg):
-        sr = lambda t : ak.sum( np.abs(t.h_m - 125)**2, axis=1 ) < 25
 
         bkg_yield = bkg.apply(lambda t : ak.sum( t.scale[sr(t)] )).npy.sum()
 
@@ -271,6 +272,15 @@ class FeynNet(Notebook):
         )
 
         self.bkg_histos = [ fig[0] for fig in self.bkg_histos ]
+
+        study.quick(
+            signal[self.use_signal]+bkg,
+            masks=sr,
+            legend=True,
+            varlist=['X_m','Y_m',None,'HX_m','H1_m','H2_m'],
+            efficiency=True,
+            saveas=f'{self.dout}/signal_sr_mcbkg',
+        )
 
     class _plot_signal_tree(ParallelMethod):
         def __init__(self, bkg_histos, dout, feynreco=True):
