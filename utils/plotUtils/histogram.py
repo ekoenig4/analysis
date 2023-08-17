@@ -211,6 +211,8 @@ class Histo:
             error=self.error / self.scale,
             efficiency=self.efficiency,
             density=self.density,
+            array=self.array,
+            weights=self.weights,
             **dict(self.kwargs, label=self.label)
         )
     
@@ -319,6 +321,12 @@ class Histo:
     def evaluate(self, x):
         b = np.digitize(x, self.bins)-1
         return np.interp(b, np.arange(len(self.histo)), self.histo)
+
+    def rebin(self, bins, sumw2=True):
+        self.raw_counts, _ = histogram(self.array, bins, np.ones_like(self.weights))
+        self.bins = bins
+        self.histo, self.error = histogram(self.array, bins, self.weights, sumw2=sumw2)
+        self.rescale(self.scale, efficiency=self.efficiency, density=self.density)
                 
     def cdf(self, cumulative):
         if hasattr(self, 'cumulative'): return self

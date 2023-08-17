@@ -58,6 +58,18 @@ def plot_graph(graph, errors=True, bar=False, fill_error=False, fill_alpha=0.25,
     elif not fill_error:
         container = ax.errorbar(graph.x_array,graph.y_array, xerr=xerr, yerr=yerr, **graph.kwargs)
         graph.kwargs['color'] = container[0].get_color()
+    elif yerr is not None and xerr is not None:
+        container = ax.errorbar(graph.x_array,graph.y_array, **graph.kwargs)
+        graph.kwargs['color'] = container[0].get_color()
+
+        xlo = graph.x_array-xerr
+        xhi = graph.x_array+xerr
+        ylo = graph.y_array-yerr
+        yhi = graph.y_array+yerr
+
+        for x, y1, y2 in zip( np.stack([xlo, xhi], axis=1), ylo, yhi ):
+            if np.isnan(y1) or np.isnan(y2): continue
+            ax.fill_between(x, y1, y2, color=graph.kwargs['color'], alpha=fill_alpha)
     elif yerr is not None:
         container = ax.errorbar(graph.x_array, graph.y_array, xerr=xerr, **graph.kwargs)
         graph.kwargs['color'] = container[0].get_color()
@@ -375,5 +387,6 @@ def plot_model_brazil(models, label=None, xlabel='mass', ylabel=None, units='pb'
                 fill_alpha=1, figax=(fig, ax))
     plot_graph(g_exp, figax=(fig, ax),
                xlabel=xlabel, ylabel=ylabel, **kwargs)
+    return g_exp
     
     

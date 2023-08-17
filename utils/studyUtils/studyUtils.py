@@ -221,7 +221,7 @@ def limits(*args, varlist=[], binlist=[], report=True, parallel=8, poi=np.linspa
 
     return sig_models
 
-def brazil_limits(sig_models, xlabel='my', units='fb', ylim=(0,250), grid=True, figax=None, saveas=None):
+def brazil_limits(sig_models, xlabel='my', units='fb', ylim=(0,250), grid=True, figax=None, saveas=None, analysis='8b'):
     from ..plotUtils.better_plotter import plot_model_brazil
     unique_mx = np.unique([ s.mx for s in sig_models])
     unique_my = np.unique([ s.my for s in sig_models])
@@ -247,10 +247,11 @@ def brazil_limits(sig_models, xlabel='my', units='fb', ylim=(0,250), grid=True, 
     xlim = (min(unique_x)-50, max(unique_x)+50)
 
     # fig, axs = study.get_figax(nvar=1,)
+    y_lims = []
     for i, y in enumerate( tqdm(unique_y) ):
         y_signal = ObjIter([ s for s in sig_models if check(s, y) ])
 
-        plot_model_brazil(
+        y_lim = plot_model_brazil(
             y_signal,
             label=label(y),
             xlabel=xlabel,
@@ -262,14 +263,23 @@ def brazil_limits(sig_models, xlabel='my', units='fb', ylim=(0,250), grid=True, 
             figax=(fig,axs.flat[i])
         )
         axs.flat[i].set(xlabel=None)
+        y_lims.append(y_lim)
 
     fig.supxlabel(supxlabel)
-    fig.supylabel(f'95% CL upper limit on $\sigma(X\\rightarrow YY\\rightarrow 4H)$ [{units}]')
+
+    supylabel = {
+        '8b' : f'95% CL upper limit on $\sigma(X\\rightarrow YY\\rightarrow 4H)$ [{units}]',
+        '6b' : f'95% CL upper limit on $\sigma(X\\rightarrow HY\\rightarrow 3H)$ [{units}]',
+    }.get(analysis)
+
+    fig.supylabel(supylabel)
     fig.tight_layout()
     fig.subplots_adjust(hspace=0.05)
 
     if saveas:
         save_fig(fig, saveas)
+
+    return y_lims
 
 def brazil2d_limits(sig_models,  units='fb', figax=None, saveas=None, **kwargs):
     if figax is None:

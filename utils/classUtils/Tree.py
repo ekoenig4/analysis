@@ -1,3 +1,4 @@
+import traceback
 from ..hepUtils import *
 from ..xsecUtils import *
 from ..utils import *
@@ -20,7 +21,7 @@ from collections import defaultdict
 def _check_file(fname):
     if os.path.isfile(fname): return fname
     if eos.exists(fname): return eos.fullpath(fname)
-    return None
+    return fname
 
 def _glob_files(pattern):
     files = glob.glob(pattern)
@@ -43,13 +44,11 @@ class RootFile:
         self.raw_events = len(tree)
         self.total_events = self.raw_events
         self.fields = tree.fields
-        del tree
 
         if normalization is not None:
-            if 'cutflow' in normalization:
-                self.set_cutflow_normalization(normalization)
-            elif normalization:
-                self.set_histo_normalization(normalization)   
+            self.set_normalization(normalization)   
+            
+        del tree
 
         _sample, _xsec = next(((key, value) for key, value in xsecMap.items() if key in self.fname), ("unk", 1))
         self.sample = _sample if sample is None else sample
@@ -65,7 +64,17 @@ class RootFile:
             keys = [ key[:-2] for key in f.keys() ]
             histograms = [ key for key in keys if key not in ('sixBtree','h_cutflow','NormWeightTree') ]
             self.histograms = { key : f[key] for key in histograms }
-    
+            
+    def set_normalization(self, normalization):
+        if isinstance(normalization, dict):
+            self.set_dict_normalization(normalization)
+        elif ':' in normalization:
+            self.set_tree_normalization(normalization)
+        elif 'cutflow' in normalization:
+            self.set_cutflow_normalization(normalization)
+        elif normalization:
+            self.set_histo_normalization(normalization)
+
     def set_cutflow_normalization(self, cutflow):
         with ut.open(f'{self.fname}:{cutflow}') as cutflow:
             self.cutflow_labels = cutflow.axis().labels()
@@ -77,8 +86,13 @@ class RootFile:
         with ut.open(f'{self.fname}:{histo}') as histo:
             self.total_events = histo.Integral()
 
-    def set_tree_normalization(self, tree):
-        raise NotImplementedError("Need to implement NormWeightTree normalization")
+    def set_dict_normalization(self, norms):
+        ...
+
+    def set_tree_normalization(self, treebranch):
+        treename, branchname = treebranch.split(':')
+        with ut.open(f'{self.fname}:{treename}') as tree:
+            self.total_events = ak.sum(tree[branchname].array())
 
     def write(self, altfile, retry=2, tree=None, types=None, **kwargs):
 
@@ -133,14 +147,16 @@ def init_files(self, filelist, treename, normalization, altfile="{base}", report
     if not any(glob_filelist):
         glob_filelist = [ fn for flist in filelist for fn in _glob_files( use_altfile(flist) ) ]
 
-    filelist = glob_filelist
+    if any(glob_filelist):
+        filelist = glob_filelist
 
     it = tqdm(filelist) if report else iter(filelist)
     self.filelist = []
     for fn in it:
         try:
             self.filelist.append( RootFile(fn, treename, normalization=normalization) )
-        except Exception:
+        except Exception as err:
+            traceback.print_exc()
             print(f'[WARNING] skipping {fn}, unable to open.')
             
     # Fix normalization when using multiple files of the same sample
@@ -295,7 +311,7 @@ class Tree:
         return tree
 
 
-    def __init__(self, filelist, altfile="{base}", report=True, use_gen=True, treename='sixBtree', normalization='h_cutflow'):
+    def __init__(self, filelist, altfile="{base}", report=True, use_gen=True, treename='sixBtree', normalization='h_cutflow', **kwargs):
         self._recursion_safe_guard_stack = []
 
         init_files(self, filelist, treename, normalization, altfile, report)
@@ -309,6 +325,8 @@ class Tree:
         init_sample(self)
         init_tree(self, use_gen, normalization=normalization)
         self.reductions = dict()
+
+        self.__dict__.update(**kwargs)
 
     def __str__(self):
         sample_string = [

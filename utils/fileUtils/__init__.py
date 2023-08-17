@@ -5,6 +5,7 @@ from . import fs_tools as fs
 
 fs.local = fs.mount('')
 fs.default = fs.remote('root://cmseos.fnal.gov/', '/eos/uscms/')
+fs.cernbox = fs.store('root://eosuser.cern.ch/')
 fs.eos = fs.default
 
 fs.repo = fs.repository(

@@ -300,6 +300,14 @@ def sample_files(path):
 
     JetHT_Data_UL_List = [JetHT_Run2018A_UL,
                         JetHT_Run2018B_UL, JetHT_Run2018C_UL, JetHT_Run2018D_UL]
+    
+    JetHT_Run2018A_UL_alt = f"{path}/JetHT_Data_UL/JetHT_Run2018A/ntuple.root"
+    JetHT_Run2018B_UL_alt = f"{path}/JetHT_Data_UL/JetHT_Run2018B/ntuple.root"
+    JetHT_Run2018C_UL_alt = f"{path}/JetHT_Data_UL/JetHT_Run2018C/ntuple.root"
+    JetHT_Run2018D_UL_alt = f"{path}/JetHT_Data_UL/JetHT_Run2018D/ntuple.root"
+
+    JetHT_Data_UL_List_alt = [JetHT_Run2018A_UL_alt,
+                        JetHT_Run2018B_UL_alt, JetHT_Run2018C_UL_alt, JetHT_Run2018D_UL_alt]
 
     return locals()
 

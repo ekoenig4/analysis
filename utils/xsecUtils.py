@@ -40,7 +40,8 @@ xsecMap = {
     "JetHT_Run2018D": 'N/A',
 
     "NMSSM_XYH_YToHH_6b": 1.0 * (5.824E-01)**3,
-    "NMSSM_XToYHTo6B": 1.0 * (5.824E-01)**3,
+    # "NMSSM_XToYHTo6B": 1.0 * (5.824E-01)**3,
+    "NMSSM_XToYHTo6B": 0.3,
     # "NMSSM_XYY_YToHH_8b": 0.0016,
     # "NMSSM_XYY_YToHH_8b": 0.3,
     "NMSSM_XYY_YToHH_8b": 1.0 * (5.824E-01)**4,
@@ -100,6 +101,15 @@ xsecMap = {
     "QCD_HT1000to1500_BGenFilter": 139.300,
     "QCD_HT1500to2000_BGenFilter": 14.7400,
     "QCD_HT2000toInf_BGenFilter" : 3.0900,
+
+    "QCD_HT100to200"  : 1266000.00,
+    "QCD_HT200to300"  : 109900.00,
+    "QCD_HT300to500"  : 27360.00,
+    "QCD_HT500to700"  : 2991.00,
+    "QCD_HT700to1000" : 731.80,
+    "QCD_HT1000to1500": 139.300,
+    "QCD_HT1500to2000": 14.7400,
+    "QCD_HT2000toInf" : 3.0900,
  
     "TTTo2L2Nu":831.76*0.3259*0.3259,
     "TTToSemiLeptonic":831.76*2*0.6741*0.3259,

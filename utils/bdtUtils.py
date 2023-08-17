@@ -72,6 +72,8 @@ class ABCD(BDTReweighter):
     self.a, self.b, self.c, self.d = a, b, c, d
     self.sr = lambda t : self.a(t) | self.b(t)
     self.cr = lambda t : self.c(t) | self.d(t)
+    self.tr = lambda t : self.a(t) | self.c(t)
+    self.er = lambda t : self.b(t) | self.d(t)
     self.mask = lambda t: self.sr(t) | self.cr(t)
 
     if save and os.path.exists(f'{GIT_WD}/models/{save}'):
@@ -101,16 +103,16 @@ class ABCD(BDTReweighter):
     region_total = sr_total + cr_total
 
     a_total = f'{yields["a"]:0.2e}'.center(8)
-    a_effic = f'{yields["a"]/nevents:0.2%}'.center(8)
+    a_effic = f'{yields["a"]/nevents:00.2%}'.center(8)
 
     b_total = f'{yields["b"]:0.2e}'.center(8)
-    b_effic = f'{yields["b"]/nevents:0.2%}'.center(8)
+    b_effic = f'{yields["b"]/nevents:00.2%}'.center(8)
 
     c_total = f'{yields["c"]:0.2e}'.center(8)
-    c_effic = f'{yields["c"]/nevents:0.2%}'.center(8)
+    c_effic = f'{yields["c"]/nevents:00.2%}'.center(8)
     
     d_total = f'{yields["d"]:0.2e}'.center(8)
-    d_effic = f'{yields["d"]/nevents:0.2%}'.center(8)
+    d_effic = f'{yields["d"]/nevents:00.2%}'.center(8)
 
     sample = treeiter.sample.list
 
