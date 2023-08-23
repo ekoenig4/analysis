@@ -30,8 +30,13 @@ def main():
 @cache_variable
 def n_loose_btag(t):
     nL = t.ak4_h1b1_btag_L + t.ak4_h1b2_btag_L + t.ak4_h2b1_btag_L + t.ak4_h2b2_btag_L
-    
     return ak.values_astype(nL, np.int32)
+
+@cache_variable
+def n_medium_btag(t):
+    nM = t.ak4_h1b1_btag_M + t.ak4_h1b2_btag_M + t.ak4_h2b1_btag_M + t.ak4_h2b2_btag_M
+    return ak.values_astype(nM, np.int32)
+
 @cache_variable(bins=(0,100,30))
 def h_dm(t):
     return np.sqrt( (t.dHH_H1_mass - 125)**2 + (t.dHH_H2_mass - 125)**2 )
@@ -49,21 +54,6 @@ bdt_features = [
 ]
 
 
-bdt = ABCD(
-    features=bdt_features,
-    a=lambda t : (h_dm(t) <  25) & (n_loose_btag(t) == 4),
-    b=lambda t : (h_dm(t) <  25) & (n_loose_btag(t) == 3),
-    c=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (n_loose_btag(t) == 4),
-    d=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (n_loose_btag(t) == 3),
-)
-
-vr_bdt = ABCD(
-    features=bdt_features,
-    a=lambda t : (vr_h_dm(t) <  25) & (n_loose_btag(t) == 4),
-    b=lambda t : (vr_h_dm(t) <  25) & (n_loose_btag(t) == 3),
-    c=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (n_loose_btag(t) == 4),
-    d=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (n_loose_btag(t) == 3),
-)
 
 varinfo.dHH_HH_mass = dict(bins=(200,1800,30))
 
@@ -89,14 +79,13 @@ def get_local_alt(f):
 class Analysis(Notebook):
     @staticmethod
     def add_parser(parser):
-        parser.add_argument('--dout', type=str, default='nanoHH4b')
+        parser.add_argument('--dout', type=str, default='')
         parser.add_argument('--pairing', type=str, default='mindiag', )
         parser.add_argument('--use-old', action='store_true')
+        parser.add_argument('--btagwp', type=str, default='medium')
 
     def _init_old(self):
-        self.dout = f"{self.dout}/{self.pairing}"
-
-        treekwargs = dict(
+        treekwargs = dict(  
             use_gen=False,
             treename='Events',
             normalization='Runs:genEventCount',
@@ -117,8 +106,6 @@ class Analysis(Notebook):
         self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
 
     def _init_new(self):
-        self.dout = f"{self.dout}/{self.pairing}"
-
         treekwargs = dict(
             use_gen=False,
             treename='Events',
@@ -146,10 +133,33 @@ class Analysis(Notebook):
 
     @required
     def init(self):
+        self.dout = os.path.join("nanoHH4b",self.dout,self.pairing,self.btagwp)
+
         if self.use_old:
             self._init_old()
         else:
             self._init_new()
+
+        if self.btagwp == 'loose':
+            self.n_btag = n_loose_btag
+        else:
+            self.n_btag = n_medium_btag
+        
+        self.bdt = ABCD(
+            features=bdt_features,
+            a=lambda t : (h_dm(t) <  25) & (self.n_btag(t) == 4),
+            b=lambda t : (h_dm(t) <  25) & (self.n_btag(t) == 3),
+            c=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 4),
+            d=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 3),
+        )
+
+        self.vr_bdt = ABCD(
+            features=bdt_features,
+            a=lambda t : (vr_h_dm(t) <  25) & (self.n_btag(t) == 4),
+            b=lambda t : (vr_h_dm(t) <  25) & (self.n_btag(t) == 3),
+            c=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (self.n_btag(t) == 4),
+            d=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (self.n_btag(t) == 3),
+        )
 
     @required
     def apply_trigger(self):
@@ -179,8 +189,8 @@ class Analysis(Notebook):
     def plot_region_vars(self, signal, bkg):
         study.quick(
             signal+bkg,
-            masks=bdt.mask,
-            varlist=[h_dm, n_loose_btag],
+            masks=self.bdt.mask,
+            varlist=[h_dm, n_medium_btag],
             efficiency=True,
             legend=True,
             saveas=f'{self.dout}/bdt_region_vars',
@@ -188,7 +198,7 @@ class Analysis(Notebook):
 
         study.quick2d(
             signal+bkg,
-            varlist=[n_loose_btag, h_dm],
+            varlist=[n_medium_btag, h_dm],
             binlist=[np.array((3,4,5)),None],
             efficiency=True,
             legend=True,
@@ -204,8 +214,8 @@ class Analysis(Notebook):
             mask = f_mask(t)
             return ak.sum(weights[mask])
 
-        bkg_yields = bkg.apply(partial(get_yields, f_mask=bdt.a)).npy.sum()
-        sig_yields = signal.apply(partial(get_yields, f_mask=bdt.a)).npy.sum()
+        bkg_yields = bkg.apply(partial(get_yields, f_mask=self.bdt.a)).npy.sum()
+        sig_yields = signal.apply(partial(get_yields, f_mask=self.bdt.a)).npy.sum()
         soverb = sig_yields / bkg_yields
         print(f'S/B = {soverb:.2f}')
 
@@ -220,7 +230,7 @@ class Analysis(Notebook):
 
     @required
     def blind_data(self, data):
-        blind_data = EventFilter('blinded', filter=lambda t : ~bdt.a(t))
+        blind_data = EventFilter('blinded', filter=lambda t : ~self.bdt.a(t))
         self.data = data.apply(blind_data)
 
     def plot_3btag_datamc(self, data, bkg):
@@ -247,16 +257,16 @@ class Analysis(Notebook):
         )
 
     def train_bdt(self, data):
-        bdt.print_yields(data)
-        bdt.train(data)
-        bdt.print_results(data)
+        self.bdt.print_yields(data)
+        self.bdt.train(data)
+        self.bdt.print_results(data)
 
 
     @dependency(train_bdt)
     def build_bkg_model(self, data):
-        bkg_model = EventFilter('bkg_model', filter=bdt.b)
+        bkg_model = EventFilter('bkg_model', filter=self.bdt.b)
         self.bkg_model = data.asmodel('bkg model').apply(bkg_model)
-        self.bkg_model.apply(lambda t : t.reweight(bdt.reweight_tree))
+        self.bkg_model.apply(lambda t : t.reweight(self.bdt.reweight_tree))
 
     @dependency(build_bkg_model)
     def print_yields(self, signal, bkg_model):
@@ -272,7 +282,7 @@ class Analysis(Notebook):
         bkg_yields = bkg_model.apply(partial(get_yields)).npy.sum()
 
         lumi = lumiMap[2018][0]
-        sig_yields = lumi*signal.apply(partial(get_yields, f_mask=bdt.a)).npy.sum()
+        sig_yields = lumi*signal.apply(partial(get_yields, f_mask=self.bdt.a)).npy.sum()
 
         print(f'Sig = {sig_yields:.2f}')
         print(f'Bkg = {bkg_yields:.2f}')
@@ -290,21 +300,21 @@ class Analysis(Notebook):
         )
 
     def train_vr_bdt(self, data):
-        vr_bdt.print_yields(data)
-        vr_bdt.train(data)
-        vr_bdt.print_results(data)
+        self.vr_bdt.print_yields(data)
+        self.vr_bdt.train(data)
+        self.vr_bdt.print_results(data)
 
     @dependency(train_vr_bdt)
     def build_vr_bkg_model(self, data):
-        vr_bkg_model = EventFilter('vr_bkg_model', filter=vr_bdt.b)
+        vr_bkg_model = EventFilter('vr_bkg_model', filter=self.vr_bdt.b)
         self.vr_bkg_model = data.asmodel('vr bkg model', color='salmon').apply(vr_bkg_model)
-        self.vr_bkg_model.apply(lambda t : t.reweight(vr_bdt.reweight_tree))
+        self.vr_bkg_model.apply(lambda t : t.reweight(self.vr_bdt.reweight_tree))
 
     @dependency(build_vr_bkg_model)
     def plot_vr_model(self, data, vr_bkg_model):
         study.quick(
             data+vr_bkg_model,
-            masks=[vr_bdt.a]*len(data),
+            masks=[self.vr_bdt.a]*len(data),
             varlist=['dHH_HH_mass'],
             binlist=[(200,1800,30)],
             ratio=True, r_ylim=(0.7,1.3),
@@ -315,7 +325,7 @@ class Analysis(Notebook):
 
         study.quick(
             data + vr_bkg_model,
-            masks=[vr_bdt.a]*len(data),
+            masks=[self.vr_bdt.a]*len(data),
             varlist=bdt_features,
             ratio=True, r_ylim=(0.7,1.3),
             legend=True,
