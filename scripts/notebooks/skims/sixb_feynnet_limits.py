@@ -75,7 +75,7 @@ class FeynNet(Notebook):
         # remove all 50 GeV mass points
         # mask &= np.all(( (masses / 100) - (masses // 100) ) == 0, axis=1)
         # remove all points above 1400 GeV
-        mask &= masses[:,0] <= 1400
+        mask &= masses[:,0] > 1400
         f_signal = f_signal[mask]
 
         print('Total number of signal files:', len(f_signal))
@@ -132,7 +132,7 @@ class FeynNet(Notebook):
             newtree = dict(
                 mx = [model.mx],
                 my = [model.my],
-                exp_limits = [models.h_sig.stats.exp_limits],
+                exp_limits = [0.3 * np.array(model.h_sig.stats.exp_limits) ],
             )
             
             with ut.recreate(f'{self.dout}/limits/MX_{model.mx}_MY_{model.my}.root') as f:
