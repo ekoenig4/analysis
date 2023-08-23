@@ -104,10 +104,10 @@ class remote:
         return self.store.move(src, dest)
 
     def batch_copy_from(self, srcs, dests, nproc=8):
-        return self.store.batch_copy(srcs, dests, nproc=nproc)
+        return self.store.batch_copy_from(srcs, dests, nproc=nproc)
 
     def batch_copy_to(self, srcs, dests, nproc=8):
-        return self.store.batch_copy(srcs, dests, nproc=nproc)
+        return self.store.batch_copy_to(srcs, dests, nproc=nproc)
     
 class repository:
     def __init__(self, *repos):

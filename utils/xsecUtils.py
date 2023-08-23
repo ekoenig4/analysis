@@ -14,6 +14,7 @@ lumiMap = {
 
 tagMap = {
     "QCD": "QCD",
+    "qcd-mg": "QCD",
     "NMSSM_XYH_YToHH_6b": "X$\\rightarrow$ YH$\\rightarrow$3H$\\rightarrow$6b",
     "NMSSM_XYY_YToHH_8b": "X$\\rightarrow$ YY$\\rightarrow$4H$\\rightarrow$8b",
     "TT": "TTJets",
@@ -27,7 +28,10 @@ colorMap = {
     "MX_700_MY_300": 'tomato',
     "MX_1000_MY_450": 'royalblue',
     "MX_1200_MY_500": 'mediumorchid',
+
     "QCD": "lightblue",
+    "qcd-mg": "lightblue",
+
     "TTJets": "darkseagreen",
     "Data": "black",
     "MC-Bkg": "grey"
@@ -38,6 +42,11 @@ xsecMap = {
     "JetHT_Run2018B": 'N/A',
     "JetHT_Run2018C": 'N/A',
     "JetHT_Run2018D": 'N/A',
+    "JetHT": 'N/A',
+
+    'qcd-mg':'N/A',
+    'ggHH4b':'N/A',
+    'jetht':'N/A',
 
     "NMSSM_XYH_YToHH_6b": 1.0 * (5.824E-01)**3,
     # "NMSSM_XToYHTo6B": 1.0 * (5.824E-01)**3,
@@ -46,7 +55,7 @@ xsecMap = {
     # "NMSSM_XYY_YToHH_8b": 0.3,
     "NMSSM_XYY_YToHH_8b": 1.0 * (5.824E-01)**4,
 
-    "GluGluToHHTo4B" : 1.0 * (5.824E-01)**2,
+    "GluGluToHHTo4B" : 31.05 * (5.824E-01)**2 / 1000.0,
 
     "QCD_Pt_15to30": 1246000000.0,
     "QCD_Pt_30to50": 106500000.0,
@@ -103,13 +112,13 @@ xsecMap = {
     "QCD_HT2000toInf_BGenFilter" : 3.0900,
 
     "QCD_HT100to200"  : 1266000.00,
-    "QCD_HT200to300"  : 109900.00,
-    "QCD_HT300to500"  : 27360.00,
-    "QCD_HT500to700"  : 2991.00,
-    "QCD_HT700to1000" : 731.80,
-    "QCD_HT1000to1500": 139.300,
-    "QCD_HT1500to2000": 14.7400,
-    "QCD_HT2000toInf" : 3.0900,
+    "QCD_HT200to300"  : 1547000,
+    "QCD_HT300to500"  : 322600 ,
+    "QCD_HT500to700"  : 29980  ,
+    "QCD_HT700to1000" : 6334   ,
+    "QCD_HT1000to1500": 1088   ,
+    "QCD_HT1500to2000": 99.11  ,
+    "QCD_HT2000toInf" : 20.23  ,
  
     "TTTo2L2Nu":831.76*0.3259*0.3259,
     "TTToSemiLeptonic":831.76*2*0.6741*0.3259,

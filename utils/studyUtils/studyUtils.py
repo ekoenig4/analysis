@@ -241,7 +241,11 @@ def brazil_limits(sig_models, xlabel='my', units='fb', ylim=(0,250), grid=True, 
         supxlabel = '$M_{X}$ [GeV]'
 
     if figax is None:
-        figax = get_figax(nvar=len(unique_y), dim=(len(unique_y),1), size=(5,1.5), sharex=True, sharey=True)
+        nvar = len(unique_y)
+        # only allow up to n rows
+        dim = (min(nvar,8),-1)
+
+        figax = get_figax(nvar=nvar, dim=dim, size=(5,1.5), sharex=True, sharey=True)
     fig, axs = figax
 
     xlim = (min(unique_x)-50, max(unique_x)+50)

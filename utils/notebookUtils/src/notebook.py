@@ -178,12 +178,13 @@ class Notebook:
         stopwatch = Stopwatch()
         for key, cell in self._cells.items():
             ready = cell.ready()
+            elapsed = Stopwatch()
             print(f'{stopwatch} [{cell.status}] {cell}')
             if not ready: continue
 
             try:
                 result = cell(dry_run=self.dry_run)
-                print(f'{stopwatch} [{cell.status}]')
+                print(f'{stopwatch} [{cell.status}] {elapsed}')
             except Exception as e:
                 print(f'{stopwatch} [{cell.status}] {e}\n')
                 self.on_cell_error(cell, e)

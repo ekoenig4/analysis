@@ -183,9 +183,14 @@ def init_files(self, filelist, treename, normalization, altfile="{base}", report
     self.lazy = True
 
 def init_sample(self):  # Helper Method For Tree Class
-    self.is_data = any("Data" in fn.fname for fn in self.filelist)
+
+    data_types = ['Data', 'JetHT', 'jetht']
+    self.is_data = any( data_type in fn.fname for data_type in data_types for fn in self.filelist )
+    
     self.nmssm_signal = all("NMSSM" in fn.fname for fn in self.filelist) 
-    self.dih_signal = all("GluGluToHHTo4B" in fn.fname for fn in self.filelist)
+
+    dih_types = ['GluGluToHHTo4B','ggHH4b']
+    self.dih_signal = any( dih_type in fn.fname for dih_type in dih_types for fn in self.filelist )
     self.is_signal = self.nmssm_signal or self.dih_signal
     self.is_model = False
     
@@ -282,6 +287,9 @@ def init_tree(self, use_gen=False, cache=None, normalization=None):
             cutflow.bins = np.arange(ncutflow+1)
             return cutflow
         for cutflow in self.cutflow: _pad_cutflow(cutflow)
+    else:
+        self.cutflow = []
+        self.cutflow_labels = []
 
 
     self.systematics = None

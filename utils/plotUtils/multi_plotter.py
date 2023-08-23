@@ -124,7 +124,7 @@ def _add_limits(figax, plotobjs, xy=(0.05,0.95), xycoords='axes fraction', poi=n
 
     h_sigs, h_bkgs, h_data = [], [], None
     for plotobj in _flatten_plotobjs(plotobjs):
-        plotobj.set_label(None)
+        # plotobj.set_label(None)
         if isinstance(plotobj, Stack): h_bkgs = plotobj
         elif plotobj.is_signal: h_sigs.append(plotobj)
         elif plotobj.is_bkg:    h_bkgs.append(plotobj)

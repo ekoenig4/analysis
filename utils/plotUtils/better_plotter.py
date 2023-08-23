@@ -180,6 +180,27 @@ def plot_histo(histo, errors=True, fill_error=False, figax=None, exe=None, **kwa
     if any(kwargs): format_axes(ax,**kwargs)
     return fig,ax
 
+def plot_histo_error(histo, figax=None, ylim=(0, 2), g_linestyle='--', exe=None, grid=True, **kwargs):
+    fig, ax = get_figax(figax=figax)
+    centers = get_bin_centers(histo.bins)
+    widths = get_bin_widths(histo.bins)
+    errors = histo.error / histo.histo
+
+    graph_array(
+        centers,
+        np.ones_like(centers),
+        xerr=widths,
+        yerr=errors,
+        g_linestyle=g_linestyle,
+        ylim=ylim,
+        grid=grid,
+        figax=(fig,ax),
+        **kwargs,
+    )
+
+    if exe: execute(**locals())
+    return fig,ax
+
 def plot_histos(histos, figax=None, errors=True, fill_error=False, exe=None, **kwargs):
     fig, ax = get_figax(figax=figax)
     for histo in histos: plot_histo(histo, errors=errors, fill_error=fill_error, figax=(fig,ax))
