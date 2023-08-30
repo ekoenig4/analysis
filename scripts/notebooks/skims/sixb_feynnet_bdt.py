@@ -50,6 +50,9 @@ class FeynNet(Notebook):
 
         # self.modelpath = '/eos/uscms/store/user/ekoenig/weaver/analysis/models/exp_sixb_diff_aggr/feynnet_ranker_6b/20230728_59b53a4bde5e7da6eb8e6aa522b30859_ranger_lr0.0047_batch2000_withbkg'
         self.modelpath= '/eos/uscms/store/user/ekoenig/weaver/models/exp_sixb_official/feynnet_ranker_6b/20230731_7d266883bbfb88fe4e226783a7d1c9db_ranger_lr0.0047_batch2000_withbkg/'
+
+        # self.modelpath= '/eos/uscms/store/user/srosenzw/weaver/models/exp_sixb_official/feynnet_ranker_6b/20230731_7d266883bbfb88fe4e226783a7d1c9db_ranger_lr0.0047_batch2000_withbkg/'
+
         # self.modelpath= '/eos/uscms/store/user/ekoenig/weaver/models/exp_sixb_megamind/feynnet_ranker_6b/20230803_495f81bce0c466c3345918572c4e0906_ranger_lr0.0047_batch2000_withbkg'
 
         fc.sixb = fc.FileCollection('/store/user/srosenzw/sixb/ntuples/Summer2018UL/maxbtag_4b/')
@@ -61,7 +64,7 @@ class FeynNet(Notebook):
     @required
     def load_feynnet(self, trees):
         print(self.modelpath)
-        load_feynnet = sixb.f_load_feynnet_assignment( self.modelpath, onnx=True, order='random' )
+        load_feynnet = sixb.f_load_feynnet_assignment( self.modelpath, onnx=False, order='random' )
 
         if not self.serial:
             import multiprocess as mp
@@ -72,11 +75,24 @@ class FeynNet(Notebook):
 
         trees.apply(sixb.assign)
 
+    def data_ratio(self, trees):
+        n_lowscore = trees.apply(lambda t : np.sum( sixb.bdt.btag6bavg(t) < sixb.bdt.btag_cfg )).npy.sum()
+        n_highscore = trees.apply(lambda t : np.sum( sixb.bdt.btag6bavg(t) >= sixb.bdt.btag_cfg )).npy.sum()
+
+        print('Data high score:    ', n_highscore)
+        print('Data low score:    ', n_lowscore)
+        print('Data low/high: ', n_lowscore/n_highscore)
+
+        
+        n_out_of_asr = trees.apply(lambda t : np.sum( sixb.bdt.h_dm(t) >  sixb.bdt.hm_cfg['SRedge'] )).npy.sum()
+        print('Data out of ASR:    ', n_out_of_asr)
+
     def blind_data(self, trees):
         blinded = EventFilter('blinded', filter=lambda t : ~self.ar_bdt.a(t))
         self.trees = trees.apply(blinded).asmodel()
 
     def train_bdt(self, trees):
+        self.ar_bdt.print_yields(trees)
         self.ar_bdt.train(trees)
         self.ar_bdt.print_results(trees)
 
@@ -107,6 +123,11 @@ class FeynNet(Notebook):
             key : histo[0] if not isinstance(histo[0], Stack) else histo[0][0]
             for key, histo in zip(('X_m','Y_m','btag6bavg','HX_m','H1_m','H2_m'), histos)
         }
+
+        bkg_model_X_m = bkg_model_histos['X_m']
+         
+        # dump the bins for the bkg model
+        print(f'data = {repr(bkg_model_X_m.histo)}')
 
         with open(f'{self.dout}/bkg_model_histos.pkl', 'wb') as f:
             pkl.dump(bkg_model_histos, f)

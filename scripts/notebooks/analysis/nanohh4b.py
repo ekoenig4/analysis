@@ -37,9 +37,14 @@ def n_medium_btag(t):
     nM = t.ak4_h1b1_btag_M + t.ak4_h1b2_btag_M + t.ak4_h2b1_btag_M + t.ak4_h2b2_btag_M
     return ak.values_astype(nM, np.int32)
 
+@cache_variable
+def n_tight_btag(t):
+    nT = t.ak4_h1b1_btag_T + t.ak4_h1b2_btag_T + t.ak4_h2b1_btag_T + t.ak4_h2b2_btag_T
+    return ak.values_astype(nT, np.int32)
+
 @cache_variable(bins=(0,100,30))
 def h_dm(t):
-    return np.sqrt( (t.dHH_H1_mass - 125)**2 + (t.dHH_H2_mass - 125)**2 )
+    return np.sqrt( (t.dHH_H1_mass - 125)**2 + (t.dHH_H2_mass - 120)**2 )
 
 @cache_variable(bins=(0,100,30))
 def vr_h_dm(t):
@@ -53,10 +58,7 @@ bdt_features = [
     'dHH_maxdEtabb','dHH_absCosTheta_H1_inHHcm', 'dHH_absCosTheta_H1b1_inH1cm', 'dHH_NbtagT',
 ]
 
-
-
 varinfo.dHH_HH_mass = dict(bins=(200,1800,30))
-
 
 
 def get_local_alt(f):
@@ -81,10 +83,59 @@ class Analysis(Notebook):
     def add_parser(parser):
         parser.add_argument('--dout', type=str, default='')
         parser.add_argument('--pairing', type=str, default='mindiag', )
-        parser.add_argument('--use-old', action='store_true')
+        parser.add_argument('--load-init', type=int, default=3)
         parser.add_argument('--btagwp', type=str, default='medium')
+        parser.add_argument('--no-bkg', action='store_true')
 
-    def _init_old(self):
+        parser.add_argument('--bdisc-wp', type=float, default=None)
+
+    @required
+    def init(self):
+        self.dout = os.path.join("nanoHH4b",self.dout,self.pairing)
+        
+        if self.bdisc_wp is not None:
+            wptag = str(self.bdisc_wp).replace('.','p')
+            self.dout = os.path.join(self.dout, f'{self.btagwp}_bdisc{wptag}/')
+        else:
+            self.dout = os.path.join(self.dout, self.btagwp)
+
+        init_version = f'_init_v{self.load_init}'
+        init = getattr(self, init_version)
+        init()
+
+        if self.btagwp == 'loose':
+            self.n_btag = n_loose_btag
+        else:
+            self.n_btag = n_medium_btag
+
+        hparams = dict(
+            n_estimators=70,
+            max_depth=4,
+            learning_rate=0.1,
+            min_samples_leaf=300,
+            gb_args=dict(subsample=0.6),
+            n_folds=2,
+        )
+        
+        self.bdt = ABCD(
+            features=bdt_features,
+            a=lambda t : (h_dm(t) <  25) & (self.n_btag(t) == 4),
+            b=lambda t : (h_dm(t) <  25) & (self.n_btag(t) == 3),
+            c=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 4),
+            d=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 3),
+            **hparams
+        )
+
+        self.vr_bdt = ABCD(
+            features=bdt_features,
+            a=lambda t : (vr_h_dm(t) <  25) & (self.n_btag(t) == 4),
+            b=lambda t : (vr_h_dm(t) <  25) & (self.n_btag(t) == 3),
+            c=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (self.n_btag(t) == 4),
+            d=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (self.n_btag(t) == 3),
+            **hparams
+        )
+
+    def _init_v0(self):
         treekwargs = dict(  
             use_gen=False,
             treename='Events',
@@ -105,7 +156,34 @@ class Analysis(Notebook):
         f_data = f_pattern.format(pairing=self.pairing)
         self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
 
-    def _init_new(self):
+    def _init_v1(self):
+        treekwargs = dict(
+            use_gen=False,
+            treename='Events',
+            normalization=None,
+        )
+        
+        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/v1/{pairing}_sig_2018_0L/mc/ggHH4b_tree.root'
+        f_sig = f_pattern.format(pairing=self.pairing)
+
+        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+
+        # %%
+        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/v1/{pairing}_bkg_2018_0L/mc/qcd-mg_tree.root'
+        f_bkg = f_pattern.format(pairing=self.pairing)
+        # self.bkg = ObjIter([Tree( get_local_alt(f_bkg), **treekwargs)])
+        self.bkg = ObjIter([])
+
+        # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
+        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
+        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
+
+        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/v1/{pairing}_data_2018_0L/data/jetht_tree.root'
+        f_data = f_pattern.format(pairing=self.pairing)
+        self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+
+
+    def _init_v2(self):
         treekwargs = dict(
             use_gen=False,
             treename='Events',
@@ -118,55 +196,112 @@ class Analysis(Notebook):
         self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
 
         # %%
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_bkg_2018_0L/mc/qcd-mg_tree.root'
-        f_bkg = f_pattern.format(pairing=self.pairing)
-        self.bkg = ObjIter([Tree( get_local_alt(f_bkg), **treekwargs)])
-        # self.bkg = ObjIter([])
+        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_2018_0L/mc/qcd-mg_tree.root'
+        f_qcd = f_pattern.format(pairing=self.pairing)
+
+        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_2018_0L/mc/ttbar-powheg_tree.root'
+        f_ttbar = f_pattern.format(pairing=self.pairing)
+        
+        if self.no_bkg:
+            self.bkg = ObjIter([])
+        else:
+            self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
 
         # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
         (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
         (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
 
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_data_2018_0L/data/jetht_tree.root'
+        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_2018_0L/data/jetht_tree.root'
+        f_data = f_pattern.format(pairing=self.pairing)
+        self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+
+    def _init_v3(self):
+        treekwargs = dict(
+            use_gen=False,
+            treename='Events',
+            normalization=None,
+        )
+        
+        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_sig_2018_0L/mc/ggHH4b_tree.root'
+        f_sig = f_pattern.format(pairing=self.pairing)
+
+        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+
+        # %%
+        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_2018_0L/mc/qcd-mg_tree.root'
+        f_qcd = f_pattern.format(pairing=self.pairing)
+
+        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_2018_0L/mc/ttbar-powheg_tree.root'
+        f_ttbar = f_pattern.format(pairing=self.pairing)
+        
+        if self.no_bkg:
+            self.bkg = ObjIter([])
+        else:
+            self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
+
+        # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
+        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
+        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
+
+        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_2018_0L/data/jetht_tree.root'
         f_data = f_pattern.format(pairing=self.pairing)
         self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
 
     @required
-    def init(self):
-        self.dout = os.path.join("nanoHH4b",self.dout,self.pairing,self.btagwp)
-
-        if self.use_old:
-            self._init_old()
-        else:
-            self._init_new()
-
-        if self.btagwp == 'loose':
-            self.n_btag = n_loose_btag
-        else:
-            self.n_btag = n_medium_btag
-        
-        self.bdt = ABCD(
-            features=bdt_features,
-            a=lambda t : (h_dm(t) <  25) & (self.n_btag(t) == 4),
-            b=lambda t : (h_dm(t) <  25) & (self.n_btag(t) == 3),
-            c=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 4),
-            d=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 3),
-        )
-
-        self.vr_bdt = ABCD(
-            features=bdt_features,
-            a=lambda t : (vr_h_dm(t) <  25) & (self.n_btag(t) == 4),
-            b=lambda t : (vr_h_dm(t) <  25) & (self.n_btag(t) == 3),
-            c=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (self.n_btag(t) == 4),
-            d=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (self.n_btag(t) == 3),
-        )
-
-    @required
     def apply_trigger(self):
-        trigger = EventFilter('trigger', filter=lambda t : t.passTrig0L)
+        if self.load_init >= 3:
+            return
+
+        trigger = EventFilter('trigger', filter=lambda t : t.passTrig0L, verbose=True)
         self.signal = self.signal.apply(trigger)
         self.bkg = self.bkg.apply(trigger)
         self.data = self.data.apply(trigger)
+
+    ################################
+    # B Discriminator Optimization #
+    ################################
+    @required
+    def set_bdisc_threshold(self, signal, bkg, data):
+        if self.bdisc_wp is None:
+            return
+        
+        def new_threshold(tree):
+            tree.extend(
+                ak4_h1b1_btag_M = ak.where(tree.ak4_h1b1_bdisc > self.bdisc_wp, 1, 0),
+                ak4_h1b2_btag_M = ak.where(tree.ak4_h1b2_bdisc > self.bdisc_wp, 1, 0),
+                ak4_h2b1_btag_M = ak.where(tree.ak4_h2b1_bdisc > self.bdisc_wp, 1, 0),
+                ak4_h2b2_btag_M = ak.where(tree.ak4_h2b2_bdisc > self.bdisc_wp, 1, 0),
+            )
+
+        (signal+bkg+data).apply(new_threshold)
+
+        event_filter = EventFilter(f'exactly_3_btag{self.bdisc_wp}', filter=lambda t : self.n_btag(t) >= 3, verbose=True)
+        self.signal = self.signal.apply(event_filter)
+        self.bkg = self.bkg.apply(event_filter)
+        self.data = self.data.apply(event_filter)
+
+
+    def plot_reco_eff(self, signal):
+        signal.apply(fourb.nanohh4b.match_ak4_gen)
+
+        study.quick(
+            signal,
+            masks=lambda t : t.nfound_select==4,
+            varlist=['nfound_select', 'nfound_paired'],
+            h_label_stat=lambda h : f'{h.histo[-1]:0.2%}',
+            legend=True,
+            efficiency=True,
+            saveas=f'{self.dout}/reco_eff',
+        )
+
+        study.quick(
+            signal,
+            masks=lambda t : t.nfound_select==4,
+            varlist=['dHH_H1_mass','dHH_H2_mass'],
+            legend=True,
+            efficiency=True,
+            saveas=f'{self.dout}/reco_eff_higgs_mass',
+        )
 
     def plot_higgs(self, signal, bkg):
         study.quick(
@@ -189,6 +324,14 @@ class Analysis(Notebook):
     def plot_region_vars(self, signal, bkg):
         study.quick(
             signal+bkg,
+            varlist=[n_loose_btag, n_medium_btag, n_tight_btag],
+            efficiency=True,
+            legend=True,
+            saveas=f'{self.dout}/n_btag',
+        )
+
+        study.quick(
+            signal+bkg,
             masks=self.bdt.mask,
             varlist=[h_dm, n_medium_btag],
             efficiency=True,
@@ -208,39 +351,60 @@ class Analysis(Notebook):
             saveas=f'{self.dout}/bdt_region_vars_2d',
         )
 
-    def print_soverb(self, signal, bkg):
-        def get_yields(t, f_mask):
-            weights = t.scale
-            mask = f_mask(t)
-            return ak.sum(weights[mask])
-
-        bkg_yields = bkg.apply(partial(get_yields, f_mask=self.bdt.a)).npy.sum()
-        sig_yields = signal.apply(partial(get_yields, f_mask=self.bdt.a)).npy.sum()
-        soverb = sig_yields / bkg_yields
-        print(f'S/B = {soverb:.2f}')
-
     def data_ratio(self, data):
 
-        n_3btag = data.apply(lambda t : np.sum( n_loose_btag(t) == 3 )).npy.sum()
-        n_4btag = data.apply(lambda t : np.sum( n_loose_btag(t) == 4 )).npy.sum()
+        n_3btag = data.apply(lambda t : np.sum( self.n_btag(t) == 3 )).npy.sum()
+        n_4btag = data.apply(lambda t : np.sum( self.n_btag(t) == 4 )).npy.sum()
 
         print('Data 4b:    ', n_4btag)
         print('Data 3b:    ', n_3btag)
         print('Data 3b/4b: ', n_3btag/n_4btag)
+
+    def print_selection_yields(self, signal, bkg, data):
+        def get_yield(tree):
+            scale = tree.scale
+
+            if not tree.is_data:
+                lumi = lumiMap[2018][0]
+                scale = lumi * scale
+
+            events = np.sum(scale)
+
+            print(f'{tree.sample}: {events}')
+
+        (signal + bkg + data).apply(get_yield)
+
 
     @required
     def blind_data(self, data):
         blind_data = EventFilter('blinded', filter=lambda t : ~self.bdt.a(t))
         self.data = data.apply(blind_data)
 
+    def print_abcd_yields(self, signal, bkg, data):
+        def get_yield(tree):
+            masks = [self.bdt.a, self.bdt.b, self.bdt.c, self.bdt.d]
+            masks = [m(tree) for m in masks]
+            scale = tree.scale
+
+            if not tree.is_data:
+                lumi = lumiMap[2018][0]
+                scale = lumi * scale
+
+            for label, mask in zip(['A','B','C','D'], masks):
+                events = np.sum(scale[mask])
+                print(f'{label} {tree.sample}: {events}')
+        (signal + bkg + data).apply(get_yield)
+        
+
     def plot_3btag_datamc(self, data, bkg):
         study.quick(
             data+bkg,
-            masks=lambda t : n_loose_btag(t) == 3,
+            masks=lambda t : self.n_btag(t) == 3,
             varlist=['dHH_H1_mass','dHH_H2_mass'],
             binlist=[(0,300,30)]*2,
+            efficiency=True,
             log=True,
-            ratio=True, r_ylim=None,
+            ratio=True, 
             legend=True,
 
             saveas=f'{self.dout}/higgs_mass_3btag_datamc',
@@ -248,7 +412,7 @@ class Analysis(Notebook):
 
         study.quick2d(
             data+bkg,
-            masks=lambda t : n_loose_btag(t) == 3,
+            masks=lambda t : self.n_btag(t) == 3,
             varlist=['dHH_H1_mass','dHH_H2_mass'],
             binlist=[(0,300,30)]*2,
             legend=True,
@@ -296,6 +460,7 @@ class Analysis(Notebook):
             plot_scale=[100]*len(signal),
             limits=True,
             legend=True,
+            ylim=(0, 7000),
             saveas=f'{self.dout}/HH_mass_limits',
         )
 
@@ -306,32 +471,51 @@ class Analysis(Notebook):
 
     @dependency(train_vr_bdt)
     def build_vr_bkg_model(self, data):
-        vr_bkg_model = EventFilter('vr_bkg_model', filter=self.vr_bdt.b)
-        self.vr_bkg_model = data.asmodel('vr bkg model', color='salmon').apply(vr_bkg_model)
-        self.vr_bkg_model.apply(lambda t : t.reweight(self.vr_bdt.reweight_tree))
+        # vr_bkg_model = EventFilter('vr_bkg_model', filter=self.vr_bdt.b)
+        self.vr_bkg_model = data.asmodel('vr bkg model', color='salmon')#.apply(vr_bkg_model)
+        # self.vr_bkg_model.apply(lambda t : t.reweight(self.vr_bdt.reweight_tree))
 
     @dependency(build_vr_bkg_model)
     def plot_vr_model(self, data, vr_bkg_model):
         study.quick(
             data+vr_bkg_model,
-            masks=[self.vr_bdt.a]*len(data),
-            varlist=['dHH_HH_mass'],
-            binlist=[(200,1800,30)],
+            masks=[self.vr_bdt.a]*len(data)+[self.vr_bdt.b]*len(vr_bkg_model),
+            varlist=['dHH_HH_mass','dHH_HH_pt','ak4_h1b1_regpt'],
+            binlist=[(200,1800,30),(0,400,30),(0,350,30)],
             ratio=True, r_ylim=(0.7,1.3),
             legend=True,
             efficiency=True,
-            saveas=f'{self.dout}/HH_mass_vr_model',
+            **study.kstest,
+            saveas=f'{self.dout}/vr_norm_model',
         )
 
         study.quick(
+            data+vr_bkg_model,
+            masks=[self.vr_bdt.a]*len(data)+[self.vr_bdt.b]*len(vr_bkg_model),
+            scale=[None]*len(data)+[self.vr_bdt.reweight_tree]*len(vr_bkg_model),
+            varlist=['dHH_HH_mass','dHH_HH_pt','ak4_h1b1_regpt'],
+            binlist=[(200,1800,30),(0,400,30),(0,350,30)],
+            ratio=True, r_ylim=(0.7,1.3),
+            legend=True,
+            efficiency=True,
+            **study.kstest,
+            saveas=f'{self.dout}/vr_bdt_model',
+        )
+        
+
+        study.quick(
             data + vr_bkg_model,
-            masks=[self.vr_bdt.a]*len(data),
+            masks=[self.vr_bdt.a]*len(data)+[self.vr_bdt.b]*len(vr_bkg_model),
+            scale=[None]*len(data)+[self.vr_bdt.reweight_tree]*len(vr_bkg_model),
             varlist=bdt_features,
             ratio=True, r_ylim=(0.7,1.3),
             legend=True,
             efficiency=True,
             saveas=f'{self.dout}/vr_model_bdt_features',
         )
+
+    
+
 
 if __name__ == '__main__':
     main()

@@ -75,13 +75,16 @@ class FeynNet(Notebook):
         # remove all 50 GeV mass points
         # mask &= np.all(( (masses / 100) - (masses // 100) ) == 0, axis=1)
         # remove all points above 1400 GeV
-        mask &= masses[:,0] > 1400
+        mask &= masses[:,0] <= 1400
+        # mask &= masses[:,0] > 1400
         f_signal = f_signal[mask]
 
         print('Total number of signal files:', len(f_signal))
         print(f'Running on {len(self.input)} signal file(s)')
 
         self.signal = ObjIter([Tree([f_signal[idx]], report=False) for idx in tqdm(self.input)])
+
+        print(self.signal.sample)
         
         self.ar_bdt = sixb.bdt.get_ar_bdt()
         import pickle as pkl
@@ -92,7 +95,7 @@ class FeynNet(Notebook):
     @required
     def load_feynnet(self, signal):
         print(self.modelpath)
-        load_feynnet = sixb.f_load_feynnet_assignment( self.modelpath, onnx=True, order='random' )
+        load_feynnet = sixb.f_load_feynnet_assignment( self.modelpath, onnx=False, order='random' )
 
         if len(signal) > 1:
             import multiprocess as mp
@@ -101,6 +104,41 @@ class FeynNet(Notebook):
         else:
             signal.apply(load_feynnet, report=True)
         signal.apply(sixb.assign)
+
+    def suzs_debug(self, signal):
+        
+        histos = obj_store()
+        study.quick(
+            signal,
+            # masks=self.ar_bdt.a,
+            varlist=['X_m'],
+            scale=lambda t:  1/t.scale,
+            lumi=None,
+            store=histos
+        )
+
+        print(f'signal = {repr(histos[0][0].histo)}')
+
+        def get_asr_eventid(tree):
+            mask = self.ar_bdt.a(tree)
+            events = tree.Event[mask]
+
+            import pickle 
+            with open('suzs_debug.pkl', 'wb') as f:
+                pickle.dump(events, f)
+
+        signal.apply(get_asr_eventid)
+
+
+    def print_yields(self, signal):
+
+        def yields(tree):
+            print(f'{tree.sample}: {len(tree)}')
+            for region in ('mask','a','b','c','d'):
+                mask = getattr(self.ar_bdt, region)(tree)
+                print(f'BDT {region}: {np.sum(mask)}')
+
+        signal.apply(yields)
 
     
     def get_limits(self, signal):
@@ -113,12 +151,22 @@ class FeynNet(Notebook):
             store=histos
         )
 
+        print(f'signal = {repr(histos[0][0].histo)}')
+
         self.models = ObjIter([
             Model(h_sig, self.bkg_model_X_m)
             for h_sig in histos[0]
         ])
 
-        get_upperlimits = f_upperlimit(poi=np.linspace(0.1,5,50))
+        def dump_model(model):
+            print(repr(model.h_sig.histo))
+            print(repr(model.h_data.histo))
+            print(repr(model.h_data.error))
+
+        self.models.apply(dump_model)
+
+
+        get_upperlimits = f_pyhf_upperlimit(poi=np.linspace(0.1,5,50))
 
         if len(self.models) > 1:
             import multiprocess as mp
@@ -134,6 +182,8 @@ class FeynNet(Notebook):
                 my = [model.my],
                 exp_limits = [0.3 * np.array(model.h_sig.stats.exp_limits) ],
             )
+
+            print(np.array(model.h_sig.stats.exp_limits))
             
             with ut.recreate(f'{self.dout}/limits/MX_{model.mx}_MY_{model.my}.root') as f:
                 f['tree'] = {
