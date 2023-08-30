@@ -16,9 +16,8 @@ from hep_ml.gradientboosting import UGradientBoostingClassifier, LogLossFunction
 import pickle, os
 
 class BDTReweighter:
-  seed = 123456789
-  def __init__(self, n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, gb_args={'subsample':0.4}, n_folds=2, verbose=True, load=None):
-    np.random.seed(self.seed) #Fix any random seed using numpy arrays
+  def __init__(self, n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, gb_args={'subsample':0.4}, n_folds=2, verbose=True, seed=1234, load=None):
+    self.seed = seed
 
     reweighter_base = reweight.GBReweighter(
         n_estimators=n_estimators, 
@@ -102,16 +101,16 @@ class ABCD(BDTReweighter):
     cr_total = sum( yields[r] for r in ('c','d') )
     region_total = sr_total + cr_total
 
-    a_total = f'{yields["a"]:0.2e}'.center(8)
+    a_total = f'{yields["a"]}'.center(8)
     a_effic = f'{yields["a"]/nevents:00.2%}'.center(8)
 
-    b_total = f'{yields["b"]:0.2e}'.center(8)
+    b_total = f'{yields["b"]}'.center(8)
     b_effic = f'{yields["b"]/nevents:00.2%}'.center(8)
 
-    c_total = f'{yields["c"]:0.2e}'.center(8)
+    c_total = f'{yields["c"]}'.center(8)
     c_effic = f'{yields["c"]/nevents:00.2%}'.center(8)
     
-    d_total = f'{yields["d"]:0.2e}'.center(8)
+    d_total = f'{yields["d"]}'.center(8)
     d_effic = f'{yields["d"]/nevents:00.2%}'.center(8)
 
     sample = treeiter.sample.list

@@ -341,12 +341,14 @@ def array_ratio(arrays, bins=None, weights=None, density = False,
     
     return fig,ax
 
-def plot_model(model, **kwargs):
+def plot_model(model, figax=None, **kwargs):
+    fig, ax = get_figax(figax=figax)
+
     plotobjs = [model.h_sig, model.h_bkg]
     if model.h_data is not model.h_bkg:
-        plotobjs.append(model.h_data)
+        graph_histo(model.h_data, figax=(fig,ax))
     
-    return plot_histos(plotobjs, **kwargs)
+    return plot_histos(plotobjs, figax=(fig, ax), **kwargs)
 
 def plot_model_brazil(models, label=None, xlabel='mass', ylabel=None, units='pb', figax=None, **kwargs):
     fig, ax = get_figax(figax=figax)

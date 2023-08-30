@@ -121,6 +121,7 @@ class Histo:
 
         return Histo(counts, this.bins, error)
 
+
     @classmethod
     def from_th1d(cls, th1d, scale=1, **kwargs):
         counts = scale*th1d.counts()
@@ -142,6 +143,31 @@ class Histo:
         
         bins = np.concatenate([lo_edges[:1], hi_edges])
         return cls(y, bins, yerr, **kwargs)
+    
+    @classmethod
+    def from_tree(cls, tree, expr, scale=None, **kwargs):
+        array = tree[expr]
+        weights = getattr(tree, 'scale', None)
+
+        if callable(scale):
+            weights = weights * scale(tree)
+        elif scale is not None:
+            weights = weights * scale
+
+
+        kwargs = dict(
+            dict(
+                is_signal=getattr(tree, 'is_signal', False),
+                is_model=getattr(tree, 'is_model', False),
+                is_data=getattr(tree, 'is_data', False),
+                color=getattr(tree, 'color', None),
+                label=getattr(tree, 'sample', None),
+                **tree.pltargs,
+            ),
+            **kwargs
+        )
+
+        return cls.from_array(array, weights=weights, **kwargs)
 
     @classmethod 
     def from_array(cls, array, bins=None, weights=None, nbins=30, rebin=None, binoverride=None, restrict=False, sumw2=True, overflow=False, **kwargs):
@@ -206,13 +232,16 @@ class Histo:
     
     def __getstate__(self):
         return dict(
-            counts=self.histo / self.scale,
-            bins=self.bins,
-            error=self.error / self.scale,
+            # counts=self.histo / self.scale,
+            counts=list(self.histo / self.scale),
+            # bins=self.bins,
+            bins=list(self.bins),
+            # error=self.error / self.scale,
+            error=list(self.error / self.scale),
             efficiency=self.efficiency,
             density=self.density,
-            array=self.array,
-            weights=self.weights,
+            # array=self.array,
+            # weights=self.weights,
             **dict(self.kwargs, label=self.label)
         )
     
@@ -406,6 +435,10 @@ class Histo:
             if hasattr(self.stats, 'exp_limits'):
                 std_1 = max(self.stats.exp_limits[2+1]-self.stats.exp_limits[2], self.stats.exp_limits[2]-self.stats.exp_limits[2-1])
                 label_stat = f'CL$^{{95\%}}r<{self.stats.exp_limits[2]:0.2}\pm{std_1:0.2}$'
+        elif label_stat == 'obs_lim':
+            if hasattr(self.stats, 'obs_limits'):
+                std_1 = max(self.stats.exp_limits[2+1]-self.stats.exp_limits[2], self.stats.exp_limits[2]-self.stats.exp_limits[2-1])
+                label_stat = f'Observed: {self.stats.obs_limit:0.2} - Expected: $r<{self.stats.exp_limits[2]:0.2}\pm{std_1:0.2}$'
 
         else: label_stat = f'{getattr(self.stats,label_stat):0.2e}'
 

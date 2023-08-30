@@ -148,6 +148,17 @@ class Histo2D:
         Zerr[x_digit, y_digit] = zerr
 
         return cls(Z.T, x_bins, y_bins, error2d=Zerr.T, **kwargs)
+    
+    @classmethod
+    def from_pyroot_th2(cls, th2, **kwargs):
+        def get_bins(axis):
+            return np.array([axis.GetBinLowEdge(i) for i in range(1, axis.GetNbins()+2)])
+
+        xbins = get_bins(th2.GetXaxis())
+        ybins = get_bins(th2.GetYaxis())
+        iX, iY = np.meshgrid(np.arange(len(xbins)-1), np.arange(len(ybins)-1), indexing='ij')
+        counts = np.vectorize(lambda x,  y : th2.GetBinContent(int(x), int(y)))(iX+1, iY+1).T
+        return cls(counts, xbins, ybins)
 
     def __init__(self, counts, x_bins, y_bins, error2d=None, x_array=None, y_array=None, weights=None,
                  efficiency=False, density=False, lumi=None, restrict=False, systematics=None,raw_counts=None,

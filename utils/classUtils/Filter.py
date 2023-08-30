@@ -73,6 +73,13 @@ def event_filter(self, tree, cutflow=True):
 
     for filter in self.filters:
         mask = mask & filter(tree)
+
+    if self.verbose:
+        scale = tree.scale if hasattr(tree, 'scale') else np.ones(len(tree))
+        total = np.sum(scale)
+        eff = np.sum(scale[mask])/total
+        print(f'{tree.sample} {self.name} eff: {eff:.2e}')
+
     tree.extend(tree.ttree[mask])
 
     if cutflow:
@@ -96,7 +103,7 @@ class Filter:
 
 
 class EventFilter:
-    def __init__(self, name, mask=None, filter=None, cutflow=True, **kwargs):
+    def __init__(self, name, mask=None, filter=None, cutflow=True, verbose=False, **kwargs):
         self.name = name
         self.mask = mask
         self.kwargs = kwargs
@@ -106,6 +113,7 @@ class EventFilter:
             self.filters = [filter] + self.filters
 
         self.cutflow = cutflow
+        self.verbose = verbose
             
     def filter(self, tree, filter=None):
         if filter:

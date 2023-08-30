@@ -328,12 +328,11 @@ class Tree:
             init_empty(self)
             print('[WARNING] unable to open any files with filelist')
             print('          ', filelist)
-            return
+        else:
+            init_sample(self)
+            init_tree(self, use_gen, normalization=normalization)
 
-        init_sample(self)
-        init_tree(self, use_gen, normalization=normalization)
         self.reductions = dict()
-
         self.__dict__.update(**kwargs)
 
     def __str__(self):

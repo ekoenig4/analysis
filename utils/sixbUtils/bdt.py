@@ -98,10 +98,22 @@ hm_cfg = dict(
 btag_cfg = 0.65
 
 def get_ar_bdt():
+    hparams = dict(
+        n_estimators = 70,
+        learning_rate = 0.15,
+        max_depth = 3,
+        min_samples_leaf = 275,
+        gb_args={'subsample':0.6},
+        n_folds=2,
+        seed = 2020,
+    )
+
+
     return ABCD(
         bdt_features,
-        a = lambda t : (h_dm(t) <= hm_cfg['SRedge']) & (btag6bavg(t) >  btag_cfg),
-        b = lambda t : (h_dm(t) <= hm_cfg['SRedge']) & (btag6bavg(t) <= btag_cfg),
-        c = lambda t : (h_dm(t) >  hm_cfg['SRedge']) & (h_dm(t) <= hm_cfg['CRedge']) & (btag6bavg(t) >  btag_cfg),
-        d = lambda t : (h_dm(t) >  hm_cfg['SRedge']) & (h_dm(t) <= hm_cfg['CRedge']) & (btag6bavg(t) <= btag_cfg),
+        a = lambda t : (h_dm(t) <= hm_cfg['SRedge']) & (btag6bavg(t) >= btag_cfg),
+        b = lambda t : (h_dm(t) <= hm_cfg['SRedge']) & (btag6bavg(t) <  btag_cfg),
+        c = lambda t : (h_dm(t) >  hm_cfg['SRedge']) & (h_dm(t) <= hm_cfg['CRedge']) & (btag6bavg(t) >=  btag_cfg),
+        d = lambda t : (h_dm(t) >  hm_cfg['SRedge']) & (h_dm(t) <= hm_cfg['CRedge']) & (btag6bavg(t) <  btag_cfg),
+        **hparams
     )

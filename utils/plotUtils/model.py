@@ -7,16 +7,17 @@ pyhf.set_backend('jax')
 from .histogram import Stack
 from ..classUtils import ObjIter, ParallelMethod
 
-class f_upperlimit(ParallelMethod):
-    def __init__(self, poi=np.linspace(0,2,21), level=0.05):
+class f_pyhf_upperlimit(ParallelMethod):
+    def __init__(self, poi=np.linspace(0,5,31), level=0.05):
         super().__init__()
         self.poi = poi
         self.level = level
   
     def start(self, model):
+        w, data = model.get_pyhf()
         return dict(
-            data=model.data,
-            w=model.w,
+            data=data,
+            w=w,
             norm=model.norm,
             poi=self.poi,
             level=self.level,
@@ -44,9 +45,54 @@ class f_upperlimit(ParallelMethod):
       model.h_sig.stats.norm_obs_limit, model.h_sig.stats.norm_exp_limits = norm_obs_limit, norm_exp_limit
       model.h_sig.stats.obs_limit, model.h_sig.stats.exp_limits = obs_limit, exp_limit
       return obs_limit, exp_limit
+    
+class f_combine_upperlimit(ParallelMethod):
+    def __init__(self, combine_path, datacard):
+        super().__init__()
+        self.combine_path = combine_path
+        self.datacard = datacard
+
+    def start(self, model):
+        return dict(
+            path=self.combine_path,
+            datacard=self.datacard,
+            model=model,
+        )
+
+    def run(self, path, datacard, model):
+        import utils.combineUtils as combine
+        with combine.Process(path, datacard, model) as cp:
+            output = dict(
+                norm_obs_limit=cp.norm_obs_limit,
+                norm_exp_limit=cp.norm_exp_limit,
+
+                obs_limit=cp.obs_limit,
+                exp_limit=cp.exp_limit,
+            )
+
+        return output
+    
+    def end(self, model, norm_obs_limit, norm_exp_limit, obs_limit, exp_limit):
+      model.h_sig.stats.norm_obs_limit, model.h_sig.stats.norm_exp_limits = norm_obs_limit, norm_exp_limit
+      model.h_sig.stats.obs_limit, model.h_sig.stats.exp_limits = obs_limit, exp_limit
+      return obs_limit, exp_limit
+
 
 class Model:
-  f_upperlimit = f_upperlimit
+  f_upperlimit = f_pyhf_upperlimit
+
+  f_pyhf_upperlimit = f_pyhf_upperlimit
+  f_combine_upperlimit = f_combine_upperlimit
+
+  def __getstate__(self):
+     return dict(
+        h_sig=self.h_sig,
+        h_bkg=self.h_bkg,
+        h_data=self.h_data,
+     )
+
+  def __setstate__(self, state):
+    self.__init__(**state)
 
   def __init__(self, h_sig, h_bkg, h_data=None):
     if isinstance(h_bkg, Stack): h_bkg = h_bkg.get_histo()
@@ -64,10 +110,14 @@ class Model:
     self.norm = 2*np.sqrt(np.sum(h_bkg.error**2))/h_sig.stats.nevents
     # self.norm = 1
 
-    self.w = pyhf.simplemodels.uncorrelated_background(
-      signal=(self.norm*h_sig.histo).tolist(), bkg=h_bkg.histo.tolist(), bkg_uncertainty=h_bkg.error.tolist()
+  def get_pyhf(self):
+    w = pyhf.simplemodels.uncorrelated_background(
+      signal=(self.norm*self.h_sig.histo).tolist(), bkg=self.h_bkg.histo.tolist(), bkg_uncertainty=self.h_bkg.error.tolist()
     )
-    self.data = self.h_data.histo.tolist()+self.w.config.auxdata
+    
+    data = self.h_data.histo.tolist()+w.config.auxdata
+
+    return w, data
 
   # def upperlimit(self, poi=np.linspace(0,2,21), level=0.05):
   #   try:
@@ -104,7 +154,7 @@ class Model:
 
     t_data = to_th1d(self.h_data,"data_obs",";;Events")
     t_bkg = to_th1d(self.h_bkg, "bkg",";;Events")
-    t_sig = to_th1d(self.h_sig, "nmssm",f"norm={self.norm};;Events", norm=self.norm)
+    t_sig = to_th1d(self.h_sig, "sig",f"norm={self.norm};;Events", norm=self.norm)
         
     t_data.Write()
     t_bkg.Write()

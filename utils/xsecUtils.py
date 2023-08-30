@@ -33,6 +33,8 @@ colorMap = {
     "qcd-mg": "lightblue",
 
     "TTJets": "darkseagreen",
+    "ttbar-powheg": "darkseagreen",
+
     "Data": "black",
     "MC-Bkg": "grey"
 }
@@ -45,6 +47,7 @@ xsecMap = {
     "JetHT": 'N/A',
 
     'qcd-mg':'N/A',
+    'ttbar-powheg':'N/A',
     'ggHH4b':'N/A',
     'jetht':'N/A',
 

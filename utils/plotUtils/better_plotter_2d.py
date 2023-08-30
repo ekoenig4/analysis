@@ -254,6 +254,8 @@ def interp_graph2d(graph2d, figax=None, kind='linear', **kwargs):
     ).get(kind, interp.LinearNDInterpolator)
 
     f = interp_kind(np.array([X,Y]).T, Z)
+    graph2d.f_interp = f
+
     nx = np.linspace(np.min(graph2d.x_array), np.max(graph2d.x_array), 100)
     ny = np.linspace(np.min(graph2d.y_array), np.max(graph2d.y_array), 100)
     nx, ny = np.meshgrid(nx, ny)
@@ -345,4 +347,4 @@ def graph2d_array(x_array, y_array, z_array, figax=None, **kwargs):
     graph2d = Graph2D(x_array,y_array, z_array,**graph_kwargs)
     plot_graph2d(graph2d, figax=(fig,ax), **kwargs)
     
-    return fig,ax
+    return fig,ax,graph2d
