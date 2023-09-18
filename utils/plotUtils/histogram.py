@@ -434,11 +434,11 @@ class Histo:
         elif label_stat == 'exp_lim':
             if hasattr(self.stats, 'exp_limits'):
                 std_1 = max(self.stats.exp_limits[2+1]-self.stats.exp_limits[2], self.stats.exp_limits[2]-self.stats.exp_limits[2-1])
-                label_stat = f'CL$^{{95\%}}r<{self.stats.exp_limits[2]:0.2}\pm{std_1:0.2}$'
+                label_stat = f'CL$^{{95\%}}r<{self.stats.exp_limits[2]:0.2f}\pm{std_1:0.2f}$'
         elif label_stat == 'obs_lim':
             if hasattr(self.stats, 'obs_limits'):
                 std_1 = max(self.stats.exp_limits[2+1]-self.stats.exp_limits[2], self.stats.exp_limits[2]-self.stats.exp_limits[2-1])
-                label_stat = f'Observed: {self.stats.obs_limit:0.2} - Expected: $r<{self.stats.exp_limits[2]:0.2}\pm{std_1:0.2}$'
+                label_stat = f'Observed: {self.stats.obs_limit:0.2f} - Expected: $r<{self.stats.exp_limits[2]:0.2f}\pm{std_1:0.2f}$'
 
         else: label_stat = f'{getattr(self.stats,label_stat):0.2e}'
 

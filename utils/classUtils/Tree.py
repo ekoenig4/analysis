@@ -241,6 +241,10 @@ def init_empty(self):
     self.pltargs = dict()
     self.systematics = None
 
+    from ..plotUtils import Histo
+    self.cutflow = [Histo(counts=np.array([]), bins=np.array([]))]
+    self.cutflow_labels = []
+
 def init_tree(self, use_gen=False, cache=None, normalization=None):
     self.fields = sorted(list(set.intersection(*[ set(fn.fields) for fn in self.filelist])))
 
@@ -313,7 +317,7 @@ class Tree:
     @classmethod
     def from_ak(cls, ak_tree, **kwargs):
         tree = cls([])
-        tree.extend(ak_tree, scale=np.ones(len(ak_tree)))
+        tree.extend(ak_tree, scale=np.ones(len(ak_tree)), sample_id=np.zeros(len(ak_tree)))
         tree.__dict__.update(**kwargs)
 
         return tree

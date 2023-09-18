@@ -110,7 +110,7 @@ def graph_array(x, y, xerr=None, yerr=None, figax=None, **kwargs):
     graph = Graph(x,y, xerr=xerr, yerr=yerr, **graph_kwargs)
     plot_graph(graph,figax=(fig,ax),**kwargs)
     
-    return (fig,ax)    
+    return (fig,ax), graph
 
 def graph_arrays(x_arrays, y_arrays, xerr=None, yerr=None, figax=None, **kwargs):
     (fig,ax) = get_figax(figax=figax)
@@ -122,7 +122,7 @@ def graph_arrays(x_arrays, y_arrays, xerr=None, yerr=None, figax=None, **kwargs)
     graphlist = GraphList(x_arrays,y_arrays, xerr=xerr, yerr=yerr, **graph_kwargs)
     plot_graphs(graphlist,figax=(fig,ax),**kwargs)
     
-    return (fig,ax)    
+    return (fig,ax), graphlist    
     
 def graph_histo(histo, errors=True, figax=None, exe=None, **kwargs):
     fig, ax = get_figax(figax=figax)

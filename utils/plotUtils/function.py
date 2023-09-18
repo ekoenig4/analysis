@@ -210,6 +210,45 @@ class norm(Function):
   def func(x, n=1, sigma=1): return n*gaussian.pdf(x, 0, sigma)
   def _func(self, x): return gaussian.func(x, self.n, self.mu, self.sigma)
 
+class lognormal(Function):
+  def __init__(self, x=np.array([0]), n=1, mu=0, sigma=1, s=1, **kwargs):
+    super().__init__(x, dict(n=n, mu=mu, sigma=sigma, s=s), **kwargs)
+
+  def __str__(self):
+    if not hasattr(self,"spec"):
+      fvar = lambda v : str(v)
+    else: 
+      fvar = lambda v : f'{v:{self.spec}}'
+
+    n = fvar(self.n)
+    mu = fvar(self.mu)
+    sigma = fvar(self.sigma)
+    s = fvar(self.s)
+
+    import yaml
+    return yaml.dump(dict(n=n,mu=mu,sigma=sigma,s=s), indent=2)
+
+  @staticmethod
+  def rvs(mu=0, sigma=1, s=1, size=1): return f_stats.lognorm.rvs(s, loc=mu, scale=sigma, size=size)
+  def _rvs(self, size=1): return lognormal.rvs(self.mu, self.sigma, self.s, size)
+
+  @staticmethod
+  def pdf(x, mu=0, sigma=1, s=1): return f_stats.lognorm.pdf(x, s, loc=mu, scale=sigma)
+  def _pdf(self, x): return lognormal.pdf(x, self.mu, self.sigma, self.s)
+
+  @staticmethod
+  def cdf(x, mu=0, sigma=1, s=1): return f_stats.lognorm.cdf(x, s, loc=mu, scale=sigma)
+  def _cdf(self, x): return lognormal.cdf(x, self.mu, self.sigma, self.s)
+
+  @staticmethod
+  def sf(x, mu=0, sigma=1, s=1): return f_stats.lognorm.sf(x, s, loc=mu, scale=sigma)
+  def _sf(self, x): return lognormal.sf(x, self.mu, self.sigma, self.s)
+
+  @staticmethod
+  def func(x, n=1, mu=0, sigma=1, s=1): return n*lognormal.pdf(x, mu, sigma, s)
+  def _func(self, x): return lognormal.func(x, self.n, self.mu, self.sigma, self.s)
+
+
 class crystalball(Function):
   def __init__(self, x=np.array([0]), n=1, mu=0, sigma=1, beta=1, m=2, **kwargs):
     super().__init__(x, dict(n=n, mu=mu, sigma=sigma, beta=beta, m=m), **kwargs)
