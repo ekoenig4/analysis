@@ -10,6 +10,8 @@ import numpy as np
 import math
 import vector
 import sympy as sp
+import tabulate
+
 
 import re
 from tqdm import tqdm
@@ -351,29 +353,76 @@ class Analysis(Notebook):
             saveas=f'{self.dout}/bdt_region_vars_2d',
         )
 
-    def data_ratio(self, data):
+    def print_presel_yields(self, signal, bkg, data):
+        # NOTE: yields from AN2019_250_v6:Table 16
+        an_yields = {
+            'ggHH4b' : 1338.9 + 527.1,
+            'qcd-mg' : 86381.0 + 39741.9,
+            'ttbar-powheg' : 5369.2 + 8648.7,
+            'jetht': 164307.0 + 96274.0,
+        }
+        f_yields = study.make_path( os.path.join( self.dout, 'presel_yields.txt' ) )
 
-        n_3btag = data.apply(lambda t : np.sum( self.n_btag(t) == 3 )).npy.sum()
-        n_4btag = data.apply(lambda t : np.sum( self.n_btag(t) == 4 )).npy.sum()
-
-        print('Data 4b:    ', n_4btag)
-        print('Data 3b:    ', n_3btag)
-        print('Data 3b/4b: ', n_3btag/n_4btag)
-
-    def print_selection_yields(self, signal, bkg, data):
         def get_yield(tree):
+            label = tree.sample
+            an = an_yields.get(label, -1)
+
             scale = tree.scale
 
             if not tree.is_data:
                 lumi = lumiMap[2018][0]
                 scale = lumi * scale
 
+            if tree.is_signal:
+                label = f'{label} (x100)'
+                scale = 100 * scale
+
             events = np.sum(scale)
 
-            print(f'{tree.sample}: {events}')
+            return (label, events, an, events/an)
 
-        (signal + bkg + data).apply(get_yield)
+        table = (signal+bkg+data).apply(get_yield).list
 
+        with open(f_yields, 'w') as f:
+            table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
+            print(table)
+            f.write(table)
+
+    def print_3btag_yields(self, signal, bkg, data):
+        # NOTE: yields from AN2019_250_v6:Table 19
+        an_yields = {
+            'ggHH4b' : 2404.3 + 78.7,
+            'qcd-mg' : 1058750.0 + 43059.3,
+            'ttbar-powheg' : 111774.6 + 6518.1,
+            'jetht': 2273811.0 + 107918.0,
+        }
+        f_yields = study.make_path( os.path.join( self.dout, 'presel_3btag_yields.txt' ) )
+
+        def get_yield(tree):
+            label = tree.sample
+            an = an_yields.get(label, -1)
+
+            mask = self.n_btag(tree) == 3
+            scale = tree.scale[mask]
+
+            if not tree.is_data:
+                lumi = lumiMap[2018][0]
+                scale = lumi * scale
+
+            if tree.is_signal:
+                label = f'{label} (x100)'
+                scale = 100 * scale
+
+            events = np.sum(scale)
+
+            return (label, events, an, events/an)
+
+        table = (signal+bkg+data).apply(get_yield).list
+
+        with open(f_yields, 'w') as f:
+            table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
+            print(table)
+            f.write(table)
 
     @required
     def blind_data(self, data):
@@ -381,20 +430,69 @@ class Analysis(Notebook):
         self.data = data.apply(blind_data)
 
     def print_abcd_yields(self, signal, bkg, data):
-        def get_yield(tree):
-            masks = [self.bdt.a, self.bdt.b, self.bdt.c, self.bdt.d]
-            masks = [m(tree) for m in masks]
-            scale = tree.scale
+        # NOTE: yields from AN2019_250_v6:Table 23 - 26
+        an_yields = dict(
+            a = {
+                'ggHH4b' : 1189.0 + 44.8,
+                'qcd-mg' : 4391.3 + 289.8,
+                'ttbar-powheg' : 1379.3 + 85.5,
+                'jetht': 0,
+            },
+            b = {
+                'ggHH4b' : 364.2 + 14.1,
+                'qcd-mg' : 14384.3 + 582.8,
+                'ttbar-powheg' : 2589.0 + 154.8,
+                'jetht': 28150.0 + 1616.0,
+            },
+            c = {
+                'ggHH4b' : 788.5 + 26.4,
+                'qcd-mg' : 32113.6 + 1345.0,
+                'ttbar-powheg' : 14435.2 + 642.3,
+                'jetht': 75628.0 + 3538.0,
+            },
+            d = {
+                'ggHH4b' : 434.1 + 12.9,
+                'qcd-mg' : 87038.1 + 3393.5,
+                'ttbar-powheg' : 26304.3 + 1157.0,
+                'jetht': 208145.0 + 9144.0,
+            }
+        )
+
+        f_yields = study.make_path( os.path.join( self.dout, 'abcd_yields.txt' ) )
+        def get_yield(tree, region):
+            label = tree.sample
+            an = an_yields[region].get(label, -1)
+
+            mask = getattr(self.bdt, region)(tree)
+            scale = tree.scale[mask]
 
             if not tree.is_data:
                 lumi = lumiMap[2018][0]
                 scale = lumi * scale
 
-            for label, mask in zip(['A','B','C','D'], masks):
-                events = np.sum(scale[mask])
-                print(f'{label} {tree.sample}: {events}')
-        (signal + bkg + data).apply(get_yield)
-        
+            if tree.is_signal:
+                label = f'{label} (x100)'
+                scale = 100 * scale
+
+            events = np.sum(scale)
+
+            return (label, events, an, events/an)
+
+        with open(f_yields, 'w') as f:
+            for region in ['a','b','c','d']:
+                table = (signal+bkg+data).apply(partial(get_yield, region=region)).list
+                table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
+
+                name = dict(
+                    a='A_SR(4b)',
+                    b='A_CR(4b)',
+                    c='A_SR(3b)',
+                    d='A_CR(3b)',
+                ).get(region)
+                print('Region:', name)
+                print(table)
+                print()
+                f.write(f'Region: {name}\n' + table + '\n\n')
 
     def plot_3btag_datamc(self, data, bkg):
         study.quick(
@@ -425,7 +523,6 @@ class Analysis(Notebook):
         self.bdt.train(data)
         self.bdt.print_results(data)
 
-
     @dependency(train_bdt)
     def build_bkg_model(self, data):
         bkg_model = EventFilter('bkg_model', filter=self.bdt.b)
@@ -452,17 +549,34 @@ class Analysis(Notebook):
         print(f'Bkg = {bkg_yields:.2f}')
         print(f'S/B = {sig_yields/bkg_yields:.3f}')
 
-    @dependency(build_bkg_model)
+    @dependency(build_bkg_model, print_abcd_yields)
     def limits(self, signal, bkg_model):
+        model = []
         study.quick(
             signal+bkg_model,
+            masks=[self.bdt.a]*len(signal),
             varlist=['dHH_HH_mass'],
-            plot_scale=[100]*len(signal),
+            plot_scale=[1000]*len(signal),
             limits=True,
+            l_store=model,
             legend=True,
             ylim=(0, 7000),
             saveas=f'{self.dout}/HH_mass_limits',
         )
+
+        model = model[0][0]
+
+        info = dict(
+            sig_yield = np.sum(model.h_sig.histo),
+            bkg_yield = np.sum(model.h_bkg.histo),
+            exp_lim = model.h_sig.stats.exp_limits[2],
+        )
+        import pickle
+
+        if not os.path.exists(self.dout):
+            os.makedirs(self.dout)
+        with open(f'{self.dout}/limit_values.pkl', 'wb') as f:
+            pickle.dump(info, f)
 
     def train_vr_bdt(self, data):
         self.vr_bdt.print_yields(data)

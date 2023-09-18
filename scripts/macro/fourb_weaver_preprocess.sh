@@ -5,7 +5,7 @@ signal_ntuples=$(cat $ntuples | grep GluGlu )
 background_ntuples=$(cat $ntuples | grep -v GluGlu )
 
 script=notebooks/skims/fourb_weaver_input.py
-njet=4
+njet=6
 
 dout=reweight-${njet}jet-4b-info
 

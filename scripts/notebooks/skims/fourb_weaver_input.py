@@ -81,7 +81,7 @@ class Notebook(RunSkim):
             fn = fc.cleanpath(tree.filelist[0].fname)
             tree.reweight_info = {
                 nb:self.reweight_info[f'{nb}:{fn}']
-                for nb in (4,)
+                for nb in (-1, 4,)
             }
             print(fn)
             print(tree.reweight_info)
@@ -101,13 +101,16 @@ class Notebook(RunSkim):
     def skim_fully_resolved(self, signal):
         fourb_filter = EventFilter('signal_fourb', filter=lambda t: t.nfound_select==4)
 
+        self.full_signal = signal
         self.fourb_signal = signal.apply(fourb_filter)
 
         if self.apply:
+            for s in self.full_signal:
+                s.reweight_info = s.reweight_info[-1]
             for s in self.fourb_signal:
                 s.reweight_info = s.reweight_info[4]
             
-        self.signal = self.fourb_signal
+        self.signal = self.full_signal + self.fourb_signal
 
     
     #################################################
@@ -206,7 +209,7 @@ class Notebook(RunSkim):
 
     #################################################
     @dependency(cache_max_sample_norm)
-    def cache_reweight_info(self, fourb_signal, bkg):
+    def cache_reweight_info(self, full_signal, fourb_signal, bkg):
         def cache_trees(trees, fname, tag=''):
             info = {
                 f'{tag}{fc.cleanpath(t.filelist[0].fname)}':dict(
@@ -221,7 +224,7 @@ class Notebook(RunSkim):
             with open(f"{self.dout}/{fname}.json", "w") as f:
                 json.dump(info, f, indent=4)
 
-        for nb, trees in zip([4],[fourb_signal,]):
+        for nb, trees in zip([-1, 4],[full_signal, fourb_signal,]):
             for tree in trees:
                 cache_trees([tree], f'{tree.sample}_{nb}b-info', f'{nb}:')
         
@@ -233,8 +236,14 @@ class Notebook(RunSkim):
         signal.apply(lambda t : t.extend(is_bkg=ak.zeros_like(t.Run)))
         bkg.apply(lambda t : t.extend(is_bkg=ak.ones_like(t.Run)))
 
-    def write_trees(self, fourb_signal, bkg):
+    def write_trees(self, full_signal, fourb_signal, bkg):
         include=['^jet','.*scale$','is_bkg','nfound_select']
+
+        if any(full_signal.objs):
+            full_signal.write(
+                f'reweight_{self.njet}jet_full_{{base}}',
+                include=include,
+            )
 
         if any(fourb_signal.objs):
             fourb_signal.write(
