@@ -1,5 +1,14 @@
-from ..ak_tools import build_p4, build_collection
+from ..ak_tools import build_p4, build_collection, get_collection
 from ..hepUtils import calc_dr_p4
+
+quarklist = [
+    'h1b1','h1b2','h2b1','h2b2',
+]
+
+higgslist = [
+    'H1','H2',
+]
+
 import awkward as ak
 import numpy as np
 
@@ -58,12 +67,37 @@ def match_ak4_gen(tree):
     h_genid = ak.where( ak4j1_b_hid == ak4j2_b_hid, ak4j1_b_hid, -1)
 
     tree.extend(
-        ak4jet_b_genid=ak4jet_b_genid,
-        ak4jet_b_gendr=ak4jet_b_gendr,
+        **{
+            f'ak4_{q}_signalId' : ak4jet_b_genid[:,i]
+            for i, q in enumerate(quarklist)
+        },
+        **{
+            f'ak4_{q}_gendr' : ak4jet_b_gendr[:,i]
+            for i, q in enumerate(quarklist)
+        },
 
         dHH_H1_genid=h_genid[:,0],
         dHH_H2_genid=h_genid[:,1],
         
         nfound_select=ak.sum(ak4jet_b_genid >= 0, axis=1),
         nfound_paired=ak.sum(h_genid >= 0, axis=1),
+    )
+
+def assign(tree, tag=''):
+
+    if tag and not tag.endswith('_'): tag += '_'
+    j = get_collection(tree, tag+'j', named=False)
+    h = get_collection(tree, tag+'h', named=False)
+
+    tree.extend(
+        **{
+            f'{tag}ak4_{J}_{field}': j[field][:,i]
+            for field in j.fields
+            for i, J in enumerate(quarklist)
+        },
+        **{
+            f'{tag}dHH_{H}_{field}': h[field][:,i]
+            for field in h.fields
+            for i, H in enumerate(higgslist)
+        },
     )

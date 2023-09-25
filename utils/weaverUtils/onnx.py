@@ -11,6 +11,8 @@ variable_map = dict(
     jet_cos_phi = lambda t : np.cos(t.jet_phi),
     jet_sinphi = lambda t : np.sin(t.jet_phi),
     jet_sin_phi = lambda t : np.sin(t.jet_phi),
+    jet_mass = lambda t : t.jet_m,
+    jet_m = lambda t : t.jet_mass,
 )
 
 def preprocess_variable(array, 
@@ -39,7 +41,7 @@ class WeaverONNX:
     def reset_variables(self):
         self.variable_map = dict(variable_map)
 
-    def __init__(self, modelpath):
+    def __init__(self, modelpath, onnxdir='export'):
         """
         Args:
             modelpath (str): Path to the model directory. Should contain the export directory with the model.onnx and preprocess.json files
@@ -47,6 +49,7 @@ class WeaverONNX:
         """
         self.modelpath = modelpath
         self.variable_map = dict(variable_map)
+        self.onnxdir = onnxdir
 
     def __call__(self, tree, batch_size=1000):
         inputs = self.get_inputs(tree)
@@ -93,14 +96,14 @@ class WeaverONNX:
     @property
     def preprocess(self):
         if getattr(self, '_preprocess', None): return self._preprocess
-        with open(os.path.join(self.modelpath, 'export', 'preprocess.json')) as f:
+        with open(os.path.join(self.modelpath, self.onnxdir, 'preprocess.json')) as f:
             self._preprocess = json.load(f)
         return self._preprocess
 
     @property
     def session(self):
         if getattr(self, '_session', None): return self._session
-        self._session = ort.InferenceSession(os.path.join(self.modelpath, 'export', 'model.onnx'))
+        self._session = ort.InferenceSession(os.path.join(self.modelpath, self.onnxdir, 'model.onnx'))
         return self._session
     
     @property

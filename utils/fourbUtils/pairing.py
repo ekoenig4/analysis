@@ -9,7 +9,7 @@ from ..combinatorics import combinations
 from ..classUtils import ParallelMethod
 from .. import weaverUtils
 
-def reconstruct(jet_p4, assignment, tag='', order='random'):
+def reconstruct(jet_p4, assignment, tag='', order='pt'):
     if tag and not tag.endswith('_'): tag += '_'
     
     j_p4 = jet_p4[assignment]
@@ -38,7 +38,7 @@ def reconstruct(jet_p4, assignment, tag='', order='random'):
     h_p4 = h_p4[h_order]
     h_signalId = h_signalId[h_order]
 
-    p4vars = ['pt','eta','phi','m']
+    p4vars = ['pt','eta','phi','m','mass']
     return dict(
         **{f'{tag}h_{var}': getattr(h_p4, var) for var in p4vars},
         **{f'{tag}h_signalId': h_signalId},
@@ -74,27 +74,30 @@ def assign(tree, tag=''):
 
 
 class f_load_feynnet_assignment(ParallelMethod):
-    def __init__(self, model, extra=[], reco_event=True, onnx=False):
+    def __init__(self, model, extra=[], reco_event=True, onnx=False, onnxdir='export', prefix='jet', use_regressed=True):
         super().__init__()
         self.model = model
         self.extra = extra
         self.reco_event = reco_event
+        self.prefix = prefix
+        self.use_regressed = use_regressed
 
         if onnx:
             self.start = self.start_onnx
             self.run = self.run_onnx
+            self.onnxdir = onnxdir
             
     def start(self, tree):
         fields = ['maxcomb','maxscore','minscore'] + self.extra
         return dict(
             ranker=weaverUtils.load_output(tree, self.model, fields=fields),
             extra=self.extra,
-            jet_p4=build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag']),
+            jet_p4=build_p4(tree, prefix=self.prefix, use_regressed=self.use_regressed, extra=['signalId', 'btag']),
         )
     def start_onnx(self, tree):
         return dict(
-            ranker=weaverUtils.WeaverONNX(self.model),
-            jet_p4=build_p4(tree, prefix='jet', use_regressed=True, extra=['signalId', 'btag']),
+            ranker=weaverUtils.WeaverONNX(self.model, self.onnxdir),
+            jets=get_collection(tree, self.prefix),
         )
     
     def run(self, jet_p4, ranker, extra):
@@ -107,33 +110,33 @@ class f_load_feynnet_assignment(ParallelMethod):
             **{f'feynnet_{field}':ak.from_regular(ranker[field]) for field in extra},
             **reconstruction,
         )
-    def run_onnx(self, jet_p4, ranker):
-        tree = ak.zip(dict(
-            jet_ptRegressed=jet_p4.pt,
-            jet_mRegressed=jet_p4.mass,
-            jet_eta=jet_p4.eta,
-            jet_phi=jet_p4.phi,
-        ))
-        results = ranker(tree, batch_size=5000)
+    def run_onnx(self, jets, ranker):
+        results = ranker(jets, batch_size=5000)
 
         ranks = ak.from_regular(results['sorted_rank'], axis=1)
         ranks = ranks[~np.isinf(ranks)]
 
-        combs = results['sorted_comb']
+        combs = results.get('sorted_combs', results['sorted_j_assignments'])
 
         max_rank = ak.max(ranks, axis=1)
         assignment = combs[:,0]
 
         min_rank = ak.min(ranks, axis=1)
-
-
         assignment = ak.values_astype(ak.from_regular(assignment), "int64")
+
+        jet_p4 = build_p4(jets, prefix=self.prefix, use_regressed=self.use_regressed, extra=['signalId', 'btag'])
         reconstruction = reconstruct(jet_p4, assignment)
-        return dict(
+
+        result = dict(
             feynnet_maxscore=max_rank,
             feynnet_minscore=min_rank,
             **reconstruction,
         )
+
+        if 'class_probs' in results:
+            result['feynnet_class_probs'] = results['class_probs']
+
+        return result
 
     def end(self, tree, **output):
         tree.extend(**output)

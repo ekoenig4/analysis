@@ -130,6 +130,9 @@ def _add_limits(figax, plotobjs, store=None, xy=(0.05,0.95), xycoords='axes frac
         elif plotobj.is_bkg:    h_bkgs.append(plotobj)
         elif plotobj.is_data:   h_data = plotobj
 
+    if h_data is not None:
+        label_stat = 'obs_lim'
+
     models = ObjIter([ Model(h_sig, h_bkgs, h_data) for h_sig in h_sigs ])
 
     if method == 'combine':
