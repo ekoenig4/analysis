@@ -110,7 +110,7 @@ def _flatten(array):
         return ak.to_numpy(array)
     if check_instance(array, torch.Tensor):
         array = torch.flatten(array)
-        return array.cpu().numpy()
+        return array.detach().cpu().numpy()
     return np.array(array).reshape(-1)
 
 

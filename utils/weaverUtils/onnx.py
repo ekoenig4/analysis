@@ -1,7 +1,6 @@
 from collections import defaultdict
 import itertools
 import json, os
-import onnxruntime as ort
 import numpy as np
 import awkward as ak
 import multiprocess as mp
@@ -42,6 +41,8 @@ class WeaverONNX:
         self.variable_map = dict(variable_map)
 
     def __init__(self, modelpath, onnxdir='export'):
+        import onnxruntime as ort
+    
         """
         Args:
             modelpath (str): Path to the model directory. Should contain the export directory with the model.onnx and preprocess.json files
@@ -102,6 +103,8 @@ class WeaverONNX:
 
     @property
     def session(self):
+        import onnxruntime as ort
+        
         if getattr(self, '_session', None): return self._session
         self._session = ort.InferenceSession(os.path.join(self.modelpath, self.onnxdir, 'model.onnx'))
         return self._session
