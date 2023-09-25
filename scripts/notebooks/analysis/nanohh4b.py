@@ -88,12 +88,18 @@ class Analysis(Notebook):
         parser.add_argument('--load-init', type=int, default=3)
         parser.add_argument('--btagwp', type=str, default='medium')
         parser.add_argument('--no-bkg', action='store_true')
+        parser.add_argument('--no-data', action='store_true')
+        parser.add_argument('--model', type=str, default=None)
 
         parser.add_argument('--bdisc-wp', type=float, default=None)
 
     @required
     def init(self):
         self.dout = os.path.join("nanoHH4b",self.dout,self.pairing)
+
+        if self.model is not None:
+            if not os.path.exists(self.model):
+                raise ValueError(f'Invalid model path: {self.model}')
         
         if self.bdisc_wp is not None:
             wptag = str(self.bdisc_wp).replace('.','p')
@@ -215,7 +221,11 @@ class Analysis(Notebook):
 
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_2018_0L/data/jetht_tree.root'
         f_data = f_pattern.format(pairing=self.pairing)
-        self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+        
+        if self.no_data:
+            self.data = ObjIter([])
+        else:
+            self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
 
     def _init_v3(self):
         treekwargs = dict(
@@ -247,7 +257,11 @@ class Analysis(Notebook):
 
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_2018_0L/data/jetht_tree.root'
         f_data = f_pattern.format(pairing=self.pairing)
-        self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+
+        if self.no_data:
+            self.data = ObjIter([])
+        else:
+            self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
 
     @required
     def apply_trigger(self):
@@ -281,6 +295,52 @@ class Analysis(Notebook):
         self.signal = self.signal.apply(event_filter)
         self.bkg = self.bkg.apply(event_filter)
         self.data = self.data.apply(event_filter)
+
+    @required
+    def load_feynnet(self, signal, bkg, data):
+        if self.model is None:
+            return
+        
+        load_feynnet = fourb.f_load_feynnet_assignment(self.model, onnx=True, onnxdir='onnx', prefix='ak4', use_regressed=False)
+        def build_jets(tree):
+            quarks = ['h1b1', 'h1b2', 'h2b1', 'h2b2']
+            fields = ['pt','eta','phi','mass','btag_M','btag_L','btag_T','regpt','regmass','bdisc',]
+
+            jets = {
+                f'ak4_{field}' : ak_stack([tree[f'ak4_{q}_{field}'] for q in quarks], axis=1)
+                for field in fields
+            }
+
+            jets['ak4_signalId'] = -ak.ones_like(jets['ak4_pt'], dtype=np.int32)
+
+            jets.update(
+                **{
+                    rename : jets[field]
+                    for field, rename in {
+                        'ak4_regpt' : 'ak4_ptRegressed',
+                        'ak4_regmass' : 'ak4_mRegressed',
+                        'ak4_mass' : 'ak4_m',
+                        'ak4_bdisc' : 'ak4_btag',
+                    }.items()
+                }
+            )
+
+            jets['ak4_sinphi'] = np.sin(jets['ak4_phi'])
+            jets['ak4_cosphi'] = np.cos(jets['ak4_phi'])
+
+            order = ak.argsort(jets['ak4_pt'], axis=1, ascending=False)
+            for field, array in jets.items():
+                jets[field] = array[order]
+
+            tree.extend(**jets)
+
+        (signal+bkg+data).apply(build_jets, report=True)
+        import multiprocess as mp
+        nprocs = min(4, len(signal+bkg+data))
+        with mp.Pool(nprocs) as pool:
+            (signal+bkg+data).parallel_apply(load_feynnet, pool=pool, report=True)
+
+        (signal+bkg+data).apply(fourb.nanohh4b.assign)
 
 
     def plot_reco_eff(self, signal):
@@ -353,7 +413,7 @@ class Analysis(Notebook):
             saveas=f'{self.dout}/bdt_region_vars_2d',
         )
 
-    def print_presel_yields(self, signal, bkg, data):
+    def print_4btag_yields(self, signal, bkg, data):
         # NOTE: yields from AN2019_250_v6:Table 16
         an_yields = {
             'ggHH4b' : 1338.9 + 527.1,
@@ -361,13 +421,14 @@ class Analysis(Notebook):
             'ttbar-powheg' : 5369.2 + 8648.7,
             'jetht': 164307.0 + 96274.0,
         }
-        f_yields = study.make_path( os.path.join( self.dout, 'presel_yields.txt' ) )
+        f_yields = study.make_path( os.path.join( self.dout, 'presel_4btag_yields.txt' ) )
 
         def get_yield(tree):
             label = tree.sample
             an = an_yields.get(label, -1)
 
-            scale = tree.scale
+            mask = self.n_btag(tree) == 4
+            scale = tree.scale[mask]
 
             if not tree.is_data:
                 lumi = lumiMap[2018][0]
