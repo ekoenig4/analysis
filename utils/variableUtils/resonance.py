@@ -1,6 +1,5 @@
 import awkward as ak
 import numpy as np
-import hilbert 
 from .variable_tools import cache_variable
     
 @cache_variable(bins=(0,300,30))
@@ -21,6 +20,8 @@ def flatten_mxmy(tree):
 
 @cache_variable(bins=(0,1,30))
 def hilbert_mxmy(tree):
+    import hilbert 
+    
     mx_bins = np.linspace(0,2000,30)
     my_bins = np.linspace(0,1000,30)
 
@@ -33,6 +34,8 @@ def hilbert_mxmy(tree):
 
 @cache_variable(bins=(0,1,30))
 def hilbert_mxmy2(tree):
+    import hilbert 
+    
     mx_bins = np.linspace(0,2000,30)
     my_bins = np.linspace(0,1000,30)
 
