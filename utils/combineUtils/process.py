@@ -19,9 +19,10 @@ def run_popen(cmd, **kwargs):
     log = p.communicate()[0]
     if p.returncode != 0:
         raise RuntimeError('Command failed: %s' % cmd)
+    return log
 
 class CombineProcess:
-    def __init__(self, path, datacard, model):
+    def __init__(self, path, datacard, model=None, remove_workspace=True):
         self.path = path
 
         if not os.path.exists(self.path):
@@ -32,6 +33,7 @@ class CombineProcess:
 
         self.datacard = datacard
         self.model = model
+        self.remove_workspace = remove_workspace
 
     def __enter__(self):
         if not os.path.exists(self.working_dir):
@@ -40,7 +42,8 @@ class CombineProcess:
         with open(os.path.join(self.working_dir, 'datacard.txt'), 'w') as f:
             f.write(self.datacard)
 
-        self.model.export_to_root(os.path.join(self.working_dir, 'model.root'))
+        if self.model:
+            self.model.export_to_root(os.path.join(self.working_dir, 'model.root'))
 
         combine_run = [
             f'cd {self.working_dir}',
@@ -52,7 +55,7 @@ class CombineProcess:
         with open(f'{self.working_dir}/run.sh', 'w') as f:
             f.write( '\n'.join(combine_run) )
 
-        run_popen(f'sh {self.working_dir}/run.sh')
+        self.log = run_popen(f'sh {self.working_dir}/run.sh')
 
         combine_out = f'{self.working_dir}/higgsCombineTest.AsymptoticLimits.mH120.root'
 
@@ -63,10 +66,15 @@ class CombineProcess:
         self.norm_obs_limit, self.norm_obs_limitErr = limits[-1], limitErr[-1]
         self.norm_exp_limit, self.norm_exp_limitErr = limits[:-1], limitErr[:-1]
 
-        self.obs_limit, self.obs_limitErr = self.norm_obs_limit * self.model.norm, self.norm_obs_limitErr * self.model.norm
-        self.exp_limit, self.exp_limitErr = self.norm_exp_limit * self.model.norm, self.norm_exp_limitErr * self.model.norm
+        if self.model:
+            self.obs_limit, self.obs_limitErr = self.norm_obs_limit * self.model.norm, self.norm_obs_limitErr * self.model.norm
+            self.exp_limit, self.exp_limitErr = self.norm_exp_limit * self.model.norm, self.norm_exp_limitErr * self.model.norm
+        else:
+            self.obs_limit, self.obs_limitErr = self.norm_obs_limit, self.norm_obs_limitErr
+            self.exp_limit, self.exp_limitErr = self.norm_exp_limit, self.norm_exp_limitErr
 
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
-        shutil.rmtree(self.working_dir, ignore_errors=True)
+        if self.remove_workspace:
+            shutil.rmtree(self.working_dir, ignore_errors=True)

@@ -248,11 +248,14 @@ def ak_histogram(array, bins, axis=1):
         histograms[:,index-1] = ak.sum(digit_array == index, axis=axis)
     return histograms
 
-def build_p4(array, prefix=None, use_regressed=False, extra=[]):
-    kin = ['pt', 'eta', 'phi', 'm']+extra
+def build_p4(array, prefix=None, use_regressed=False, kin=['pt','eta','phi','m'], extra=[]):
+    kin = list(set(kin+extra))
     regmap = {}
     if use_regressed:
-        regmap = {'pt': 'ptRegressed', 'm': 'mRegressed'}
+        if isinstance(use_regressed, dict):
+            regmap = use_regressed
+        else:
+            regmap = {'pt': 'ptRegressed', 'm': 'mRegressed'}
 
     if prefix:
         def get_var(var): return f'{prefix}_{var}'
