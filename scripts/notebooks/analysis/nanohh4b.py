@@ -301,46 +301,11 @@ class Analysis(Notebook):
         if self.model is None:
             return
         
-        load_feynnet = fourb.f_load_feynnet_assignment(self.model, onnx=True, onnxdir='onnx', prefix='ak4', use_regressed=False)
-        def build_jets(tree):
-            quarks = ['h1b1', 'h1b2', 'h2b1', 'h2b2']
-            fields = ['pt','eta','phi','mass','btag_M','btag_L','btag_T','regpt','regmass','bdisc',]
-
-            jets = {
-                f'ak4_{field}' : ak_stack([tree[f'ak4_{q}_{field}'] for q in quarks], axis=1)
-                for field in fields
-            }
-
-            jets['ak4_signalId'] = -ak.ones_like(jets['ak4_pt'], dtype=np.int32)
-
-            jets.update(
-                **{
-                    rename : jets[field]
-                    for field, rename in {
-                        'ak4_regpt' : 'ak4_ptRegressed',
-                        'ak4_regmass' : 'ak4_mRegressed',
-                        'ak4_mass' : 'ak4_m',
-                        'ak4_bdisc' : 'ak4_btag',
-                    }.items()
-                }
-            )
-
-            jets['ak4_sinphi'] = np.sin(jets['ak4_phi'])
-            jets['ak4_cosphi'] = np.cos(jets['ak4_phi'])
-
-            order = ak.argsort(jets['ak4_pt'], axis=1, ascending=False)
-            for field, array in jets.items():
-                jets[field] = array[order]
-
-            tree.extend(**jets)
-
-        (signal+bkg+data).apply(build_jets, report=True)
+        load_feynnet = fourb.nanohh4b.f_evaluate_feynnet(self.model)
         import multiprocess as mp
         nprocs = min(4, len(signal+bkg+data))
         with mp.Pool(nprocs) as pool:
             (signal+bkg+data).parallel_apply(load_feynnet, pool=pool, report=True)
-
-        (signal+bkg+data).apply(fourb.nanohh4b.assign)
 
 
     def plot_reco_eff(self, signal):
