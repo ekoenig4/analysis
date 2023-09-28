@@ -136,8 +136,8 @@ def reconstruct(jets, assignment):
         regmass=h_regp4.mass,
     ))
 
-    h_pt_order = ak_rank(higgs.pt, axis=1)
-    j_pt_order = ak_rank(jets.pt, axis=1)
+    h_pt_order = ak_rank(higgs.regpt, axis=1)
+    j_pt_order = ak_rank(jets.regpt, axis=1)
 
     h_j_pt_order = j_pt_order + 10*h_pt_order[:,[0,0,1,1]]
 
@@ -177,7 +177,9 @@ from ..classUtils import ParallelMethod
 class f_evaluate_feynnet(ParallelMethod):
     def __init__(self, model_path, onnxdir='onnx'):
         super().__init__()
-        self.model = weaver.WeaverONNX(model_path, onnxdir=onnxdir)
+
+        self.model_path = model_path
+        self.onnxdir = onnxdir
 
     def start(self, tree):
         jets = get_ak4_jets(tree)
@@ -186,13 +188,12 @@ class f_evaluate_feynnet(ParallelMethod):
 
         return dict(
             jets=jets,
-            model=self.model,
         )
 
-    def run(self, jets, model):
+    def run(self, jets):
         jets = jets[ak_rank(-jets.ak4_bdisc) < 4]
-
-        results = model(jets)
+        model = weaver.WeaverONNX(self.model_path, onnxdir=self.onnxdir)
+        results = model.predict(jets)
         assignments = ak.from_regular(results['sorted_j_assignments'].astype(int), axis=2)
         best_assignment = assignments[:,0]
         return reconstruct(jets, best_assignment)

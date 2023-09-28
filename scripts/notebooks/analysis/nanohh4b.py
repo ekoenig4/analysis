@@ -46,21 +46,22 @@ def n_tight_btag(t):
 
 @cache_variable(bins=(0,100,30))
 def h_dm(t):
-    return np.sqrt( (t.dHH_H1_mass - 125)**2 + (t.dHH_H2_mass - 120)**2 )
+    return np.sqrt( (t.dHH_H1_regmass - 125)**2 + (t.dHH_H2_regmass - 120)**2 )
 
 @cache_variable(bins=(0,100,30))
 def vr_h_dm(t):
-    return np.sqrt( (t.dHH_H1_mass - 179)**2 + (t.dHH_H2_mass - 172)**2 )
+    return np.sqrt( (t.dHH_H1_regmass - 179)**2 + (t.dHH_H2_regmass - 172)**2 )
 
 bdt_features = [
     'ak4_h1b1_regpt', 'ak4_h1b2_regpt', 'ak4_h2b1_regpt', 'ak4_h2b2_regpt',
-    'dHH_H1_mass', 'dHH_H2_mass', 'dHH_H1_pt', 'dHH_H2_pt', 
+    'dHH_H1_regmass', 'dHH_H2_regmass', 'dHH_H1_pt', 'dHH_H2_pt', 
     'dHH_HH_mass', 'dHH_HH_pt','dHH_SumRegPtb', 'dHH_SumRegResb',
     'dHH_H1b1_H1b2_deltaR', 'dHH_H2b1_H2b2_deltaR', 'dHH_H1_H2_deltaEta','dHH_mindRbb', 
     'dHH_maxdEtabb','dHH_absCosTheta_H1_inHHcm', 'dHH_absCosTheta_H1b1_inH1cm', 'dHH_NbtagT',
 ]
 
 varinfo.dHH_HH_mass = dict(bins=(200,1800,30))
+varinfo.dHH_HH_regmass = dict(bins=(200,1800,30))
 
 
 def get_local_alt(f):
@@ -110,6 +111,7 @@ class Analysis(Notebook):
         init_version = f'_init_v{self.load_init}'
         init = getattr(self, init_version)
         init()
+
 
         if self.btagwp == 'loose':
             self.n_btag = n_loose_btag
@@ -183,8 +185,8 @@ class Analysis(Notebook):
         self.bkg = ObjIter([])
 
         # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
-        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
-        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
+        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
 
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/v1/{pairing}_data_2018_0L/data/jetht_tree.root'
         f_data = f_pattern.format(pairing=self.pairing)
@@ -216,8 +218,8 @@ class Analysis(Notebook):
             self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
 
         # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
-        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
-        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
+        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
 
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_2018_0L/data/jetht_tree.root'
         f_data = f_pattern.format(pairing=self.pairing)
@@ -252,8 +254,8 @@ class Analysis(Notebook):
             self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
 
         # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
-        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
-        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight / 1000))
+        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
 
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_2018_0L/data/jetht_tree.root'
         f_data = f_pattern.format(pairing=self.pairing)
@@ -324,7 +326,7 @@ class Analysis(Notebook):
         study.quick(
             signal,
             masks=lambda t : t.nfound_select==4,
-            varlist=['dHH_H1_mass','dHH_H2_mass'],
+            varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             legend=True,
             efficiency=True,
             saveas=f'{self.dout}/reco_eff_higgs_mass',
@@ -333,7 +335,7 @@ class Analysis(Notebook):
     def plot_higgs(self, signal, bkg):
         study.quick(
             signal+bkg,
-            varlist=['dHH_H1_mass','dHH_H2_mass'],
+            varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             binlist=[(0,300,30)]*2,
             efficiency=True,
             legend=True,
@@ -342,7 +344,7 @@ class Analysis(Notebook):
 
         study.quick2d(
             signal+bkg,
-            varlist=['dHH_H1_mass','dHH_H2_mass'],
+            varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             binlist=[(0,300,30)]*2,
             legend=True,
             saveas=f'{self.dout}/higgs_mass2d',
@@ -524,7 +526,7 @@ class Analysis(Notebook):
         study.quick(
             data+bkg,
             masks=lambda t : self.n_btag(t) == 3,
-            varlist=['dHH_H1_mass','dHH_H2_mass'],
+            varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             binlist=[(0,300,30)]*2,
             efficiency=True,
             log=True,
@@ -537,7 +539,7 @@ class Analysis(Notebook):
         study.quick2d(
             data+bkg,
             masks=lambda t : self.n_btag(t) == 3,
-            varlist=['dHH_H1_mass','dHH_H2_mass'],
+            varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             binlist=[(0,300,30)]*2,
             legend=True,
 
