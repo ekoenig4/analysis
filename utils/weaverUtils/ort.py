@@ -1,6 +1,5 @@
 import numpy as np
 import json
-import onnxruntime
 
 
 def _pad(a, min_length, max_length, value=0, dtype='float32'):
@@ -70,6 +69,8 @@ class Preprocessor:
 class ONNXRuntimeHelper:
 
     def __init__(self, preprocess_file, model_files):
+        import onnxruntime
+        
         self.preprocessor = Preprocessor(preprocess_file)
         options = onnxruntime.SessionOptions()
         options.inter_op_num_threads = 1

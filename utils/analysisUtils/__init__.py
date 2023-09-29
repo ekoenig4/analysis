@@ -1,3 +1,5 @@
+print(DeprecationWarning("This module is deprecated. Use utils.notebookUtils instead."))
+
 import pkgutil, importlib
 
 __all__ = []

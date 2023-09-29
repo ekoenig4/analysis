@@ -12,7 +12,6 @@ from .bdtUtils import *
 from .testUtils import *
 from .combinatorics import *
 from .variableUtils import *
-from . import analysisUtils as analysis
 from . import eightbUtils as eightb
 from . import fourbUtils as fourb
 from . import sixbUtils as sixb
