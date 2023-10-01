@@ -1,8 +1,10 @@
 import numpy as np
 import json
-
+import awkward as ak
 
 def _pad(a, min_length, max_length, value=0, dtype='float32'):
+    return ak.fill_none( ak.pad_none(a, min_length, axis=-1, clip=True), value )
+
     if len(a) > max_length:
         return a[...,:max_length].astype(dtype)
     elif len(a) < min_length:
@@ -46,6 +48,11 @@ class Preprocessor:
                             replace_inf_value=0, pad=0, 
                             var_length=None, min_length=None, max_length=None, 
                             **info):
+        try:
+            a = _pad(a, var_length, var_length, dtype=dtype)
+        except KeyError:
+            a = _pad(a, min_length, max_length, dtype=dtype)
+            
         a = np.array(a, dtype=dtype)
 
         if median is not None:
@@ -57,10 +64,6 @@ class Preprocessor:
         if lower_bound is not None and upper_bound is not None:
             a = np.clip(a, lower_bound, upper_bound)
 
-        try:
-            a = _pad(a, var_length, var_length, dtype=dtype)
-        except KeyError:
-            a = _pad(a, min_length, max_length, dtype=dtype)
         # a = np.expand_dims(a, axis=0)
 
         return a.astype(dtype)

@@ -159,6 +159,9 @@ def reconstruct(jets, assignment):
     }
     arrays = dict(**quarks, **higgs)
 
+    arrays['_higgs_order_'] = h_order
+    arrays['_jet_order_'] = j_order
+
     arrays['dHH_H1_H2_deltaEta'] = calc_deta(arrays['dHH_H1_eta'], arrays['dHH_H2_eta'])
     arrays['dHH_H1_H2_deltaPhi'] = calc_dphi(arrays['dHH_H1_phi'], arrays['dHH_H2_phi'])
     arrays['dHH_H1_H2_deltaR'] = np.sqrt(arrays['dHH_H1_H2_deltaEta']**2 + arrays['dHH_H1_H2_deltaPhi']**2)
@@ -191,12 +194,74 @@ class f_evaluate_feynnet(ParallelMethod):
         )
 
     def run(self, jets):
-        jets = jets[ak_rank(-jets.ak4_bdisc) < 4]
+        jets = jets[ ak.argsort(-jets.ak4_bdisc, axis=1) ]
         model = weaver.WeaverONNX(self.model_path, onnxdir=self.onnxdir)
-        results = model.predict(jets)
+        results = model.predict(jets, batch_size=1000)
         assignments = ak.from_regular(results['sorted_j_assignments'].astype(int), axis=2)
         best_assignment = assignments[:,0]
         return reconstruct(jets, best_assignment)
+
+    def end(self, tree, **results):
+        tree.extend(**results)
+
+class f_evaluate_spanet(ParallelMethod):
+    def __init__(self, model_path, onnxdir=''):
+        super().__init__()
+
+        self.model_path = model_path
+        self.onnxdir = onnxdir
+
+    def start(self, tree):
+        jets = get_ak4_jets(tree)
+
+        return dict(
+            jets=jets,
+        )
+
+    def get_reconstruction(self, jets, h1_assignment_probability, h2_assignment_probability, **results):
+        _, nj1, nj2 = h1_assignment_probability.shape
+        h1_assignment_probability = h1_assignment_probability.reshape(-1, nj1 * nj2)
+        h2_assignment_probability = h2_assignment_probability.reshape(-1, nj1 * nj2)
+
+        h1_maxprob, h2_maxprob = np.max(h1_assignment_probability, axis=1), np.max(h2_assignment_probability, axis=1)
+        max_mask = h1_maxprob >= h2_maxprob
+        leading_pair = np.where(max_mask, np.argmax(h1_assignment_probability, axis=1), np.argmax(h2_assignment_probability, axis=1))
+        h1_j1_index = leading_pair // nj1
+        h1_j2_index = leading_pair % nj2
+        index = ak.local_index(h1_assignment_probability, axis=1).to_numpy()
+        mask_pair = ( index // nj1 == h1_j1_index ) & ( index % nj2 == h1_j2_index )
+        next_leading_pair = np.where(max_mask, np.argmax( np.where(mask_pair, 0, h2_assignment_probability) , axis=1), np.argmax( np.where(mask_pair, 0, h1_assignment_probability), axis=1))
+        h2_j1_index = next_leading_pair // nj1
+        h2_j2_index = next_leading_pair % nj2
+        assignment = ak.from_regular(np.stack([h1_j1_index, h1_j2_index, h2_j1_index, h2_j2_index], axis=1))
+        return reconstruct(jets, assignment)
+    
+    def get_detection(self, h1_detection_probability, h2_detection_probability, _higgs_order_, **results):
+
+        higgs_dp = ak.from_regular(np.stack([h1_detection_probability, h2_detection_probability], axis=1))
+        higgs_dp = higgs_dp[_higgs_order_]
+
+        return dict(
+            dHH_H1_dp = higgs_dp[:,0],
+            dHH_H2_dp = higgs_dp[:,1],
+        )
+
+    def run(self, jets):
+        jets = jets[ak_rank(-jets.ak4_bdisc) < 6]
+        jets['ak4_sinphi'] = np.sin(jets['ak4_phi'])
+        jets['ak4_cosphi'] = np.cos(jets['ak4_phi'])
+        jets['ak4_mask'] = ak.ones_like(jets.ak4_pt, dtype=bool)
+
+        model = weaver.WeaverONNX(self.model_path, onnxdir=self.onnxdir)
+        results = model.predict(jets)
+
+        reconstruction = self.get_reconstruction(jets, **results)
+        detection = self.get_detection(**results, **reconstruction)
+
+        return dict(
+            **reconstruction,
+            **detection,
+        )
 
     def end(self, tree, **results):
         tree.extend(**results)

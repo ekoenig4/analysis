@@ -302,6 +302,9 @@ class Analysis(Notebook):
     def load_feynnet(self, signal, bkg, data):
         if self.model is None:
             return
+
+        if 'feynnet' not in self.model:
+            return
         
         load_feynnet = fourb.nanohh4b.f_evaluate_feynnet(self.model)
         import multiprocess as mp
@@ -309,6 +312,19 @@ class Analysis(Notebook):
         with mp.Pool(nprocs) as pool:
             (signal+bkg+data).parallel_apply(load_feynnet, pool=pool, report=True)
 
+    @required
+    def load_spanet(self, signal, bkg, data):
+        if self.model is None:
+            return
+        
+        if 'spanet' not in self.model:
+            return
+
+        load_spanet = fourb.nanohh4b.f_evaluate_spanet(self.model)
+        import multiprocess as mp
+        nprocs = min(4, len(signal+bkg+data))
+        with mp.Pool(nprocs) as pool:
+            (signal+bkg+data).parallel_apply(load_spanet, pool=pool, report=True)
 
     def plot_reco_eff(self, signal):
         signal.apply(fourb.nanohh4b.match_ak4_gen)

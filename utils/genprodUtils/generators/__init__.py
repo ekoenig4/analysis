@@ -8,6 +8,10 @@ class Generator:
         self.__dict__.update(config)
         self.gen_info = gen_info
 
+    def check(self, threshold=0.7, size=1000):
+        eff = self.efficiency(size)
+        return eff > threshold
+
     def event(self, size=1):
         return ak.zip({
             key : dist(size)
@@ -19,6 +23,11 @@ class Generator:
     
     def physics(self, event):
         return dict()
+
+    def efficiency(self, size=1000):
+        event = self.event(size)
+        valid_mask = self.valid(event)
+        return np.mean(valid_mask)
 
     def __call__(self, size=1):
         event = self.event(size)
