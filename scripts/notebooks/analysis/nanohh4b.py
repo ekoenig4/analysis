@@ -63,9 +63,14 @@ bdt_features = [
 varinfo.dHH_HH_mass = dict(bins=(200,1800,30))
 varinfo.dHH_HH_regmass = dict(bins=(200,1800,30))
 
+def to_local(f):
+    if f.startswith('/eos/user/e/ekoenig/'):
+        return f.replace('/eos/user/e/ekoenig/','/store/user/ekoenig/')
+    
+    if f.startswith('/eos/user/m/mkolosov/'):
+        return f.replace('/eos/user/m/mkolosov/','/store/user/ekoenig/')
 
 def get_local_alt(f):
-    to_local = lambda f : f.replace('/eos/user/e/ekoenig/','/store/user/ekoenig/')
     alt_pattern = to_local(f)
 
     alt_glob = fc.fs.eos.glob(alt_pattern)
@@ -86,8 +91,11 @@ class Analysis(Notebook):
     def add_parser(parser):
         parser.add_argument('--dout', type=str, default='')
         parser.add_argument('--pairing', type=str, default='mindiag', )
-        parser.add_argument('--load-init', type=int, default=3)
+        parser.add_argument('--load-init', type=int, default=6)
+
         parser.add_argument('--btagwp', type=str, default='medium')
+        parser.add_argument('--hh-mass-cut', type=str, default=None)
+
         parser.add_argument('--no-bkg', action='store_true')
         parser.add_argument('--no-data', action='store_true')
         parser.add_argument('--model', type=str, default=None)
@@ -96,6 +104,11 @@ class Analysis(Notebook):
 
     @required
     def init(self):
+        if self.load_init == 5: 
+            self.dout = os.path.join(self.dout,'central')
+        else:
+            self.dout = os.path.join(self.dout,'private')
+
         self.dout = os.path.join("nanoHH4b",self.dout,self.pairing)
 
         if self.model is not None:
@@ -104,7 +117,7 @@ class Analysis(Notebook):
         
         if self.bdisc_wp is not None:
             wptag = str(self.bdisc_wp).replace('.','p')
-            self.dout = os.path.join(self.dout, f'{self.btagwp}_bdisc{wptag}/')
+            self.dout = os.path.join(self.dout, f'{self.btagwp}_bdisc{wptag}')
         else:
             self.dout = os.path.join(self.dout, self.btagwp)
 
@@ -205,7 +218,6 @@ class Analysis(Notebook):
 
         self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
 
-        # %%
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_2018_0L/mc/qcd-mg_tree.root'
         f_qcd = f_pattern.format(pairing=self.pairing)
 
@@ -265,6 +277,127 @@ class Analysis(Notebook):
         else:
             self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
 
+    def _init_v4(self):
+        treekwargs = dict(
+            use_gen=False,
+            treename='Events',
+            normalization=None,
+        )
+
+        base = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/btagfix/skim_20231001'
+        
+        f_pattern = '{base}/{pairing}_sig_2018_0L/mc/ggHH4b_tree.root'
+        f_sig = f_pattern.format(base=base, pairing=self.pairing)
+
+        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+
+        # %%
+        f_pattern = '{base}/{pairing}_2018_0L/mc/qcd-mg_tree.root'
+        f_qcd = f_pattern.format(base=base, pairing=self.pairing)
+
+        f_pattern = '{base}/{pairing}_2018_0L/mc/ttbar-powheg_tree.root'
+        f_ttbar = f_pattern.format(base=base, pairing=self.pairing)
+        
+        if self.no_bkg:
+            self.bkg = ObjIter([])
+        else:
+            self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
+
+        # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
+        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+
+        f_pattern = '{base}/{pairing}_2018_0L/data/jetht_tree.root'
+        f_data = f_pattern.format(base=base, pairing=self.pairing)
+
+        if self.no_data:
+            self.data = ObjIter([])
+        else:
+            self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+
+
+    def _init_v5(self):
+        """
+        DeepJet with MinDiag produced by Marina
+        """
+
+        treekwargs = dict(
+            use_gen=False,
+            treename='Events',
+            normalization=None,
+        )
+
+        self.pairing = 'mindiag'
+
+        base = '/eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/BugFix_UL2018_2018_0L'
+        
+        f_pattern = '{base}/mc/ggHH4b_tree.root'
+        f_sig = f_pattern.format(base=base)
+
+        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+
+        # %%
+        f_pattern = '{base}/mc/qcd-mg_tree.root'
+        f_qcd = f_pattern.format(base=base)
+
+        f_pattern = '{base}/mc/ttbar-powheg_tree.root'
+        f_ttbar = f_pattern.format(base=base)
+        
+        if self.no_bkg:
+            self.bkg = ObjIter([])
+        else:
+            self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
+
+        # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
+        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+
+        f_pattern = '{base}/data/jetht_tree.root'
+        f_data = f_pattern.format(base=base)
+
+        if self.no_data:
+            self.data = ObjIter([])
+        else:
+            self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+    
+    def _init_v6(self):
+        treekwargs = dict(
+            use_gen=False,
+            treename='Events',
+            normalization=None,
+        )
+
+        base = f'/eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/{self.pairing}_2018_0L'
+        
+        f_pattern = '{base}/mc/ggHH4b_tree.root'
+        f_sig = f_pattern.format(base=base)
+
+        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+
+        # %%
+        f_pattern = '{base}/mc/qcd-mg_tree.root'
+        f_qcd = f_pattern.format(base=base)
+
+        f_pattern = '{base}/mc/ttbar-powheg_tree.root'
+        f_ttbar = f_pattern.format(base=base)
+        
+        if self.no_bkg:
+            self.bkg = ObjIter([])
+        else:
+            self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
+
+        # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
+        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+
+        f_pattern = '{base}/data/jetht_tree.root'
+        f_data = f_pattern.format(base=base)
+
+        if self.no_data:
+            self.data = ObjIter([])
+        else:
+            self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+
     @required
     def apply_trigger(self):
         if self.load_init >= 3:
@@ -294,9 +427,9 @@ class Analysis(Notebook):
         (signal+bkg+data).apply(new_threshold)
 
         event_filter = EventFilter(f'exactly_3_btag{self.bdisc_wp}', filter=lambda t : self.n_btag(t) >= 3, verbose=True)
-        self.signal = self.signal.apply(event_filter)
-        self.bkg = self.bkg.apply(event_filter)
-        self.data = self.data.apply(event_filter)
+        self.signal = signal.apply(event_filter)
+        self.bkg = bkg.apply(event_filter)
+        self.data = data.apply(event_filter)
 
     @required
     def load_feynnet(self, signal, bkg, data):
@@ -325,6 +458,32 @@ class Analysis(Notebook):
         nprocs = min(4, len(signal+bkg+data))
         with mp.Pool(nprocs) as pool:
             (signal+bkg+data).parallel_apply(load_spanet, pool=pool, report=True)
+
+    @required
+    def hh_mass_cut(self, signal, bkg, data):
+        if self.hh_mass_cut is None:
+            return
+
+        operators = {
+            ">=" : "ge",
+            "<=" : "le",
+            ">" : "gt",
+            "<" : "lt",
+            None : None,
+        }
+
+        for operator, tag in operators.items():
+            if self.hh_mass_cut.startswith(operator):
+                break
+
+        tag = self.hh_mass_cut.replace(operator, tag).replace('.','p')
+        self.dout = os.path.join(self.dout, f'hh_mass_{tag}')
+        
+        hh_mass_cut = eval(f"lambda t : t.dHH_HH_regmass{self.hh_mass_cut}")
+        hh_mass_cut = EventFilter(f'hh_mass_cut_{tag}', filter=hh_mass_cut, verbose=True)
+        self.signal = signal.apply(hh_mass_cut)
+        self.bkg = bkg.apply(hh_mass_cut)
+        self.data = data.apply(hh_mass_cut)
 
     def plot_reco_eff(self, signal):
         signal.apply(fourb.nanohh4b.match_ak4_gen)
@@ -432,6 +591,20 @@ class Analysis(Notebook):
             print(table)
             f.write(table)
 
+    def control_plots_4b(self, signal, bkg, data):
+
+        bins = np.concatenate([np.arange(0, 600, 25), np.arange(600, 850, 50)])
+        study.quick(
+            signal + bkg + data, legend=True,
+            suptitle='4 b-tag Control Plots',
+            masks=lambda t : self.n_btag(t) == 4,
+            varlist=['dHH_H1_regpt','dHH_H2_regpt','dHH_H1_pt','dHH_H2_pt'],
+            binlist=[bins]*4,
+            log=True, ylim=(5e-1, 5e8),
+            **study.datamc, r_ylim=(0.5, 1.5),
+            saveas=f'{self.dout}/control_plots_4b',
+        ) 
+
     def print_3btag_yields(self, signal, bkg, data):
         # NOTE: yields from AN2019_250_v6:Table 19
         an_yields = {
@@ -467,6 +640,19 @@ class Analysis(Notebook):
             table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
             print(table)
             f.write(table)
+    
+    def control_plots_3b(self, signal, bkg, data):
+        bins = np.concatenate([np.arange(0, 600, 25), np.arange(600, 850, 50)])
+        study.quick(
+            signal + bkg + data, legend=True,
+            suptitle='3 b-tag Control Plots',
+            masks=lambda t : self.n_btag(t) == 3,
+            varlist=['dHH_H1_regpt','dHH_H2_regpt','dHH_H1_pt','dHH_H2_pt'],
+            binlist=[bins]*4,
+            log=True, ylim=(5e-1, 5e8),
+            **study.datamc, r_ylim=(0.5, 1.5),
+            saveas=f'{self.dout}/control_plots_3b',
+        ) 
 
     @required
     def blind_data(self, data):
@@ -483,16 +669,16 @@ class Analysis(Notebook):
                 'jetht': 0,
             },
             b = {
-                'ggHH4b' : 364.2 + 14.1,
-                'qcd-mg' : 14384.3 + 582.8,
-                'ttbar-powheg' : 2589.0 + 154.8,
-                'jetht': 28150.0 + 1616.0,
-            },
-            c = {
                 'ggHH4b' : 788.5 + 26.4,
                 'qcd-mg' : 32113.6 + 1345.0,
                 'ttbar-powheg' : 14435.2 + 642.3,
                 'jetht': 75628.0 + 3538.0,
+            },
+            c = {
+                'ggHH4b' : 364.2 + 14.1,
+                'qcd-mg' : 14384.3 + 582.8,
+                'ttbar-powheg' : 2589.0 + 154.8,
+                'jetht': 28150.0 + 1616.0,
             },
             d = {
                 'ggHH4b' : 434.1 + 12.9,
@@ -529,8 +715,8 @@ class Analysis(Notebook):
 
                 name = dict(
                     a='A_SR(4b)',
-                    b='A_CR(4b)',
-                    c='A_SR(3b)',
+                    b='A_SR(3b)',
+                    c='A_CR(4b)',
                     d='A_CR(3b)',
                 ).get(region)
                 print('Region:', name)
@@ -568,10 +754,13 @@ class Analysis(Notebook):
         self.bdt.print_results(data)
 
     @dependency(train_bdt)
-    def build_bkg_model(self, data):
+    def build_bkg_model(self, signal, data):
+        self.signal = signal.apply(EventFilter('A_SR(4b)', filter=self.bdt.a))
+
         bkg_model = EventFilter('bkg_model', filter=self.bdt.b)
         self.bkg_model = data.asmodel('bkg model').apply(bkg_model)
         self.bkg_model.apply(lambda t : t.reweight(self.bdt.reweight_tree))
+
 
     @dependency(build_bkg_model)
     def print_yields(self, signal, bkg_model):
@@ -587,7 +776,7 @@ class Analysis(Notebook):
         bkg_yields = bkg_model.apply(partial(get_yields)).npy.sum()
 
         lumi = lumiMap[2018][0]
-        sig_yields = lumi*signal.apply(partial(get_yields, f_mask=self.bdt.a)).npy.sum()
+        sig_yields = lumi*signal.apply(partial(get_yields)).npy.sum()
 
         print(f'Sig = {sig_yields:.2f}')
         print(f'Bkg = {bkg_yields:.2f}')
@@ -598,7 +787,6 @@ class Analysis(Notebook):
         model = []
         study.quick(
             signal+bkg_model,
-            masks=[self.bdt.a]*len(signal),
             varlist=['dHH_HH_mass'],
             plot_scale=[1000]*len(signal),
             limits=True,
@@ -621,6 +809,106 @@ class Analysis(Notebook):
             os.makedirs(self.dout)
         with open(f'{self.dout}/limit_values.pkl', 'wb') as f:
             pickle.dump(info, f)
+
+    @dependency(build_bkg_model)
+    def train_bdt_classifier(self, signal, bkg_model):
+        self.bdt_classifier = KFoldBDTClassifier(
+            features=bdt_features,
+            kfold=2
+        )
+
+        self.bdt_classifier.train(bkg_model, signal)
+        self.bdt_classifier.print_results(bkg_model, signal)
+        (signal + bkg_model).apply(lambda t : t.extend(bdt_score=self.bdt_classifier.predict_tree(t)))
+
+    @dependency(train_bdt_classifier)
+    def validate_bdt_classifier(self, signal, bkg_model):
+        sig_weights = signal.scale.cat * lumiMap[2018][0]
+        sig_index = signal.apply(lambda t : np.arange(len(t))).cat % 2
+        sig_bdt_0_score = signal.apply(self.bdt_classifier.bdts[0].predict_tree).cat
+        sig_bdt_1_score = signal.apply(self.bdt_classifier.bdts[1].predict_tree).cat
+
+        bkg_weights = bkg_model.scale.cat
+        bkg_index = bkg_model.apply(lambda t : np.arange(len(t))).cat % 2
+        bkg_bdt_0_score = bkg_model.apply(self.bdt_classifier.bdts[0].predict_tree).cat
+        bkg_bdt_1_score = bkg_model.apply(self.bdt_classifier.bdts[1].predict_tree).cat
+
+        # trained discriminant C0 in train/test samples
+        fig, _, _ = hist_multi(
+            [sig_bdt_0_score[sig_index == 1], bkg_bdt_0_score[bkg_index == 1], sig_bdt_0_score[sig_index == 0], bkg_bdt_0_score[bkg_index == 0]],
+            weights = [sig_weights[sig_index == 1], bkg_weights[bkg_index == 1], sig_weights[sig_index == 0], bkg_weights[bkg_index == 0]],
+            stacked=False,
+            is_data = [False, False, True, True],
+            h_label=['S (Train)', 'B (Train)', 'S (Test)', 'B (Test)'],
+            h_color=['blue', 'red', 'blue', 'red'],
+            h_alpha=[0.5, 0.5, 1.0, 1.0],
+            h_histtype=['stepfilled', 'stepfilled', None, None],
+            efficiency=True, legend=True,
+
+            ratio=True, r_group=((0, 2), (1, 3)), r_ylabel='Test/Train',
+        )
+        study.save_fig(fig, f'{self.dout}/bdt_classifier_0_train_test')
+        
+        # trained discriminant C1 in train/test samples
+        fig, _, _ = hist_multi(
+            [sig_bdt_1_score[sig_index == 0], bkg_bdt_1_score[bkg_index == 0], sig_bdt_1_score[sig_index == 1], bkg_bdt_1_score[bkg_index == 1]],
+            weights = [sig_weights[sig_index == 0], bkg_weights[bkg_index == 0], sig_weights[sig_index == 1], bkg_weights[bkg_index == 1]],
+            stacked=False,
+            is_data = [False, False, True, True],
+            h_label=['S (Train)', 'B (Train)', 'S (Test)', 'B (Test)'],
+            h_color=['blue', 'red', 'blue', 'red'],
+            h_alpha=[0.5, 0.5, 1.0, 1.0],
+            h_histtype=['stepfilled', 'stepfilled', None, None],
+            efficiency=True, legend=True,
+
+            ratio=True, r_group=((0, 2), (1, 3)), r_ylabel='Test/Train',
+        )
+        study.save_fig(fig, f'{self.dout}/bdt_classifier_1_train_test')
+
+        fig, _, _ = hist_multi(
+            [sig_bdt_1_score[sig_index == 1], bkg_bdt_1_score[bkg_index == 1], sig_bdt_0_score[sig_index == 0], bkg_bdt_0_score[bkg_index == 0]],
+            weights = [sig_weights[sig_index == 1], bkg_weights[bkg_index == 1], sig_weights[sig_index == 0], bkg_weights[bkg_index == 0]],
+            stacked=False,
+            is_data = [False, False, True, True],
+            h_label=['S (C2)', 'B (C2)', 'S (C1)', 'B (C1)'],
+            h_color=['blue', 'red', 'blue', 'red'],
+            h_alpha=[0.5, 0.5, 1.0, 1.0],
+            h_histtype=['stepfilled', 'stepfilled', None, None],
+            efficiency=True, legend=True,
+
+            ratio=True, r_group=((0, 2), (1, 3)), r_ylabel='C2/C1',
+        )
+        study.save_fig(fig, f'{self.dout}/bdt_classifier_0_vs_1')
+
+    @dependency(train_bdt_classifier)
+    def bdt_classifier_limits(self, signal, bkg_model):
+        model = []
+        study.quick(
+            signal+bkg_model,
+            varlist=['bdt_score'],
+            plot_scale=[1000]*len(signal),
+            binlist=[(0,1,30)],
+            limits=True,
+            l_store=model,
+            legend=True,
+            ylim=(0, 7000),
+            saveas=f'{self.dout}/bdt_score_limits',
+        )
+
+        model = model[0][0]
+
+        info = dict(
+            sig_yield = np.sum(model.h_sig.histo),
+            bkg_yield = np.sum(model.h_bkg.histo),
+            exp_lim = model.h_sig.stats.exp_limits[2],
+        )
+        import pickle
+
+        if not os.path.exists(self.dout):
+            os.makedirs(self.dout)
+        with open(f'{self.dout}/bdt_limit_values.pkl', 'wb') as f:
+            pickle.dump(info, f)
+
 
     def train_vr_bdt(self, data):
         self.vr_bdt.print_yields(data)

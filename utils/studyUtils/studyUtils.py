@@ -110,6 +110,19 @@ def get_figax(nvar=1, dim=(-1, -1), flip=False, size=(-1, -1), **kwargs):
                         figsize=(int(xsize*ncols), ysize*nrows),
                         dpi=80, **kwargs)
 
+def split_axis(ax, position='bottom', size='20%', sharex=True, sharey=False, pad=0.1, **kwargs):
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    if not hasattr(ax, 'divider'): 
+        ax.divider = make_axes_locatable(ax)
+        sub_ax = ax
+
+    prev = ax.sub_ax if hasattr(ax, 'sub_ax') else ax
+    if sharex: prev.get_xaxis().set_visible(0)
+    sub_ax = ax.divider.append_axes(position, size=size, pad=pad, sharex=prev if sharex else None, sharey=prev if sharey else None, **kwargs)
+    ax.sub_ax = sub_ax
+
+    return ax, sub_ax
+
 
 def cutflow(*args, size=(16, 8), log=1, h_label_stat=None, scale=True, density=False, lumi=2018, **kwargs):
     study = Study(*args, log=log,

@@ -82,7 +82,8 @@ def _plot_objects(figax, plotobjs, position='bottom', size='20%', sharex=True, s
         if isinstance(plotobj,DataList): 
             graph_histos(plotobj,figax=(fig, sub_ax), exe=exe)
         elif isinstance(plotobj, Stack): 
-            plot_stack(plotobj,figax=(fig, sub_ax), exe=exe)
+            sort = 'smallest' if kwargs.get('log', False) else 'largest'
+            plot_stack(plotobj,figax=(fig, sub_ax), sort=sort, exe=exe)
         elif isinstance(plotobj, HistoList): 
             plot_histos(plotobj,errors=errors, fill_error=fill_error, figax=(fig, sub_ax), exe=exe)
         elif isinstance(plotobj, Histo): 

@@ -430,9 +430,10 @@ class Tree:
         new_tree = CopyTree(self)
         return new_tree
 
-    def subset(self, range=None, nentries=None, randomize=True):
+    def subset(self, range=None, nentries=None, fraction=None, randomize=True):
         tree = self.copy()
 
+        if fraction: range = (0,int(fraction*len(self.ttree)))
         if nentries: range = (0,nentries)
 
         assert range is not None, "Specify a range (start,stop)"

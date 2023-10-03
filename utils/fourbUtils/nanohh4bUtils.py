@@ -265,3 +265,40 @@ class f_evaluate_spanet(ParallelMethod):
 
     def end(self, tree, **results):
         tree.extend(**results)
+
+def to_local(f):
+    if f.startswith('/eos/user/e/ekoenig/'):
+        return f.replace('/eos/user/e/ekoenig/','/store/user/ekoenig/')
+    
+    if f.startswith('/eos/user/m/mkolosov/'):
+        return f.replace('/eos/user/m/mkolosov/','/store/user/ekoenig/')
+
+def get_local_alt(f):
+    import utils.fileUtils as fc
+
+    alt_pattern = to_local(f)
+
+    alt_glob = fc.fs.eos.glob(alt_pattern)
+    if any(alt_glob):
+        return alt_glob
+    
+    remote_glob = fc.fs.cernbox.glob(f)
+    if any(remote_glob):
+        alt_glob = [ to_local(f) for f in remote_glob ]
+        remote_glob = [ fc.fs.cernbox.fullpath(f) for f in remote_glob ]
+        fc.fs.eos.batch_copy_to(remote_glob, alt_glob)
+
+    alt_glob = fc.fs.eos.glob(alt_pattern)
+    return alt_glob
+
+def n_loose_btag(t):
+    nL = t.ak4_h1b1_btag_L + t.ak4_h1b2_btag_L + t.ak4_h2b1_btag_L + t.ak4_h2b2_btag_L
+    return ak.values_astype(nL, np.int32)
+
+def n_medium_btag(t):
+    nM = t.ak4_h1b1_btag_M + t.ak4_h1b2_btag_M + t.ak4_h2b1_btag_M + t.ak4_h2b2_btag_M
+    return ak.values_astype(nM, np.int32)
+
+def n_tight_btag(t):
+    nT = t.ak4_h1b1_btag_T + t.ak4_h1b2_btag_T + t.ak4_h2b1_btag_T + t.ak4_h2b2_btag_T
+    return ak.values_astype(nT, np.int32)

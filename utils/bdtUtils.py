@@ -294,7 +294,7 @@ class DataMC_BDT(BDTReweighter):
 
 
 class BDTClassifier:
-    def __init__(self, features, scaler='iron', loss='log', n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, **kwargs):
+    def __init__(self, features, scaler='iron', loss='log', n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, seed=None, **kwargs):
         self.feature_names = features
 
         scaler = dict(
@@ -311,7 +311,9 @@ class BDTClassifier:
                                                 n_estimators=n_estimators,
                                                 learning_rate=learning_rate,
                                                 max_depth=max_depth,
-                                                min_samples_leaf=min_samples_leaf,))
+                                                min_samples_leaf=min_samples_leaf,
+                                                random_state=seed,
+                                                ))
         ])
 
     def save(self, fname='bdt_classifier.pkl', path=f'{GIT_WD}/models'):
@@ -375,7 +377,7 @@ class BDTClassifier:
         P_0 = self.classifier.predict_proba(X_0)[:,1]
         P_1 = self.classifier.predict_proba(X_1)[:,1]
 
-        hs = HistoList([P_0,P_1], bins=(0,1,30), weights=[W_0,W_1])
+        hs = HistoList.from_arrays([P_0,P_1], bins=(0,1,30), weights=[W_0,W_1])
         es = hs.ecdf(sf=True)
         roc = Correlation(es[0], es[1])
 
@@ -388,4 +390,63 @@ class BDTClassifier:
         print(
             "--- BDT Classifier Results ---\n"
             f"AUROC = {results['auroc']:0.3f}"
+        )
+
+class KFoldBDTClassifier(BDTClassifier):
+    def __init__(self, features, kfold=2, seed=42069, **kwargs):
+        self.feature_names = features
+        self.kfold = kfold
+        self.bdts = [BDTClassifier(features, seed=seed + i, **kwargs) for i in range(kfold)]
+
+    def get_split(self, treeiter : ObjIter):
+        if not isinstance(treeiter, ObjIter): treeiter = ObjIter([treeiter])
+        index = treeiter.apply(lambda t : np.arange(len(t))).cat 
+        return index % self.kfold
+
+    def train(self, bkgiter : ObjIter, sigiter : ObjIter):
+        X_0, W_0 = self.get_features(bkgiter)
+        X_1, W_1 = self.get_features(sigiter)
+
+        S_0 = self.get_split(bkgiter)
+        S_1 = self.get_split(sigiter)
+
+        X = np.concatenate([X_0, X_1])
+        W = np.concatenate([W_0, W_1])
+        Y = np.concatenate([np.zeros_like(W_0), np.ones_like(W_1)])
+        S = np.concatenate([S_0, S_1])
+
+        for i, bdt in enumerate(self.bdts):
+            bdt.classifier.fit(X[S != i], Y[S != i], bdt__sample_weight=W[S != i])
+
+    def predict_tree(self, treeiter : ObjIter):
+        X, _ = self.get_features(treeiter)
+        S = self.get_split(treeiter)
+
+        P = np.zeros(len(X))
+        for i, bdt in enumerate(self.bdts):
+            P[S == i] = bdt.classifier.predict_proba(X[S == i])[:,1]
+        return P
+    
+    def validate_tree(self, treeiter : ObjIter):
+        X, _ = self.get_features(treeiter)
+        S = self.get_split(treeiter)
+
+        P = np.zeros(len(X))
+        for i, bdt in enumerate(self.bdts):
+            P[S != i] = bdt.classifier.predict_proba(X[S != i])[:,1]
+        return P
+
+    def results(self, bkgiter : ObjIter, sigiter : ObjIter):
+        _, W_0 = self.get_features(bkgiter)
+        _, W_1 = self.get_features(sigiter)
+
+        P_0 = self.predict_tree(bkgiter)
+        P_1 = self.predict_tree(sigiter)
+
+        hs = HistoList.from_arrays([P_0,P_1], bins=(0,1,30), weights=[W_0,W_1])
+        es = hs.ecdf(sf=True)
+        roc = Correlation(es[0], es[1])
+
+        return dict(
+            auroc=roc.stats.area
         )

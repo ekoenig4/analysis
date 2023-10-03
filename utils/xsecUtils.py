@@ -30,10 +30,10 @@ colorMap = {
     "MX_1200_MY_500": 'mediumorchid',
 
     "QCD": "lightblue",
-    "qcd-mg": "lightblue",
+    "qcd-mg": "#FFBE00",
 
     "TTJets": "darkseagreen",
-    "ttbar-powheg": "darkseagreen",
+    "ttbar-powheg": "#59D454",
 
     "Data": "black",
     "MC-Bkg": "grey"

@@ -8,7 +8,6 @@ kstest = dict(
 datamc = dict(
     ratio=True,
     r_ylabel="Data/MC",
-    r_ylim=(0.65,1.35)
 )
 
 auroc = dict(
