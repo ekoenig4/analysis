@@ -107,6 +107,7 @@ def build_collection(tree, pattern, name, ordered=None, ptordered=False, replace
 def _flatten(array):
     if check_instance(array, ak.Array):
         array = ak.flatten(array, axis=None)
+        array = ak.fill_none(array, np.nan)
         return ak.to_numpy(array)
     if check_instance(array, torch.Tensor):
         array = torch.flatten(array)

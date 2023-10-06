@@ -67,7 +67,7 @@ def _group_objs(histobjs):
         x = next(filter(lambda hist: not isinstance(hist,Stack), histobjs))
     x = histobjs.index(x)
     ys = [ y for y in range(len(histobjs)) if y != x ]
-    group = [ (x, ys) ]
+    group = [ (x, y) for y in ys  ]
     return group
 
 def _plot_objects(figax, plotobjs, position='bottom', size='20%', sharex=True, sharey=False, pad=0.1, errors=True, fill_error=False, exe=None, as_new_plot=False, **kwargs):
@@ -324,7 +324,7 @@ def _add_correlation(figax,plotobjs, store=None,show=True,size='75%', grid=True,
         ylabel=kwargs['remaining'].get('ylabel', {'ad':r'$\frac{dA^2}{dH_n}$'}.get(method, '')),
         xlabel=kwargs['remaining'].get('xlabel', {'ad':'Hn'}.get(method, None))
         ))
-
+    
     if label_stat is None:
         label_stat = {
             'ad':'area',
@@ -340,24 +340,24 @@ def _add_correlation(figax,plotobjs, store=None,show=True,size='75%', grid=True,
         if isinstance(plotobj, Stack): return plotobj.get_histo()
         return plotobj
     
-    def _plotobj_correlation(plotobj, x):
+    def _plotobj_correlation(plotobj, x, __id__=None, **kwargs):
         if isinstance(plotobj,Stack):
             y = plotobj.get_histo()
-            return Correlation(x, y,color='black', inv=inv, label_stat=label_stat, method=method)
+            return Correlation(x, y,color='black', inv=inv, label_stat=label_stat, method=method, **kwargs)
         elif isinstance(plotobj,HistoList):
             for y in plotobj:
                 if x is y: continue
-                return Correlation(x, y, inv=inv, label_stat=label_stat, method=method)
-        return Correlation(x,plotobj, inv=inv, label_stat=label_stat, method=method)
+                return Correlation(x, y, inv=inv, label_stat=label_stat, method=method, **kwargs)
+        return Correlation(x,plotobj, inv=inv, label_stat=label_stat, method=method, **kwargs)
     
-    for x, ys in group:
+    attrs = AttrArray(**kwargs['obj'])
+    for i, (x, y) in enumerate(group):
         x = _plotobj_x( histobjs[x] )
-        if isinstance(ys, int): ys = [ys]
-        
-        for y in map(histobjs.__getitem__, ys):
-            correlation = _plotobj_correlation(y, x)
-            if correlation is None: continue
-            correlations.append(correlation)
+
+        pltkwargs = attrs[i] if len(attrs) > i else {}
+        correlation = _plotobj_correlation(histobjs[y], x, **pltkwargs)
+        if correlation is None: continue
+        correlations.append(correlation)
     _store_objects(store, correlations)
             
     if (show):

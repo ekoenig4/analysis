@@ -178,14 +178,26 @@ def reconstruct(jets, assignment):
 
 from ..classUtils import ParallelMethod
 class f_evaluate_feynnet(ParallelMethod):
-    def __init__(self, model_path, onnxdir='onnx'):
+    def __init__(self, model_path, onnxdir='onnx', batch_size=5000):
         super().__init__()
 
         self.model_path = model_path
         self.onnxdir = onnxdir
+        self.batch_size = batch_size
 
-    def start(self, tree):
+        self.start = {
+            'onnx':self.start_onnx,
+            'predict':self.start_predict,
+        }.get(onnxdir)
+
+        self.run = {
+            'onnx':self.run_onnx,
+            'predict':self.run_predict,
+        }.get(onnxdir)
+
+    def start_onnx(self, tree):
         jets = get_ak4_jets(tree)
+        jets['ak4_log_pt'] = np.log(jets['ak4_pt'])
         jets['ak4_sinphi'] = np.sin(jets['ak4_phi'])
         jets['ak4_cosphi'] = np.cos(jets['ak4_phi'])
 
@@ -193,12 +205,26 @@ class f_evaluate_feynnet(ParallelMethod):
             jets=jets,
         )
 
-    def run(self, jets):
+    def run_onnx(self, jets):
         jets = jets[ ak.argsort(-jets.ak4_bdisc, axis=1) ]
         model = weaver.WeaverONNX(self.model_path, onnxdir=self.onnxdir)
-        results = model.predict(jets, batch_size=1000)
-        assignments = ak.from_regular(results['sorted_j_assignments'].astype(int), axis=2)
-        best_assignment = assignments[:,0]
+        results = model.predict(jets, batch_size=self.batch_size)
+        best_assignment = ak.from_regular(results['sorted_j_assignments'], axis=1)
+        best_assignment = ak.values_astype(best_assignment, np.int32)
+        return reconstruct(jets, best_assignment)
+
+    def start_predict(self, tree):
+        jets = get_ak4_jets(tree)
+        filelist = [ fn.true_fname for fn in tree.filelist ]
+        return dict(
+            jets=jets,
+            filelist=filelist,
+        )
+    
+    def run_predict(self, jets, filelist):
+        jets = jets[ ak_rank(-jets.ak4_bdisc, axis=1) < 6 ]
+        results = weaver.load_predict_filelist(filelist, self.model_path, fields=['sorted_j_assignments'])
+        best_assignment = ak.from_regular(results['sorted_j_assignments'].astype(int), axis=1)
         return reconstruct(jets, best_assignment)
 
     def end(self, tree, **results):
@@ -265,31 +291,6 @@ class f_evaluate_spanet(ParallelMethod):
 
     def end(self, tree, **results):
         tree.extend(**results)
-
-def to_local(f):
-    if f.startswith('/eos/user/e/ekoenig/'):
-        return f.replace('/eos/user/e/ekoenig/','/store/user/ekoenig/')
-    
-    if f.startswith('/eos/user/m/mkolosov/'):
-        return f.replace('/eos/user/m/mkolosov/','/store/user/ekoenig/')
-
-def get_local_alt(f):
-    import utils.fileUtils as fc
-
-    alt_pattern = to_local(f)
-
-    alt_glob = fc.fs.eos.glob(alt_pattern)
-    if any(alt_glob):
-        return alt_glob
-    
-    remote_glob = fc.fs.cernbox.glob(f)
-    if any(remote_glob):
-        alt_glob = [ to_local(f) for f in remote_glob ]
-        remote_glob = [ fc.fs.cernbox.fullpath(f) for f in remote_glob ]
-        fc.fs.eos.batch_copy_to(remote_glob, alt_glob)
-
-    alt_glob = fc.fs.eos.glob(alt_pattern)
-    return alt_glob
 
 def n_loose_btag(t):
     nL = t.ak4_h1b1_btag_L + t.ak4_h1b2_btag_L + t.ak4_h2b1_btag_L + t.ak4_h2b2_btag_L

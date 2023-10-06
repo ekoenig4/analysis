@@ -101,16 +101,16 @@ class ABCD(BDTReweighter):
     cr_total = sum( yields[r] for r in ('c','d') )
     region_total = sr_total + cr_total
 
-    a_total = f'{yields["a"]}'.center(8)
+    a_total = f'{yields["a"]:00.4e}'.center(8)
     a_effic = f'{yields["a"]/nevents:00.2%}'.center(8)
 
-    b_total = f'{yields["b"]}'.center(8)
+    b_total = f'{yields["b"]:00.4e}'.center(8)
     b_effic = f'{yields["b"]/nevents:00.2%}'.center(8)
 
-    c_total = f'{yields["c"]}'.center(8)
+    c_total = f'{yields["c"]:00.4e}'.center(8)
     c_effic = f'{yields["c"]/nevents:00.2%}'.center(8)
     
-    d_total = f'{yields["d"]}'.center(8)
+    d_total = f'{yields["d"]:00.4e}'.center(8)
     d_effic = f'{yields["d"]/nevents:00.2%}'.center(8)
 
     sample = treeiter.sample.list
@@ -294,7 +294,7 @@ class DataMC_BDT(BDTReweighter):
 
 
 class BDTClassifier:
-    def __init__(self, features, scaler='iron', loss='log', n_estimators=50, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, seed=None, **kwargs):
+    def __init__(self, features, scaler='iron', loss='log', n_estimators=200, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, seed=None, **kwargs):
         self.feature_names = features
 
         scaler = dict(

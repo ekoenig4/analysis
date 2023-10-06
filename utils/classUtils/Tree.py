@@ -2,6 +2,8 @@ import traceback
 from ..hepUtils import *
 from ..xsecUtils import *
 from ..utils import *
+
+from .AttrArray import AttrArray
 # from ..fileUtils import eos
 
 from ..fileUtils import fs
@@ -30,9 +32,45 @@ def _glob_files(pattern):
     if any(files): return files
     return []
 
+def copy_to_local(fname, local=eos):
+    if os.path.isfile(fname): return fname
+    if eos.exists(fname): return eos.fullpath(fname)
+
+    import re
+    remote_pattern = re.compile(r'root://.*?//(.*)')
+    match = remote_pattern.match(fname)
+
+    if not match: return fname
+
+    local_path = os.path.join('/store/user/ekoenig/', match.group(1))
+
+    if not eos.exists(local_path):
+        eos.copy_to(fname, local_path)
+
+    return eos.fullpath(local_path)
+...
+
+def tree_expr(tree, expr):
+    import ast
+    scope = dict(ak=ak, np=np, len=len)
+
+    # get fields referenced in expression
+    fields = set()
+    for node in ast.walk(ast.parse(expr)):
+        if isinstance(node, ast.Name):
+            fields.add(node.id)
+    fields = fields - set(scope.keys())
+
+    # get fields from tree
+    fields = { field: tree[field] for field in fields }
+
+    # evaluate expression
+    return eval(expr, scope, fields)
+
 class RootFile:
     def __init__(self, fname, treename='sixBtree', sample=None, xsec=None, normalization=None):
-        self.fname = _check_file(fname)
+        self.true_fname = fname
+        self.fname = copy_to_local(fname)
 
         if self.fname is None: 
             print(f'[WARNING] skipping {self.fname}, was not found.')
@@ -45,7 +83,7 @@ class RootFile:
         self.total_events = self.raw_events
         self.fields = tree.fields
 
-        if normalization is not None:
+        if normalization is not None:       
             self.set_normalization(normalization)   
             
         del tree
@@ -72,8 +110,16 @@ class RootFile:
             self.set_tree_normalization(normalization)
         elif 'cutflow' in normalization:
             self.set_cutflow_normalization(normalization)
+        elif 'eff_histo' in normalization:
+            self.set_eff_histo_normalization(normalization)
         elif normalization:
             self.set_histo_normalization(normalization)
+
+    def set_eff_histo_normalization(self, eff_histo):
+        with ut.open(f'{self.fname}:{eff_histo}') as eff_histo:
+            self.cutflow_labels = eff_histo.axis().labels()
+            self.cutflow = eff_histo
+            self.total_events = np.sum(self.cutflow.counts()[np.array(self.cutflow_labels) == 'Ntot_w'])
 
     def set_cutflow_normalization(self, cutflow):
         with ut.open(f'{self.fname}:{cutflow}') as cutflow:
@@ -87,7 +133,7 @@ class RootFile:
             self.total_events = histo.Integral()
 
     def set_dict_normalization(self, norms):
-        ...
+        raise NotImplementedError
 
     def set_tree_normalization(self, treebranch):
         treename, branchname = treebranch.split(':')
@@ -124,7 +170,7 @@ class RootFile:
 
         eos.move(tmp_output, output)
 
-def init_files(self, filelist, treename, normalization, altfile="{base}", report=True):
+def init_files(self, filelist, treename, normalization, altfile="{base}", report=True, xsec=None):
     if type(filelist) == str:
         if filelist.endswith('.txt'):
             with open(filelist, 'r') as f:
@@ -152,9 +198,10 @@ def init_files(self, filelist, treename, normalization, altfile="{base}", report
 
     it = tqdm(filelist) if report else iter(filelist)
     self.filelist = []
-    for fn in it:
+    xsec = AttrArray.init_attr(xsec, None, len(filelist))
+    for i, fn in enumerate(it):
         try:
-            self.filelist.append( RootFile(fn, treename, normalization=normalization) )
+            self.filelist.append( RootFile(fn, treename, normalization=normalization, xsec=xsec[i]) )
         except Exception as err:
             traceback.print_exc()
             print(f'[WARNING] skipping {fn}, unable to open.')
@@ -245,7 +292,9 @@ def init_empty(self):
     self.cutflow = [Histo(counts=np.array([]), bins=np.array([]))]
     self.cutflow_labels = []
 
-def init_tree(self, use_gen=False, cache=None, normalization=None):
+def init_tree(self, weights=['genWeight'], cache=None, normalization=None):
+    if weights is None: weights = []
+    
     self.fields = sorted(list(set.intersection(*[ set(fn.fields) for fn in self.filelist])))
 
     if self.lazy :
@@ -254,8 +303,8 @@ def init_tree(self, use_gen=False, cache=None, normalization=None):
         self.ttree = ut.lazy([fn.tree for fn in self.filelist])
     self.ttree = self.ttree[self.fields]
 
-
-    scale = self.ttree['genWeight'] if (use_gen and 'genWeight' in self.fields) else 1
+    weights = [ weight for weight in weights if any(field in weight for field in self.fields) ]
+    scale = functools.reduce(lambda x, y : x * y, [self[weight] for weight in weights], 1)
 
     self.extend(
         sample_id=ak.concatenate([ak.Array([i]*fn.raw_events)
@@ -323,10 +372,10 @@ class Tree:
         return tree
 
 
-    def __init__(self, filelist, altfile="{base}", report=True, use_gen=True, treename='sixBtree', normalization='h_cutflow', **kwargs):
+    def __init__(self, filelist, altfile="{base}", report=True, treename='sixBtree', weights=['genWeight'], normalization='h_cutflow', xsec=None, **kwargs):
         self._recursion_safe_guard_stack = []
 
-        init_files(self, filelist, treename, normalization, altfile, report)
+        init_files(self, filelist, treename, normalization, altfile, report, xsec=xsec)
 
         if not any(self.filelist):
             init_empty(self)
@@ -334,7 +383,7 @@ class Tree:
             print('          ', filelist)
         else:
             init_sample(self)
-            init_tree(self, use_gen, normalization=normalization)
+            init_tree(self, weights, normalization=normalization)
 
         self.reductions = dict()
         self.__dict__.update(**kwargs)
@@ -351,6 +400,7 @@ class Tree:
     def __getitem__(self, key): 
         if isinstance(key, list):
             return self.ttree[key]
+        return tree_expr(self.ttree, key)
 
         slice = None
         if isinstance(key,str) and any(re.findall(r'\[.*\]', key)):

@@ -92,6 +92,7 @@ class remote:
         return self.mount.glob(path, with_path=with_path)
 
     def exists(self, path):
+        path = self.cleanpath(path)
         return self.mount.exists(path)
 
     def copy_from(self, src, dest):

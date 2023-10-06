@@ -231,7 +231,8 @@ class GraphFromHisto(Graph):
         x, xerr = get_bin_centers(histo.bins), get_bin_widths(histo.bins)
 
         super().__init__(x, y, xerr=xerr, yerr=yerr)
-    
+        self.histokwargs = histo.kwargs
+
 def _to_graph(obj):
     if hasattr(obj, 'histo'): return GraphFromHisto(obj)
     return obj
@@ -451,4 +452,7 @@ class Correlation(Graph):
 
         
         super().__init__(x , y, **kwargs)
+
+        self._x_ = num
+        self._y_ = den
 

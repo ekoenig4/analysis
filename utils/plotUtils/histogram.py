@@ -119,7 +119,7 @@ class Histo:
         counts = this.histo + that.histo
         error = np.sqrt( this.error**2 + that.error**2 )
 
-        return Histo(counts, this.bins, error)
+        return Histo(counts, this.bins, error, bin_labels=this.bin_labels, **this.kwargs)
 
 
     @classmethod
@@ -127,8 +127,10 @@ class Histo:
         counts = scale*th1d.counts()
         error = scale*th1d.errors()
         bins = th1d.axis().edges()
+        bin_labels = np.array(th1d.axis().labels())
 
-        return cls(counts, bins, error, **kwargs)
+
+        return cls(counts, bins, error, bin_labels=bin_labels, **kwargs)
 
     @classmethod
     def from_graph(cls, graph, **kwargs):
@@ -248,7 +250,7 @@ class Histo:
     def __setstate__(self, state):
         self.__init__(**state)
 
-    def __init__(self, counts, bins, error=None, array=None, weights=None, raw_counts=None,
+    def __init__(self, counts, bins, error=None, array=None, weights=None, raw_counts=None, bin_labels=None,
                        efficiency=False, density=False, cumulative=False, lumi=None, scale=1, plot_scale=1,
                        is_data=False, is_signal=False, is_model=False, fit=None, continous=False, ndata=None, 
                        systematics=None, label_stat='events', __id__=None, **kwargs):
@@ -256,6 +258,7 @@ class Histo:
 
         self.histo = np.array(counts)
         self.bins = np.array(bins)
+        self.bin_labels = bin_labels
 
         self.error = error
         if error is None:

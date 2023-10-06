@@ -2,23 +2,22 @@ import numpy as np
 import awkward as ak
 
 def get_bin_centers(bins):
+    if bins.dtype.type == np.str_: return get_bin_centers( np.arange(len(bins)) )
     return np.array([(lo+hi)/2 for lo, hi in zip(bins[:-1], bins[1:])])
 
-
 def get_bin_widths(bins):
+    if bins.dtype.type == np.str_: return get_bin_widths( np.arange(len(bins)) )
     return np.array([(hi-lo)/2 for lo, hi in zip(bins[:-1], bins[1:])])
 
-
 def get_bin_line(bins):
+    if bins.dtype.type == np.str_: return get_bin_line( np.arange(len(bins)) )
     return np.linspace(bins[0], bins[-1], len(bins) - 1)
-
 
 def safe_divide(a, b, default=None):
     a, b = np.array(a), np.array(b)
     tmp = np.full_like(a, default, dtype=float)
     np.divide(a, b, out=tmp, where=(b != 0))
     return tmp
-
 
 def reject_outliers(data, m=2.):
     d = np.abs(data - np.median(data))
@@ -35,7 +34,6 @@ def restrict_array(array, bins, **params):
         params = [param[x_lo & x_hi] for param in params.values()]
         return array, *params
     return array
-
 
 def _autobin_(data, nstd=3, nbins=30):
     ndata = ak.size(data)

@@ -155,7 +155,11 @@ def plot_histo(histo, errors=True, fill_error=False, figax=None, exe=None, **kwa
         return graph_histo(histo, errors=errors, figax=(fig,ax), **kwargs)
 
     bins = histo.bins 
-    x = get_bin_centers(histo.bins)
+
+    if histo.bin_labels is not None:
+        kwargs['xlabel'] = histo.bin_labels
+
+    x = get_bin_centers(bins)
     y = histo.histo * histo.plot_scale
     yerr = histo.error * histo.plot_scale
     

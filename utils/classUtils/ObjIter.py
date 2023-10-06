@@ -295,7 +295,7 @@ class ObjIter:
         result = thread_pool.imap_unordered( parallel_function, enumerate(self.objs), chunksize=1 )
         
         if report:
-            result = tqdm(result, total=len(self), desc=get_function_name(obj_function))
+            result = tqdm(result, total=len(self), desc=get_function_name(obj_function), leave=False)
 
         result = map(lambda x : x[1], sorted(result, key=lambda x: x[0]))
         return ObjIter(result)

@@ -3,6 +3,14 @@ import numpy as np
 import awkward as ak
 import glob, os
 
+def get_filehash(filename):
+    import hashlib, re
+    match = re.match(r'^root://.*?/(.*)$', filename)
+    if match:
+        filename = match.group(1)
+    filename = os.path.normpath(filename)
+    return hashlib.md5(filename.encode()).hexdigest()
+
 def load_from_ak0(toload, fields=['scores']):
     import awkward0 as ak0
     fields = {
@@ -12,12 +20,16 @@ def load_from_ak0(toload, fields=['scores']):
 
     return fields
 
-def load_from_root(toload, fields=['scores']):
+def load_from_root(toload, fields=[]):
     import uproot
 
     def load_fields(fn, fields):
         with uproot.open(fn) as f:
             ttree = f['Events']
+
+            if not fields:
+                fields += ttree.keys()
+
             return { field:ttree[field].array() for field in fields }
 
     arrays = [
@@ -65,5 +77,22 @@ def load_output(tree, model=None, fields=['scores'], try_base=True, try_year=Fal
     if not any(toload): 
         raise ValueError(f'No weaver output found for model {model}. With rgxs {rgxs}')
         
+    load = load_from_root if all( fn.endswith('.root') for fn in toload ) else load_from_ak0
+    return load(toload, fields=fields)
+
+def load_predict(tree, model, fields=[]):
+    filelist = [ fn.true_fname for fn in tree.filelist ]
+    return load_predict_filelist(filelist, model, fields=fields)
+
+def load_predict_filelist(filelist, model, fields=[]):
+    predict_path = os.path.join(model,"predict")
+    if not os.path.exists(predict_path):
+        raise ValueError(f'No predict found for model {model}.')
+    
+    filehashes = [ get_filehash(fn) for fn in filelist ]
+    toload = [ fn for filehash in filehashes for fn in glob.glob( os.path.join(predict_path,filehash)+'*' ) ]
+    if not any(toload): 
+        raise ValueError(f'No weaver output found for model {model}. With rgxs {filehashes}')
+    
     load = load_from_root if all( fn.endswith('.root') for fn in toload ) else load_from_ak0
     return load(toload, fields=fields)

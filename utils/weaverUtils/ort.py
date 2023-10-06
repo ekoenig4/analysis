@@ -3,7 +3,9 @@ import json
 import awkward as ak
 
 def _pad(a, min_length, max_length, value=0, dtype='float32'):
-    return ak.fill_none( ak.pad_none(a, min_length, axis=-1, clip=True), value )
+    a = ak.pad_none(a, max_length, axis=-1, clip=True)
+    a = ak.fill_none(a, value)
+    return ak.values_astype(a, dtype)
 
     if len(a) > max_length:
         return a[...,:max_length].astype(dtype)
@@ -48,25 +50,21 @@ class Preprocessor:
                             replace_inf_value=0, pad=0, 
                             var_length=None, min_length=None, max_length=None, 
                             **info):
-        try:
-            a = _pad(a, var_length, var_length, dtype=dtype)
-        except KeyError:
-            a = _pad(a, min_length, max_length, dtype=dtype)
-            
-        a = np.array(a, dtype=dtype)
-
         if median is not None:
             a = (a - median)
 
         if norm_factor is not None:
             a = a * norm_factor
 
+        try:
+            a = _pad(a, var_length, var_length, dtype=dtype)
+        except KeyError:
+            a = _pad(a, min_length, max_length, dtype=dtype)
+
+        a = np.array(a)
         if lower_bound is not None and upper_bound is not None:
             a = np.clip(a, lower_bound, upper_bound)
-
-        # a = np.expand_dims(a, axis=0)
-
-        return a.astype(dtype)
+        return a
 
 
 class ONNXRuntimeHelper:
@@ -85,20 +83,26 @@ class ONNXRuntimeHelper:
         self.output_names = [ n for n in self.preprocessor.prep_params['output_names']]
         # print('Loaded ONNX models:\n  %s\npreprocess file:\n  %s' % ('\n  '.join(model_files), str(preprocess_file)))
 
-    def predict(self, inputs, model_idx=None, batch_size=5000):
-        data = self.preprocessor.preprocess(inputs)
-        if batch_size > len(data): batch_size = None
+    def predict(self, inputs, model_idx=None, batch_size=5000, report=True):
+        
+        if batch_size >= len(inputs): batch_size = None
 
         if batch_size is None:
-            return self.predict_batch(data, model_idx)
+            return self.predict_batch(inputs, model_idx)
 
         import awkward as ak
         from collections import defaultdict
         
         outputs = defaultdict(list)
-        n_batches = max(1, len(data) // batch_size)
-        for batch in np.array_split(np.arange(len(data)), n_batches):
-            batch = data[batch[0]:batch[-1]]
+        n_batches = max(1, len(inputs) // batch_size)
+
+        it = enumerate(np.array_split(np.arange(len(inputs)), n_batches))
+        if report:
+            from tqdm import tqdm
+            it = tqdm(it, total=n_batches, desc='predicting')
+
+        for i, batch in it:
+            batch = inputs[batch[0]:batch[-1]+1]
 
             for key, array in self.predict_batch(batch, model_idx).items():
                 outputs[key].append(array)
@@ -106,7 +110,21 @@ class ONNXRuntimeHelper:
         outputs = {k: ak.concatenate(v, axis=0) for k, v in outputs.items()}
         return outputs
 
-    def predict_batch(self, data, model_idx=None):
+    def predict_batch(self, batch, model_idx=None):
+        data = self.preprocessor.preprocess(batch)
+
+        if len(self.sessions) == 1:
+            model_idx = 0
+
+        if model_idx is not None:
+            outputs = self.sessions[model_idx].run([], data)
+
+        # else:
+            
+        outputs = {n: v for n, v in zip(self.output_names, outputs)}
+        return outputs
+
+
         if model_idx is not None:
             outputs = self.sessions[model_idx].run([], data)
             outputs = [ out[0] for out in outputs ]
