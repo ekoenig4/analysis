@@ -31,17 +31,17 @@ def main():
 
 @cache_variable
 def n_loose_btag(t):
-    nL = t.ak4_h1b1_btag_L + t.ak4_h1b2_btag_L + t.ak4_h2b1_btag_L + t.ak4_h2b2_btag_L
+    nL = 1*t.ak4_h1b1_btag_L + 1*t.ak4_h1b2_btag_L + 1*t.ak4_h2b1_btag_L + 1*t.ak4_h2b2_btag_L
     return ak.values_astype(nL, np.int32)
 
 @cache_variable
 def n_medium_btag(t):
-    nM = t.ak4_h1b1_btag_M + t.ak4_h1b2_btag_M + t.ak4_h2b1_btag_M + t.ak4_h2b2_btag_M
+    nM = 1*t.ak4_h1b1_btag_M + 1*t.ak4_h1b2_btag_M + 1*t.ak4_h2b1_btag_M + 1*t.ak4_h2b2_btag_M
     return ak.values_astype(nM, np.int32)
 
 @cache_variable
 def n_tight_btag(t):
-    nT = t.ak4_h1b1_btag_T + t.ak4_h1b2_btag_T + t.ak4_h2b1_btag_T + t.ak4_h2b2_btag_T
+    nT = 1*t.ak4_h1b1_btag_T + 1*t.ak4_h1b2_btag_T + 1*t.ak4_h2b1_btag_T + 1*t.ak4_h2b2_btag_T
     return ak.values_astype(nT, np.int32)
 
 @cache_variable(bins=(0,100,30))
@@ -69,22 +69,6 @@ def to_local(f):
     
     if f.startswith('/eos/user/m/mkolosov/'):
         return f.replace('/eos/user/m/mkolosov/','/store/user/ekoenig/')
-
-def get_local_alt(f):
-    alt_pattern = to_local(f)
-
-    alt_glob = fc.fs.eos.glob(alt_pattern)
-    if any(alt_glob):
-        return alt_glob
-    
-    remote_glob = fc.fs.cernbox.glob(f)
-    if any(remote_glob):
-        alt_glob = [ to_local(f) for f in remote_glob ]
-        remote_glob = [ fc.fs.cernbox.fullpath(f) for f in remote_glob ]
-        fc.fs.eos.batch_copy_to(remote_glob, alt_glob)
-
-    alt_glob = fc.fs.eos.glob(alt_pattern)
-    return alt_glob
 
 class Analysis(Notebook):
     @staticmethod
@@ -125,6 +109,16 @@ class Analysis(Notebook):
         init = getattr(self, init_version)
         init()
 
+        def ttbar_subset(tree : Tree):
+            if 'ttbar' not in tree.sample: return tree
+            print(f'Taking 10% of ttbar: {len(tree)}')
+            org_sumw = np.sum(tree.scale)
+            tree = tree.subset(fraction=0.1, randomize=False)
+            print(f'  => {len(tree)}')
+            new_sumw = np.sum(tree.scale)
+            tree.reweight(org_sumw / new_sumw)
+            return tree
+        self.bkg = self.bkg.apply(ttbar_subset)
 
         if self.btagwp == 'loose':
             self.n_btag = n_loose_btag
@@ -160,28 +154,28 @@ class Analysis(Notebook):
 
     def _init_v0(self):
         treekwargs = dict(  
-            use_gen=False,
+            weights=['xsecWeight/1000','genWeight','puWeight'],
             treename='Events',
             normalization='Runs:genEventCount',
         )
 
         f_pattern = '/eos/user/e/ekoenig/4BAnalysis/CMSSW_12_5_0/src/PhysicsTools/NanoHH4b/run/jobs_sig_{pairing}_2018_0L/mc/GluGluToHHTo4B_node_cHHH1_TuneCP5_13TeV-powheg-pythia8_1_tree.root'
         f_sig = f_pattern.format(pairing=self.pairing)
-        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
 
         # %%
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/bkg_{pairing}_2018_0L/mc/QCD*.root'
         f_bkg = f_pattern.format(pairing=self.pairing)
-        self.bkg = ObjIter([Tree( get_local_alt(f_bkg), **treekwargs)])
+        self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_bkg), **treekwargs)])
         # self.bkg = ObjIter([])
 
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/data_{pairing}_2018_0L/data/JetHT*.root'
         f_data = f_pattern.format(pairing=self.pairing)
-        self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+        self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
 
     def _init_v1(self):
         treekwargs = dict(
-            use_gen=False,
+            weights=['xsecWeight/1000','genWeight','puWeight'],
             treename='Events',
             normalization=None,
         )
@@ -189,26 +183,22 @@ class Analysis(Notebook):
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/v1/{pairing}_sig_2018_0L/mc/ggHH4b_tree.root'
         f_sig = f_pattern.format(pairing=self.pairing)
 
-        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
 
         # %%
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/v1/{pairing}_bkg_2018_0L/mc/qcd-mg_tree.root'
         f_bkg = f_pattern.format(pairing=self.pairing)
-        # self.bkg = ObjIter([Tree( get_local_alt(f_bkg), **treekwargs)])
+        # self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_bkg), **treekwargs)])
         self.bkg = ObjIter([])
-
-        # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
-        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
-        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
 
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/v1/{pairing}_data_2018_0L/data/jetht_tree.root'
         f_data = f_pattern.format(pairing=self.pairing)
-        self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+        self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
 
 
     def _init_v2(self):
         treekwargs = dict(
-            use_gen=False,
+            weights=['xsecWeight/1000','genWeight','puWeight'],
             treename='Events',
             normalization=None,
         )
@@ -216,7 +206,7 @@ class Analysis(Notebook):
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_sig_2018_0L/mc/ggHH4b_tree.root'
         f_sig = f_pattern.format(pairing=self.pairing)
 
-        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
 
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_2018_0L/mc/qcd-mg_tree.root'
         f_qcd = f_pattern.format(pairing=self.pairing)
@@ -227,11 +217,7 @@ class Analysis(Notebook):
         if self.no_bkg:
             self.bkg = ObjIter([])
         else:
-            self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
-
-        # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
-        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
-        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
 
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_2018_0L/data/jetht_tree.root'
         f_data = f_pattern.format(pairing=self.pairing)
@@ -239,11 +225,11 @@ class Analysis(Notebook):
         if self.no_data:
             self.data = ObjIter([])
         else:
-            self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
 
     def _init_v3(self):
         treekwargs = dict(
-            use_gen=False,
+            weights=['xsecWeight/1000','genWeight','puWeight'],
             treename='Events',
             normalization=None,
         )
@@ -251,7 +237,7 @@ class Analysis(Notebook):
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_sig_2018_0L/mc/ggHH4b_tree.root'
         f_sig = f_pattern.format(pairing=self.pairing)
 
-        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
 
         # %%
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_2018_0L/mc/qcd-mg_tree.root'
@@ -263,11 +249,7 @@ class Analysis(Notebook):
         if self.no_bkg:
             self.bkg = ObjIter([])
         else:
-            self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
-
-        # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
-        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
-        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
 
         f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_2018_0L/data/jetht_tree.root'
         f_data = f_pattern.format(pairing=self.pairing)
@@ -275,11 +257,11 @@ class Analysis(Notebook):
         if self.no_data:
             self.data = ObjIter([])
         else:
-            self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
 
     def _init_v4(self):
         treekwargs = dict(
-            use_gen=False,
+            weights=['xsecWeight/1000','genWeight','puWeight'],
             treename='Events',
             normalization=None,
         )
@@ -289,7 +271,7 @@ class Analysis(Notebook):
         f_pattern = '{base}/{pairing}_sig_2018_0L/mc/ggHH4b_tree.root'
         f_sig = f_pattern.format(base=base, pairing=self.pairing)
 
-        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
 
         # %%
         f_pattern = '{base}/{pairing}_2018_0L/mc/qcd-mg_tree.root'
@@ -301,11 +283,7 @@ class Analysis(Notebook):
         if self.no_bkg:
             self.bkg = ObjIter([])
         else:
-            self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
-
-        # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
-        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
-        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
 
         f_pattern = '{base}/{pairing}_2018_0L/data/jetht_tree.root'
         f_data = f_pattern.format(base=base, pairing=self.pairing)
@@ -313,7 +291,7 @@ class Analysis(Notebook):
         if self.no_data:
             self.data = ObjIter([])
         else:
-            self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
 
 
     def _init_v5(self):
@@ -322,7 +300,7 @@ class Analysis(Notebook):
         """
 
         treekwargs = dict(
-            use_gen=False,
+            weights=['xsecWeight/1000','genWeight','puWeight'],
             treename='Events',
             normalization=None,
         )
@@ -334,7 +312,7 @@ class Analysis(Notebook):
         f_pattern = '{base}/mc/ggHH4b_tree.root'
         f_sig = f_pattern.format(base=base)
 
-        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
 
         # %%
         f_pattern = '{base}/mc/qcd-mg_tree.root'
@@ -346,11 +324,7 @@ class Analysis(Notebook):
         if self.no_bkg:
             self.bkg = ObjIter([])
         else:
-            self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
-
-        # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
-        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
-        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
 
         f_pattern = '{base}/data/jetht_tree.root'
         f_data = f_pattern.format(base=base)
@@ -358,11 +332,11 @@ class Analysis(Notebook):
         if self.no_data:
             self.data = ObjIter([])
         else:
-            self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
     
     def _init_v6(self):
         treekwargs = dict(
-            use_gen=False,
+            weights=['xsecWeight/1000','genWeight','puWeight'],
             treename='Events',
             normalization=None,
         )
@@ -372,7 +346,7 @@ class Analysis(Notebook):
         f_pattern = '{base}/mc/ggHH4b_tree.root'
         f_sig = f_pattern.format(base=base)
 
-        self.signal = ObjIter([Tree( get_local_alt(f_sig), **treekwargs)])
+        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
 
         # %%
         f_pattern = '{base}/mc/qcd-mg_tree.root'
@@ -384,11 +358,7 @@ class Analysis(Notebook):
         if self.no_bkg:
             self.bkg = ObjIter([])
         else:
-            self.bkg = ObjIter([Tree( get_local_alt(f_qcd), **treekwargs), Tree( get_local_alt(f_ttbar), **treekwargs)])
-
-        # signal xsec is set to 0.010517 pb -> 31.05 fb * (0.58)^2 
-        (self.signal).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
-        (self.bkg).apply(lambda t : t.reweight(t.genWeight * t.xsecWeight * t.puWeight / 1000))
+            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
 
         f_pattern = '{base}/data/jetht_tree.root'
         f_data = f_pattern.format(base=base)
@@ -396,7 +366,7 @@ class Analysis(Notebook):
         if self.no_data:
             self.data = ObjIter([])
         else:
-            self.data = ObjIter([Tree( get_local_alt(f_data), **dict(treekwargs, normalization=None, color='black'))])
+            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
 
     @required
     def apply_trigger(self):
@@ -484,6 +454,24 @@ class Analysis(Notebook):
         self.signal = signal.apply(hh_mass_cut)
         self.bkg = bkg.apply(hh_mass_cut)
         self.data = data.apply(hh_mass_cut)
+
+    def plot_jet_multiplicity(self, signal, bkg, data):
+        study.quick(
+            signal + bkg + data, legend=True,
+            varlist=['ak.num(ak4_pt, axis=1)'],
+            xlabels=['Jet Multiplicity'],
+            log=True, ylim=(5e-1, 5e9),
+            **study.datamc, r_ylim=(0.5, 1.5),
+            saveas=f'{self.dout}/jet_multiplicity',
+        ) 
+        study.quick(
+            signal + bkg + data, legend=True,
+            efficiency=True,
+            varlist=['ak.num(ak4_pt, axis=1)'],
+            xlabels=['Jet Multiplicity'],
+            **study.datamc, r_ylim=(0.5, 1.5),
+            saveas=f'{self.dout}/jet_multiplicity_shape',
+        ) 
 
     def plot_reco_eff(self, signal):
         signal.apply(fourb.nanohh4b.match_ak4_gen)
@@ -787,7 +775,7 @@ class Analysis(Notebook):
         model = []
         study.quick(
             signal+bkg_model,
-            varlist=['dHH_HH_mass'],
+            varlist=['dHH_HH_regmass'],
             plot_scale=[1000]*len(signal),
             limits=True,
             l_store=model,
@@ -835,9 +823,9 @@ class Analysis(Notebook):
 
         # trained discriminant C0 in train/test samples
         fig, _, _ = hist_multi(
-            [sig_bdt_0_score[sig_index == 1], bkg_bdt_0_score[bkg_index == 1], sig_bdt_0_score[sig_index == 0], bkg_bdt_0_score[bkg_index == 0]],
-            weights = [sig_weights[sig_index == 1], bkg_weights[bkg_index == 1], sig_weights[sig_index == 0], bkg_weights[bkg_index == 0]],
-            stacked=False,
+            [sig_bdt_0_score[sig_index != 0], bkg_bdt_0_score[bkg_index != 0], sig_bdt_0_score[sig_index == 0], bkg_bdt_0_score[bkg_index == 0]],
+            weights = [sig_weights[sig_index != 0], bkg_weights[bkg_index != 0], sig_weights[sig_index == 0], bkg_weights[bkg_index == 0]],
+            bins=(0, 1, 21), stacked=False,
             is_data = [False, False, True, True],
             h_label=['S (Train)', 'B (Train)', 'S (Test)', 'B (Test)'],
             h_color=['blue', 'red', 'blue', 'red'],
@@ -846,14 +834,22 @@ class Analysis(Notebook):
             efficiency=True, legend=True,
 
             ratio=True, r_group=((0, 2), (1, 3)), r_ylabel='Test/Train',
+            
+            empirical=True, e_show=False,
+            e_correlation=True, e_c_method='roc', e_c_group=[(2,3), (0,1)],
+            e_c_o_label=['Train','Test'],
+            e_c_o_linestyle=['-','--'],
+            e_c_o_color='black',
+            e_c_o_alpha=[0.8, 1.0],
+            e_c_label_stat='area',
         )
         study.save_fig(fig, f'{self.dout}/bdt_classifier_0_train_test')
         
         # trained discriminant C1 in train/test samples
         fig, _, _ = hist_multi(
-            [sig_bdt_1_score[sig_index == 0], bkg_bdt_1_score[bkg_index == 0], sig_bdt_1_score[sig_index == 1], bkg_bdt_1_score[bkg_index == 1]],
-            weights = [sig_weights[sig_index == 0], bkg_weights[bkg_index == 0], sig_weights[sig_index == 1], bkg_weights[bkg_index == 1]],
-            stacked=False,
+            [sig_bdt_1_score[sig_index != 1], bkg_bdt_1_score[bkg_index != 1], sig_bdt_1_score[sig_index == 1], bkg_bdt_1_score[bkg_index == 1]],
+            weights = [sig_weights[sig_index != 1], bkg_weights[bkg_index != 1], sig_weights[sig_index == 1], bkg_weights[bkg_index == 1]],
+            bins=(0, 1, 21), stacked=False,
             is_data = [False, False, True, True],
             h_label=['S (Train)', 'B (Train)', 'S (Test)', 'B (Test)'],
             h_color=['blue', 'red', 'blue', 'red'],
@@ -862,13 +858,21 @@ class Analysis(Notebook):
             efficiency=True, legend=True,
 
             ratio=True, r_group=((0, 2), (1, 3)), r_ylabel='Test/Train',
+            
+            empirical=True, e_show=False,
+            e_correlation=True, e_c_method='roc', e_c_group=[(2,3), (0,1)],
+            e_c_o_label=['Train','Test'],
+            e_c_o_linestyle=['-','--'],
+            e_c_o_color='black',
+            e_c_o_alpha=[0.8, 1.0],
+            e_c_label_stat='area',
         )
         study.save_fig(fig, f'{self.dout}/bdt_classifier_1_train_test')
 
         fig, _, _ = hist_multi(
             [sig_bdt_1_score[sig_index == 1], bkg_bdt_1_score[bkg_index == 1], sig_bdt_0_score[sig_index == 0], bkg_bdt_0_score[bkg_index == 0]],
             weights = [sig_weights[sig_index == 1], bkg_weights[bkg_index == 1], sig_weights[sig_index == 0], bkg_weights[bkg_index == 0]],
-            stacked=False,
+            bins=(0, 1, 21), stacked=False,
             is_data = [False, False, True, True],
             h_label=['S (C2)', 'B (C2)', 'S (C1)', 'B (C1)'],
             h_color=['blue', 'red', 'blue', 'red'],
@@ -877,6 +881,14 @@ class Analysis(Notebook):
             efficiency=True, legend=True,
 
             ratio=True, r_group=((0, 2), (1, 3)), r_ylabel='C2/C1',
+            
+            empirical=True, e_show=False,
+            e_correlation=True, e_c_method='roc', e_c_group=((0,1), (2, 3)),
+            e_c_o_label=['C2','C1'],
+            e_c_o_linestyle=['-','--'],
+            e_c_o_color='black',
+            e_c_o_alpha=[0.8, 1.0],
+            e_c_label_stat='area',
         )
         study.save_fig(fig, f'{self.dout}/bdt_classifier_0_vs_1')
 
