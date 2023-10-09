@@ -1,6 +1,6 @@
 import pandas as pd
 import os
-from .. import GIT_WD
+from ..config import GIT_WD
 from ..classUtils import ObjIter
 from ..ak_tools import get_avg_std
 from ..plotUtils import obj_store

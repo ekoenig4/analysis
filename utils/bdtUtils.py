@@ -3,7 +3,8 @@ import awkward as ak
 from typing import Callable
 
 from .classUtils import ObjIter, Tree
-from .utils import ak_stack, GIT_WD
+from .utils import ak_stack
+from .config import GIT_WD
 from .xsecUtils import lumiMap
 from .plotUtils import HistoList, Correlation
 

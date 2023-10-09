@@ -1,4 +1,18 @@
-from attrdict import AttrDict
+# from attrdict import AttrDict
+
+class AttrDict(dict):
+    def __getitem__(self, key):
+        value = super().__getitem__(key)
+        if isinstance(value, dict) and not isinstance(value, AttrDict):
+            return AttrDict(value)
+        return value
+
+    def __getattr__(self, key):
+        try:
+            return self[key]
+        except KeyError:
+            raise AttributeError(key)
+
 
 def _unzip_kwargs(**kwargs):
     if not any(kwargs): return []

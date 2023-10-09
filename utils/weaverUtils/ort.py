@@ -69,7 +69,7 @@ class Preprocessor:
 
 class ONNXRuntimeHelper:
 
-    def __init__(self, preprocess_file, model_files):
+    def __init__(self, preprocess_file, model_files, accelerator='cpu'):
         import onnxruntime
         
         self.preprocessor = Preprocessor(preprocess_file)
@@ -77,15 +77,19 @@ class ONNXRuntimeHelper:
         options.inter_op_num_threads = 1
         options.intra_op_num_threads = 1
         options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+
+        providers = ['CPUExecutionProvider']
+        if accelerator == 'cuda':
+            providers = ['CUDAExecutionProvider']
+                     
         self.sessions = [onnxruntime.InferenceSession(model_path, sess_options=options,
-                                                      providers=['CPUExecutionProvider']) for model_path in model_files]
+                                                      providers=providers) for model_path in model_files]
         self.k_fold = len(self.sessions)
         self.output_names = [ n for n in self.preprocessor.prep_params['output_names']]
         # print('Loaded ONNX models:\n  %s\npreprocess file:\n  %s' % ('\n  '.join(model_files), str(preprocess_file)))
 
     def predict(self, inputs, model_idx=None, batch_size=5000, report=True):
-        
-        if batch_size >= len(inputs): batch_size = None
+        if batch_size and batch_size >= len(inputs): batch_size = None
 
         if batch_size is None:
             return self.predict_batch(inputs, model_idx)

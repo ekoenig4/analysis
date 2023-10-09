@@ -1,19 +1,13 @@
 import awkward as ak
 from matplotlib.pyplot import isinteractive
 import torch
-import git
 import numpy as np
 import itertools
 
 from .ak_tools import *
 
-GIT_WD = git.Repo('.', search_parent_directories=True).working_tree_dir
-
-
-
 def ordinal(n): return "%d%s" % (
     n, {1: "st", 2: "nd", 3: "rd"}.get(n if n < 20 else n % 10, "th"))
-
 
 def is_iter(array):
     try:

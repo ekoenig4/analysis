@@ -6,7 +6,8 @@ from collections import defaultdict
 from ..plotUtils import *
 from .study_args import _study_args as Study
 from ..varConfig import varinfo
-from ..utils import loop_iter, GIT_WD, ordinal
+from ..utils import loop_iter, ordinal
+from .. import config
 from ..classUtils import AttrArray
 
 from ..plotUtils import obj_store, plot_graph, plot_graphs, Graph
@@ -20,7 +21,13 @@ from datetime import date
 from .default_args import *
 
 date_tag = date.today().strftime("%Y%m%d")
-default_base = f"{GIT_WD}/plots/{date_tag}_plots"
+
+default_base = getattr(config, 'plot_store', 'plots/')
+remote_pattern = re.compile(r'root://.*?/(.*)')
+
+if not default_base.startswith('/') and not default_base.startswith('root://'):
+    default_base = os.path.join(config.GIT_WD, default_base)
+default_base = os.path.join(default_base, date_tag)
 
 def get_path(path, base=default_base):
     outfn = os.path.join(base, path)
@@ -28,19 +35,16 @@ def get_path(path, base=default_base):
 
 def make_path(path, base=default_base):
     outfn = get_path(path, base)
+
+    if outfn.startswith('root://'):
+        return outfn
+
     directory = '/'.join(outfn.split('/')[:-1])
     if not os.path.isdir(directory):
         os.makedirs(directory)
     return outfn
 
-def save_fig(fig, saveas=None, fmt=['jpg']):
-    outfn = make_path(saveas)
-    print('saving to', outfn)
-
-    if len(outfn.split('.')) == 2:
-        outfn, ext = outfn.split('.')
-        fmt = [ext]
-
+def _save_fig_(fig, outfn, fmt):
     if 'pdf' in fmt:
         fig.savefig(f"{outfn}.pdf", format="pdf")
     if 'png' in fmt:
@@ -50,6 +54,38 @@ def save_fig(fig, saveas=None, fmt=['jpg']):
     # fig.savefig(f"{outfn}.png", format="png")
     plt.clf()
     plt.close()
+
+def save_fig(fig, saveas, fmt=['jpg']):
+    outfn = make_path(saveas)
+    print('saving to', outfn)
+
+    if outfn.startswith('root://'):
+        return save_fig_to_remote(fig, outfn, fmt)
+
+    if len(outfn.split('.')) == 2:
+        outfn, ext = outfn.split('.')
+        fmt = [ext]
+
+    _save_fig_(fig, outfn, fmt)
+
+def save_fig_to_remote(fig, outfn, fmt=['jpg']):
+    import hashlib
+    if len(outfn.split('.')) == 2:
+        outfn, ext = outfn.split('.')
+        fmt = [ext]
+
+    fnhash = hashlib.md5(outfn.encode()).hexdigest()
+    tmpfile = f'/tmp/{os.environ["USER"]}/{fnhash}'
+
+    if not os.path.exists(f'/tmp/{os.environ["USER"]}'):
+        os.makedirs(f'/tmp/{os.environ["USER"]}')
+
+    _save_fig_(fig, tmpfile, fmt)
+
+    for ext in fmt:
+        cmd = f'xrdcp -f {tmpfile}.{ext} {outfn}.{ext} && rm {tmpfile}.{ext}'
+        # print(cmd)
+        os.system(cmd)
 
 
 def format_var(var, bins=None, xlabel=None):

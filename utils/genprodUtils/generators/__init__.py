@@ -41,6 +41,9 @@ class Generator:
 
         physics = self.physics(event)
         return ak.zip(dict(
-            event = event,
+            event_pt=event.pt,
+            event_eta=event.eta,
+            event_phi=event.phi,
+            event_m=event.m,
             **physics
         ), depth_limit=1)[:size]

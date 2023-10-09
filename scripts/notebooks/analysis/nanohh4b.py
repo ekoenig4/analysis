@@ -411,7 +411,8 @@ class Analysis(Notebook):
         
         load_feynnet = fourb.nanohh4b.f_evaluate_feynnet(self.model)
         import multiprocess as mp
-        nprocs = min(4, len(signal+bkg+data))
+        import utils.resources as rsc
+        nprocs = min(rsc.ncpus, len(signal+bkg+data))
         with mp.Pool(nprocs) as pool:
             (signal+bkg+data).parallel_apply(load_feynnet, pool=pool, report=True)
 
@@ -424,8 +425,8 @@ class Analysis(Notebook):
             return
 
         load_spanet = fourb.nanohh4b.f_evaluate_spanet(self.model)
-        import multiprocess as mp
-        nprocs = min(4, len(signal+bkg+data))
+        import utils.resources as rsc
+        nprocs = min(rsc.ncpus, len(signal+bkg+data))
         with mp.Pool(nprocs) as pool:
             (signal+bkg+data).parallel_apply(load_spanet, pool=pool, report=True)
 

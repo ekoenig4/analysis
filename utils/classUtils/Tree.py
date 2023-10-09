@@ -1,4 +1,7 @@
 import traceback
+
+from .. import config
+
 from ..hepUtils import *
 from ..xsecUtils import *
 from ..utils import *
@@ -32,9 +35,8 @@ def _glob_files(pattern):
     if any(files): return files
     return []
 
-def copy_to_local(fname, local=eos):
+def copy_to_local(fname):
     if os.path.isfile(fname): return fname
-    if eos.exists(fname): return eos.fullpath(fname)
 
     import re
     remote_pattern = re.compile(r'root://.*?//(.*)')
@@ -42,13 +44,13 @@ def copy_to_local(fname, local=eos):
 
     if not match: return fname
 
-    local_path = os.path.join('/store/user/ekoenig/', match.group(1))
+    local_path = os.path.join(config.local_store, fname)
+    print('Using local path:', local_path)
+    if not os.path.isfile(local_path):
+        print(f'Copying {fname} to local path')
+        fs.xrd.copy(fname, local_path)
 
-    if not eos.exists(local_path):
-        eos.copy_to(fname, local_path)
-
-    return eos.fullpath(local_path)
-...
+    return local_path
 
 def tree_expr(tree, expr):
     import ast
