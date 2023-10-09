@@ -64,14 +64,16 @@ def add_parser_from_inheritance(cls, parser):
 def add_methods_from_loadlist(cls, methods={}):
     loadlist = cls.__load__ + [cls]
     for notebook in loadlist:
-            methods.update({ key : method for key, method in vars(notebook).items() if (not key.startswith('_') and callable(method)) })
+            # methods.update({ key : method for key, method in vars(notebook).items() if (not key.startswith('_') and callable(method)) })
+            methods.update(notebook.cells())
     return methods
 
 def add_methods_from_inheritance(cls, methods={}):
     for base in cls.__bases__:
         if base == Notebook: continue
         add_methods_from_inheritance(base, methods)
-    methods.update({ key : method for key, method in vars(cls).items() if (not key.startswith('_') and callable(method)) })
+    # methods.update({ key : method for key, method in vars(cls).items() if (not key.startswith('_') and callable(method)) })
+    methods.update(cls.cells())
     return methods
 
 def add_dependencies_from_loadlist(cls, method_list, dependencies=[]):
@@ -116,7 +118,20 @@ class Notebook:
 
         args = parser.parse_args()
         return cls(**kwargs, **vars(args))
+    
+    @classmethod
+    def cells(cls):
+        cells = dict()
 
+        for key, method in vars(cls).items():
+            if key.startswith('_'): continue
+            if not callable(method): continue
+            if isinstance(method, (classmethod, staticmethod)): continue
+
+            cells[key] = method
+
+        return cells
+    
     def __init__(self, ignore_error=False, dry_run=False, only=[], disable=[], **kwargs):
         methods = {}
 
