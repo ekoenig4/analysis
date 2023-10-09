@@ -222,9 +222,10 @@ class f_evaluate_feynnet(ParallelMethod):
         )
     
     def run_predict(self, jets, filelist):
-        jets = jets[ ak_rank(-jets.ak4_bdisc, axis=1) < 6 ]
+        jets = jets[ak.argsort(-jets.ak4_bdisc, axis=1)]
         results = weaver.load_predict_filelist(filelist, self.model_path, fields=['sorted_j_assignments'])
-        best_assignment = ak.from_regular(results['sorted_j_assignments'].astype(int), axis=1)
+        best_assignment = ak.from_regular(results['sorted_j_assignments'], axis=1)
+        best_assignment = ak.values_astype(best_assignment, np.int32)
         return reconstruct(jets, best_assignment)
 
     def end(self, tree, **results):

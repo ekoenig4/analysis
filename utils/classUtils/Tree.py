@@ -39,12 +39,11 @@ def copy_to_local(fname):
     if os.path.isfile(fname): return fname
 
     import re
-    remote_pattern = re.compile(r'root://.*?//(.*)')
+    remote_pattern = re.compile(r'^root://(.*?)//(.*)$')
     match = remote_pattern.match(fname)
-
     if not match: return fname
-
-    local_path = os.path.join(config.local_store, fname)
+    
+    local_path = os.path.join(config.local_store, 'root', match.group(1), match.group(2))
     print('Using local path:', local_path)
     if not os.path.isfile(local_path):
         print(f'Copying {fname} to local path')

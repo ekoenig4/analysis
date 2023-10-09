@@ -59,12 +59,13 @@ def save_fig(fig, saveas, fmt=['jpg']):
     outfn = make_path(saveas)
     print('saving to', outfn)
 
-    if outfn.startswith('root://'):
-        return save_fig_to_remote(fig, outfn, fmt)
-
     if len(outfn.split('.')) == 2:
         outfn, ext = outfn.split('.')
         fmt = [ext]
+        
+    if outfn.startswith('root://'):
+        return save_fig_to_remote(fig, outfn, fmt)
+
 
     _save_fig_(fig, outfn, fmt)
 
@@ -87,6 +88,51 @@ def save_fig_to_remote(fig, outfn, fmt=['jpg']):
         # print(cmd)
         os.system(cmd)
 
+def _save_file_(obj, outfn, fmt):
+    if 'txt' in fmt:
+        with open(outfn, 'w') as f:
+            f.write(str(obj))
+    if 'json' in fmt:
+        import json
+        with open(outfn, 'w') as f:
+            json.dump(obj, f)
+    if 'pkl' in fmt:
+        import pickle
+        with open(outfn, 'wb') as f:
+            pickle.dump(obj, f)
+
+def save_file(obj, saveas, fmt=['txt']):
+    outfn = make_path(saveas)
+    print('saving to', outfn)
+
+    if len(outfn.split('.')) == 2:
+        outfn, ext = outfn.split('.')
+        fmt = [ext]
+
+    if outfn.startswith('root://'):
+        return save_file_to_remote(obj, outfn, fmt)
+
+
+    _save_file_(obj, outfn, fmt)
+
+def save_file_to_remote(obj, outfn, fmt=['txt']):
+    import hashlib
+    if len(outfn.split('.')) == 2:
+        outfn, ext = outfn.split('.')
+        fmt = [ext]
+
+    fnhash = hashlib.md5(outfn.encode()).hexdigest()
+    tmpfile = f'/tmp/{os.environ["USER"]}/{fnhash}'
+
+    if not os.path.exists(f'/tmp/{os.environ["USER"]}'):
+        os.makedirs(f'/tmp/{os.environ["USER"]}')
+
+    _save_file_(obj, tmpfile, fmt)
+
+    for ext in fmt:
+        cmd = f'xrdcp -f {tmpfile}.{ext} {outfn}.{ext} && rm {tmpfile}.{ext}'
+        # print(cmd)
+        os.system(cmd)
 
 def format_var(var, bins=None, xlabel=None):
     info = varinfo.find(var)

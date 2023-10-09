@@ -118,7 +118,7 @@ class Analysis(Notebook):
             new_sumw = np.sum(tree.scale)
             tree.reweight(org_sumw / new_sumw)
             return tree
-        self.bkg = self.bkg.apply(ttbar_subset)
+        # self.bkg = self.bkg.apply(ttbar_subset)
 
         if self.btagwp == 'loose':
             self.n_btag = n_loose_btag
@@ -408,8 +408,16 @@ class Analysis(Notebook):
 
         if 'feynnet' not in self.model:
             return
-        
-        load_feynnet = fourb.nanohh4b.f_evaluate_feynnet(self.model)
+
+        if self.model.endswith('/'): self.model=self.model[:-1]
+
+        if self.model.endswith('onnx') or self.model.endswith('onnx/'):
+            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet( os.path.dirname(self.model), 'onnx' )
+        elif self.model.endswith('predict') or self.model.endswith('predict/'):
+            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet( os.path.dirname(self.model), 'predict' )
+        else:
+            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet(self.model)
+
         import multiprocess as mp
         import utils.resources as rsc
         nprocs = min(rsc.ncpus, len(signal+bkg+data))
@@ -552,7 +560,6 @@ class Analysis(Notebook):
             'ttbar-powheg' : 5369.2 + 8648.7,
             'jetht': 164307.0 + 96274.0,
         }
-        f_yields = study.make_path( os.path.join( self.dout, 'presel_4btag_yields.txt' ) )
 
         def get_yield(tree):
             label = tree.sample
@@ -574,11 +581,9 @@ class Analysis(Notebook):
             return (label, events, an, events/an)
 
         table = (signal+bkg+data).apply(get_yield).list
-
-        with open(f_yields, 'w') as f:
-            table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
-            print(table)
-            f.write(table)
+        table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
+        print(table)
+        study.save_file(table, os.path.join(self.dout, 'presel_4btag_yields.txt'))
 
     def control_plots_4b(self, signal, bkg, data):
 
@@ -602,8 +607,6 @@ class Analysis(Notebook):
             'ttbar-powheg' : 111774.6 + 6518.1,
             'jetht': 2273811.0 + 107918.0,
         }
-        f_yields = study.make_path( os.path.join( self.dout, 'presel_3btag_yields.txt' ) )
-
         def get_yield(tree):
             label = tree.sample
             an = an_yields.get(label, -1)
@@ -624,11 +627,9 @@ class Analysis(Notebook):
             return (label, events, an, events/an)
 
         table = (signal+bkg+data).apply(get_yield).list
-
-        with open(f_yields, 'w') as f:
-            table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
-            print(table)
-            f.write(table)
+        table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
+        print(table)
+        study.save_file(table, os.path.join( self.dout, 'presel_3btag_yields.txt' ))
     
     def control_plots_3b(self, signal, bkg, data):
         bins = np.concatenate([np.arange(0, 600, 25), np.arange(600, 850, 50)])
@@ -677,7 +678,7 @@ class Analysis(Notebook):
             }
         )
 
-        f_yields = study.make_path( os.path.join( self.dout, 'abcd_yields.txt' ) )
+        f_yields = os.path.join( self.dout, 'abcd_yields.txt' )
         def get_yield(tree, region):
             label = tree.sample
             an = an_yields[region].get(label, -1)
@@ -697,21 +698,22 @@ class Analysis(Notebook):
 
             return (label, events, an, events/an)
 
-        with open(f_yields, 'w') as f:
-            for region in ['a','b','c','d']:
-                table = (signal+bkg+data).apply(partial(get_yield, region=region)).list
-                table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
+        tables = []
+        for region in ['a','b','c','d']:
+            table = (signal+bkg+data).apply(partial(get_yield, region=region)).list
+            table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
 
-                name = dict(
-                    a='A_SR(4b)',
-                    b='A_SR(3b)',
-                    c='A_CR(4b)',
-                    d='A_CR(3b)',
-                ).get(region)
-                print('Region:', name)
-                print(table)
-                print()
-                f.write(f'Region: {name}\n' + table + '\n\n')
+            name = dict(
+                a='A_SR(4b)',
+                b='A_SR(3b)',
+                c='A_CR(4b)',
+                d='A_CR(3b)',
+            ).get(region)
+            print('Region:', name)
+            print(table)
+            tables.append(f'Region: {name}\n' + table + '\n\n')
+        tables = '\n'.join(tables)
+        study.save_file(tables, f_yields)
 
     def plot_3btag_datamc(self, data, bkg):
         study.quick(
