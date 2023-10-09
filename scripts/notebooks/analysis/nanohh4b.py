@@ -583,7 +583,7 @@ class Analysis(Notebook):
         table = (signal+bkg+data).apply(get_yield).list
         table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
         print(table)
-        study.save_file(table, os.path.join(self.dout, 'presel_4btag_yields.txt'))
+        study.save_file(table, os.path.join(self.dout, 'presel_4btag_yields'), fmt=['txt'])
 
     def control_plots_4b(self, signal, bkg, data):
 
@@ -629,7 +629,7 @@ class Analysis(Notebook):
         table = (signal+bkg+data).apply(get_yield).list
         table = tabulate.tabulate(table, headers=['sample','yield','an yield', 'this/an'], tablefmt='simple', numalign='right', floatfmt='.2f')
         print(table)
-        study.save_file(table, os.path.join( self.dout, 'presel_3btag_yields.txt' ))
+        study.save_file(table, os.path.join( self.dout, 'presel_3btag_yields.txt'), fmt=['txt'])
     
     def control_plots_3b(self, signal, bkg, data):
         bins = np.concatenate([np.arange(0, 600, 25), np.arange(600, 850, 50)])
@@ -678,7 +678,6 @@ class Analysis(Notebook):
             }
         )
 
-        f_yields = os.path.join( self.dout, 'abcd_yields.txt' )
         def get_yield(tree, region):
             label = tree.sample
             an = an_yields[region].get(label, -1)
@@ -713,7 +712,7 @@ class Analysis(Notebook):
             print(table)
             tables.append(f'Region: {name}\n' + table + '\n\n')
         tables = '\n'.join(tables)
-        study.save_file(tables, f_yields)
+        study.save_file(tables, os.path.join( self.dout, 'abcd_yields'), fmt=['txt'])
 
     def plot_3btag_datamc(self, data, bkg):
         study.quick(

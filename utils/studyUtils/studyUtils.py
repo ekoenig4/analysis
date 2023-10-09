@@ -90,15 +90,15 @@ def save_fig_to_remote(fig, outfn, fmt=['jpg']):
 
 def _save_file_(obj, outfn, fmt):
     if 'txt' in fmt:
-        with open(outfn, 'w') as f:
-            f.write(str(obj))
+        with open(f'{outfn}.txt', 'w') as f:
+            f.write(obj)
     if 'json' in fmt:
         import json
-        with open(outfn, 'w') as f:
+        with open(f'{outfn}.json', 'w') as f:
             json.dump(obj, f)
     if 'pkl' in fmt:
         import pickle
-        with open(outfn, 'wb') as f:
+        with open(f'{outfn}.pkl', 'wb') as f:
             pickle.dump(obj, f)
 
 def save_file(obj, saveas, fmt=['txt']):
@@ -111,7 +111,6 @@ def save_file(obj, saveas, fmt=['txt']):
 
     if outfn.startswith('root://'):
         return save_file_to_remote(obj, outfn, fmt)
-
 
     _save_file_(obj, outfn, fmt)
 
