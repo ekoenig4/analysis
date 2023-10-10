@@ -35,13 +35,34 @@ def n_loose_btag(t):
     return ak.values_astype(nL, np.int32)
 
 @cache_variable
+def n_loose_leading_btag(t):
+    bdisc = t.ak4_bdisc
+    btag_L = t.ak4_btag_L
+    nL = ak.sum( btag_L[ak.argsort(-bdisc, axis=1)][:,:4], axis=1 )
+    return ak.values_astype(nL, np.int32)
+
+@cache_variable
 def n_medium_btag(t):
     nM = 1*t.ak4_h1b1_btag_M + 1*t.ak4_h1b2_btag_M + 1*t.ak4_h2b1_btag_M + 1*t.ak4_h2b2_btag_M
     return ak.values_astype(nM, np.int32)
 
 @cache_variable
+def n_medium_leading_btag(t):
+    bdisc = t.ak4_bdisc
+    btag_M = t.ak4_btag_M
+    nM = ak.sum( btag_M[ak.argsort(-bdisc, axis=1)][:,:4], axis=1 )
+    return ak.values_astype(nM, np.int32)
+
+@cache_variable
 def n_tight_btag(t):
     nT = 1*t.ak4_h1b1_btag_T + 1*t.ak4_h1b2_btag_T + 1*t.ak4_h2b1_btag_T + 1*t.ak4_h2b2_btag_T
+    return ak.values_astype(nT, np.int32)
+
+@cache_variable
+def n_tight_leading_btag(t):
+    bdisc = t.ak4_bdisc
+    btag_T = t.ak4_btag_T
+    nT = ak.sum( btag_T[ak.argsort(-bdisc, axis=1)][:,:4], axis=1 )
     return ak.values_astype(nT, np.int32)
 
 @cache_variable(bins=(0,100,30))
@@ -78,6 +99,7 @@ class Analysis(Notebook):
         parser.add_argument('--load-init', type=int, default=6)
 
         parser.add_argument('--btagwp', type=str, default='medium')
+        parser.add_argument('--leading-btag', action='store_true')
         parser.add_argument('--hh-mass-cut', type=str, default=None)
 
         parser.add_argument('--no-bkg', action='store_true')
@@ -93,21 +115,19 @@ class Analysis(Notebook):
         else:
             self.dout = os.path.join(self.dout,'private')
 
-        self.dout = os.path.join("nanoHH4b",self.dout,self.pairing)
+        init_version = f'_init_v{self.load_init}'
+        init = getattr(self, init_version)
+        init()
 
         if self.model is not None:
             if not os.path.exists(self.model):
                 raise ValueError(f'Invalid model path: {self.model}')
-        
-        if self.bdisc_wp is not None:
-            wptag = str(self.bdisc_wp).replace('.','p')
-            self.dout = os.path.join(self.dout, f'{self.btagwp}_bdisc{wptag}')
-        else:
-            self.dout = os.path.join(self.dout, self.btagwp)
+            if 'feynnet' in self.model:
+                self.pairing = 'feynnet'
+            elif 'spanet' in self.model:
+                self.pairing = 'spanet'
+        self.dout = os.path.join("nanoHH4b",self.dout,self.pairing)
 
-        init_version = f'_init_v{self.load_init}'
-        init = getattr(self, init_version)
-        init()
 
         def ttbar_subset(tree : Tree):
             if 'ttbar' not in tree.sample: return tree
@@ -120,10 +140,19 @@ class Analysis(Notebook):
             return tree
         # self.bkg = self.bkg.apply(ttbar_subset)
 
-        if self.btagwp == 'loose':
-            self.n_btag = n_loose_btag
-        else:
-            self.n_btag = n_medium_btag
+        btagwp = f'n_{self.btagwp}_btag'
+        if self.leading_btag:
+            btagwp = f'n_{self.btagwp}_leading_btag'
+        self.n_btag = globals()[btagwp]
+
+        btagwp = self.btagwp
+        if self.bdisc_wp is not None:
+            wptag = str(self.bdisc_wp).replace('.','p')
+            btagwp = f'{self.btagwp}_bdisc{wptag}'
+        if self.leading_btag:
+            btagwp = f'leading_{btagwp}'
+        self.dout = os.path.join(self.dout, btagwp)
+
 
         hparams = dict(
             n_estimators=70,
@@ -149,6 +178,15 @@ class Analysis(Notebook):
             b=lambda t : (vr_h_dm(t) <  25) & (self.n_btag(t) == 3),
             c=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (self.n_btag(t) == 4),
             d=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (self.n_btag(t) == 3),
+            **hparams
+        )
+
+        self.vr2_bdt = ABCD(
+            features=bdt_features,
+            a=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 4),
+            b=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 3),
+            c=lambda t : (h_dm(t) >= 50) & (h_dm(t) < 75) & (self.n_btag(t) == 4),
+            d=lambda t : (h_dm(t) >= 50) & (h_dm(t) < 75) & (self.n_btag(t) == 3),
             **hparams
         )
 
@@ -411,18 +449,24 @@ class Analysis(Notebook):
 
         if self.model.endswith('/'): self.model=self.model[:-1]
 
+        import utils.resources as rsc
+        accelerator = 'cpu' if rsc.ngpus == 0 else 'cuda'
+
         if self.model.endswith('onnx') or self.model.endswith('onnx/'):
-            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet( os.path.dirname(self.model), 'onnx' )
+            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet( os.path.dirname(self.model), 'onnx', accelerator=accelerator )
         elif self.model.endswith('predict') or self.model.endswith('predict/'):
-            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet( os.path.dirname(self.model), 'predict' )
+            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet( os.path.dirname(self.model), 'predict', accelerator=accelerator )
         else:
-            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet(self.model)
+            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet(self.model, accelerator=accelerator)
+
 
         import multiprocess as mp
-        import utils.resources as rsc
-        nprocs = min(rsc.ncpus, len(signal+bkg+data))
-        with mp.Pool(nprocs) as pool:
-            (signal+bkg+data).parallel_apply(load_feynnet, pool=pool, report=True)
+        if accelerator == 'cuda': 
+            (signal+bkg+data).apply(load_feynnet, report=True)
+        else:
+            nprocs = min(rsc.ncpus, len(signal+bkg+data))
+            with mp.Pool(nprocs) as pool:
+                (signal+bkg+data).parallel_apply(load_feynnet, pool=pool, report=True)
 
     @required
     def load_spanet(self, signal, bkg, data):
@@ -585,7 +629,7 @@ class Analysis(Notebook):
         print(table)
         study.save_file(table, os.path.join(self.dout, 'presel_4btag_yields'), fmt=['txt'])
 
-    def control_plots_4b(self, signal, bkg, data):
+    def plot_4b_control(self, signal, bkg, data):
 
         bins = np.concatenate([np.arange(0, 600, 25), np.arange(600, 850, 50)])
         study.quick(
@@ -631,7 +675,7 @@ class Analysis(Notebook):
         print(table)
         study.save_file(table, os.path.join( self.dout, 'presel_3btag_yields.txt'), fmt=['txt'])
     
-    def control_plots_3b(self, signal, bkg, data):
+    def plot_3b_control(self, signal, bkg, data):
         bins = np.concatenate([np.arange(0, 600, 25), np.arange(600, 850, 50)])
         study.quick(
             signal + bkg + data, legend=True,
@@ -744,45 +788,47 @@ class Analysis(Notebook):
         self.bdt.print_results(data)
 
     @dependency(train_bdt)
-    def build_bkg_model(self, signal, data):
-        self.signal = signal.apply(EventFilter('A_SR(4b)', filter=self.bdt.a))
+    def build_bkg_model(self, signal, bkg, data):
+        a_sr_filter = EventFilter('A_SR(4b)', filter=self.bdt.a)
+        self.signal = signal.apply(a_sr_filter)
+        self.bkg = bkg.apply(a_sr_filter)
 
         bkg_model = EventFilter('bkg_model', filter=self.bdt.b)
         self.bkg_model = data.asmodel('bkg model').apply(bkg_model)
         self.bkg_model.apply(lambda t : t.reweight(self.bdt.reweight_tree))
 
-
     @dependency(build_bkg_model)
-    def print_yields(self, signal, bkg_model):
+    def print_sr_yields(self, signal, bkg_model):
+
         def get_yields(t, f_mask=None):
             weights = t.scale
 
-            if f_mask is None:
-                return ak.sum(weights)
-            
-            mask = f_mask(t)
-            return ak.sum(weights[mask])
+            if f_mask is not None:
+                weights = weights[f_mask(t)]
 
-        bkg_yields = bkg_model.apply(partial(get_yields)).npy.sum()
+            if not t.is_data:
+                lumi = lumiMap[2018][0]
+                weights = lumi * weights
 
-        lumi = lumiMap[2018][0]
-        sig_yields = lumi*signal.apply(partial(get_yields)).npy.sum()
-
-        print(f'Sig = {sig_yields:.2f}')
-        print(f'Bkg = {bkg_yields:.2f}')
-        print(f'S/B = {sig_yields/bkg_yields:.3f}')
+            sumw = np.sum(weights)
+            error = np.sqrt(np.sum(weights**2))
+            return (t.sample, sumw, error)
+        rows = (signal + bkg_model).apply(get_yields).list
+        rows = tabulate.tabulate(rows, headers=['sample','yield','error'], tablefmt='simple', numalign='right', floatfmt='.2f')
+        print(rows)
+        study.save_file(rows, os.path.join(self.dout, 'sr_yields'), fmt=['txt'])
 
     @dependency(build_bkg_model, print_abcd_yields)
-    def limits(self, signal, bkg_model):
+    def plot_limits(self, signal, bkg_model):
         model = []
         study.quick(
             signal+bkg_model,
             varlist=['dHH_HH_regmass'],
-            plot_scale=[1000]*len(signal),
+            plot_scale=[100]*len(signal),
             limits=True,
             l_store=model,
             legend=True,
-            ylim=(0, 7000),
+            ylim=(0, 4000),
             saveas=f'{self.dout}/HH_mass_limits',
         )
 
@@ -807,12 +853,12 @@ class Analysis(Notebook):
             kfold=2
         )
 
-        self.bdt_classifier.train(bkg_model, signal)
+        self.bdt_classifier.train(bkg_model, signal, parallel=False)
         self.bdt_classifier.print_results(bkg_model, signal)
         (signal + bkg_model).apply(lambda t : t.extend(bdt_score=self.bdt_classifier.predict_tree(t)))
 
     @dependency(train_bdt_classifier)
-    def validate_bdt_classifier(self, signal, bkg_model):
+    def plot_bdt_classifier_validation(self, signal, bkg_model):
         sig_weights = signal.scale.cat * lumiMap[2018][0]
         sig_index = signal.apply(lambda t : np.arange(len(t))).cat % 2
         sig_bdt_0_score = signal.apply(self.bdt_classifier.bdts[0].predict_tree).cat
@@ -895,17 +941,17 @@ class Analysis(Notebook):
         study.save_fig(fig, f'{self.dout}/bdt_classifier_0_vs_1')
 
     @dependency(train_bdt_classifier)
-    def bdt_classifier_limits(self, signal, bkg_model):
+    def plot_bdt_classifier_limits(self, signal, bkg_model):
         model = []
         study.quick(
             signal+bkg_model,
             varlist=['bdt_score'],
-            plot_scale=[1000]*len(signal),
+            plot_scale=[100]*len(signal),
             binlist=[(0,1,30)],
             limits=True,
             l_store=model,
             legend=True,
-            ylim=(0, 7000),
+            ylim=(0, 4000),
             saveas=f'{self.dout}/bdt_score_limits',
         )
 
@@ -974,6 +1020,55 @@ class Analysis(Notebook):
             saveas=f'{self.dout}/vr_model_bdt_features',
         )
 
+    def train_vr2_bdt(self, data):
+        self.vr2_bdt.print_yields(data)
+        self.vr2_bdt.train(data)
+        self.vr2_bdt.print_results(data)
+
+    @dependency(train_vr2_bdt)
+    def build_vr2_bkg_model(self, data):
+        # vr_bkg_model = EventFilter('vr_bkg_model', filter=self.vr_bdt.b)
+        self.vr2_bkg_model = data.asmodel('vr2 bkg model', color='salmon')#.apply(vr_bkg_model)
+        # self.vr_bkg_model.apply(lambda t : t.reweight(self.vr_bdt.reweight_tree))
+
+    @dependency(build_vr2_bkg_model)
+    def plot_vr2_model(self, data, vr2_bkg_model):
+        study.quick(
+            data+vr2_bkg_model,
+            masks=[self.vr_bdt.a]*len(data)+[self.vr2_bdt.b]*len(vr2_bkg_model),
+            varlist=['dHH_HH_mass','dHH_HH_pt','ak4_h1b1_regpt'],
+            binlist=[(200,1800,30),(0,400,30),(0,350,30)],
+            ratio=True, r_ylim=(0.7,1.3),
+            legend=True,
+            efficiency=True,
+            **study.kstest,
+            saveas=f'{self.dout}/vr2_norm_model',
+        )
+
+        study.quick(
+            data+vr2_bkg_model,
+            masks=[self.vr2_bdt.a]*len(data)+[self.vr2_bdt.b]*len(vr2_bkg_model),
+            scale=[None]*len(data)+[self.vr2_bdt.reweight_tree]*len(vr2_bkg_model),
+            varlist=['dHH_HH_mass','dHH_HH_pt','ak4_h1b1_regpt'],
+            binlist=[(200,1800,30),(0,400,30),(0,350,30)],
+            ratio=True, r_ylim=(0.7,1.3),
+            legend=True,
+            efficiency=True,
+            **study.kstest,
+            saveas=f'{self.dout}/vr2_bdt_model',
+        )
+        
+
+        study.quick(
+            data + vr2_bkg_model,
+            masks=[self.vr2_bdt.a]*len(data)+[self.vr2_bdt.b]*len(vr2_bkg_model),
+            scale=[None]*len(data)+[self.vr2_bdt.reweight_tree]*len(vr2_bkg_model),
+            varlist=bdt_features,
+            ratio=True, r_ylim=(0.7,1.3),
+            legend=True,
+            efficiency=True,
+            saveas=f'{self.dout}/vr2_model_bdt_features',
+        )
     
 
 
