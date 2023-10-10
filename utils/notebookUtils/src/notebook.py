@@ -108,7 +108,7 @@ class Notebook:
         return parser
 
     @classmethod
-    def from_parser(cls, parser=None, **kwargs):
+    def get_parser(cls, parser=None, **kwargs):
         parser = parser or ArgumentParser()
 
         cls.init_parser(parser)
@@ -116,8 +116,24 @@ class Notebook:
         # add_parser_from_loadlist(cls, parser)
         add_parser_from_inheritance(cls, parser)
 
-        args = parser.parse_args()
-        return cls(**kwargs, **vars(args))
+        return parser
+
+    @classmethod
+    def from_parser(cls, parser=None, args=None, **kwargs):
+        parser = parser or ArgumentParser()
+
+        cls.init_parser(parser)
+
+        # add_parser_from_loadlist(cls, parser)
+        add_parser_from_inheritance(cls, parser)
+
+        args = parser.parse_args(args=args)
+        kwargs = dict(vars(args), **kwargs)
+        return cls(**kwargs)
+    
+    @classmethod
+    def load(cls, **kwargs):
+        return cls.from_parser(args='', **kwargs)
     
     @classmethod
     def cells(cls):
@@ -145,6 +161,7 @@ class Notebook:
         self._cells = dict()
         self.add(**methods)
 
+        if len(only) == 0: only = list(self._cells.keys())
         self.build_runlist(method_list, only_list=only, disable_list=disable)
 
         self.ignore_error = ignore_error

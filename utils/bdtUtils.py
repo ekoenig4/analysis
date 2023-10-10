@@ -404,7 +404,7 @@ class KFoldBDTClassifier(BDTClassifier):
         index = treeiter.apply(lambda t : np.arange(len(t))).cat 
         return index % self.kfold
 
-    def train(self, bkgiter : ObjIter, sigiter : ObjIter):
+    def train(self, bkgiter : ObjIter, sigiter : ObjIter, parallel=False):
         X_0, W_0 = self.get_features(bkgiter)
         X_1, W_1 = self.get_features(sigiter)
 
@@ -416,8 +416,29 @@ class KFoldBDTClassifier(BDTClassifier):
         Y = np.concatenate([np.zeros_like(W_0), np.ones_like(W_1)])
         S = np.concatenate([S_0, S_1])
 
+        if parallel:
+           return self.train_parallel(X, Y, W, S, njobs=parallel)
+
         for i, bdt in enumerate(self.bdts):
             bdt.classifier.fit(X[S != i], Y[S != i], bdt__sample_weight=W[S != i])
+
+    @staticmethod
+    def _train_parallel_(classifier, X, Y, W):
+        classifier.fit(X, Y, bdt__sample_weight=W)
+        return classifier
+    
+    def train_parallel(self, X, Y, W, S, njobs=None):
+        if njobs is None or isinstance(njobs, bool): njobs = self.kfold
+
+        import multiprocessing as mp
+        from functools import partial
+        from tqdm import tqdm
+       
+        with mp.Pool(njobs) as pool:
+            results = []
+            for i, bdt in enumerate(self.bdts):
+                results.append(pool.apply_async(partial(self._train_parallel_, bdt.classifier, X[S != i], Y[S != i], W[S != i])))
+            self.bdts = [result.get() for result in tqdm(results)]
 
     def predict_tree(self, treeiter : ObjIter):
         X, _ = self.get_features(treeiter)

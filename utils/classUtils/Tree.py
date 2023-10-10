@@ -477,8 +477,9 @@ class Tree:
         if self.systematics is None: self.systematics = []
         self.systematics.append(systematic)
 
-    def copy(self):
+    def copy(self, **kwargs):
         new_tree = CopyTree(self)
+        new_tree.__dict__.update(**kwargs)
         return new_tree
 
     def subset(self, range=None, nentries=None, fraction=None, randomize=True):

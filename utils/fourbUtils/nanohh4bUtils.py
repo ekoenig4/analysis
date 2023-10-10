@@ -178,12 +178,13 @@ def reconstruct(jets, assignment):
 
 from ..classUtils import ParallelMethod
 class f_evaluate_feynnet(ParallelMethod):
-    def __init__(self, model_path, onnxdir='onnx', batch_size=5000):
+    def __init__(self, model_path, onnxdir='onnx', batch_size=5000, accelerator='cpu'):
         super().__init__()
 
         self.model_path = model_path
         self.onnxdir = onnxdir
         self.batch_size = batch_size
+        self.accelerator = accelerator
 
         self.start = {
             'onnx':self.start_onnx,
@@ -207,7 +208,7 @@ class f_evaluate_feynnet(ParallelMethod):
 
     def run_onnx(self, jets):
         jets = jets[ ak.argsort(-jets.ak4_bdisc, axis=1) ]
-        model = weaver.WeaverONNX(self.model_path, onnxdir=self.onnxdir)
+        model = weaver.WeaverONNX(self.model_path, onnxdir=self.onnxdir, accelerator=self.accelerator)
         results = model.predict(jets, batch_size=self.batch_size)
         best_assignment = ak.from_regular(results['sorted_j_assignments'], axis=1)
         best_assignment = ak.values_astype(best_assignment, np.int32)

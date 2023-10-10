@@ -69,6 +69,13 @@ class Preprocessor:
 
 class ONNXRuntimeHelper:
 
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, *args):
+        for session in self.sessions:
+            session._release_ort_env()
+
     def __init__(self, preprocess_file, model_files, accelerator='cpu'):
         import onnxruntime
         
@@ -80,7 +87,11 @@ class ONNXRuntimeHelper:
 
         providers = ['CPUExecutionProvider']
         if accelerator == 'cuda':
-            providers = ['CUDAExecutionProvider']
+            providers = [
+                # ('CUDAExecutionProvider', {'device_id': 1}),
+                'CUDAExecutionProvider', 
+                'CPUExecutionProvider',
+            ]
                      
         self.sessions = [onnxruntime.InferenceSession(model_path, sess_options=options,
                                                       providers=providers) for model_path in model_files]
