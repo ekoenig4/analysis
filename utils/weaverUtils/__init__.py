@@ -4,10 +4,13 @@ from .load import *
 from .ort import ONNXRuntimeHelper
 
 class WeaverONNX(ONNXRuntimeHelper):
-    def __init__(self, modelpath, onnxdir='export', accelerator='cpu'):
+    def __init__(self, modelpath, onnxdir='export', accelerator='cpu', k=None):
 
-        preprocessing_file = os.path.join(modelpath, onnxdir, 'preprocess.json')
-        model_files = [os.path.join(modelpath, onnxdir, 'model.onnx')]
+        preprocess = 'preprocess.json' if k is None else f'preprocess.{k}.json'
+        model = 'model.onnx' if k is None else f'model.{k}.onnx'
+
+        preprocessing_file = os.path.join(modelpath, onnxdir, preprocess)
+        model_files = [os.path.join(modelpath, onnxdir, model)]
         super().__init__(preprocessing_file, model_files, accelerator=accelerator)
 
         self.metadata_file = os.path.join(modelpath, onnxdir, 'metadata.json')

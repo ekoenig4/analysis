@@ -48,20 +48,20 @@ def join_fields(awk1, *args, **kwargs):
     return ak.zip(awk1_unzipped, depth_limit=1)
 
 
-def remove_name(collection, name):
-    unzipped = {field.replace(name+'_', ''): array for field,
+def remove_name(collection, name, sep='_'):
+    unzipped = {field.replace(name+sep, ''): array for field,
                 array in zip(collection.fields, ak.unzip(collection))}
     return ak.zip(unzipped, depth_limit=1)
 
 
-def get_collection(tree, name, named=True):
+def get_collection(tree, name, named=True, sep='_'):
     collection_branches = list(
-        filter(lambda branch: branch.startswith(name+'_'), tree.fields))
+        filter(lambda branch: branch.startswith(name+sep), tree.fields))
 
     branches = tree[collection_branches]
     if named:
         return branches
-    return remove_name(branches, name)
+    return remove_name(branches, name, sep=sep)
 
 
 def rename_collection(collection, newname, oldname=None):

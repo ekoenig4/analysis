@@ -5,7 +5,7 @@ from ..ak_tools import ak_rank, ak_rand_like, get_collection, build_p4, ak_cumsu
 from ..classUtils.ObjIter import ParallelMethod
 import numpy as np
 
-def reconstruct(jet_p4, assignment, tag='', order='random'):
+def reconstruct(jet_p4, assignment, tag='', order='pt', higgs_only=False):
     if tag and not tag.endswith('_'): tag += '_'
     
     j_p4 = jet_p4[assignment]
@@ -15,13 +15,14 @@ def reconstruct(jet_p4, assignment, tag='', order='random'):
     h_p4 = j1_p4 + j2_p4
     h_signalId = ak.where( j1_p4.signalId//2 == j2_p4.signalId//2, j1_p4.signalId//2, -1 )
 
-    y_p4 = h_p4[:,1] + h_p4[:,2]
-    # y_signalId = ak.where( (h_signalId[:,1]>0) == (h_signalId[:,2]>0), h_signalId[:,1]>0, -1 )
-    y_signalId = ak.where( (h_signalId[:,1]>0) & (h_signalId[:,2]>0), 0, -1)
+    if not higgs_only:
+        y_p4 = h_p4[:,1] + h_p4[:,2]
+        # y_signalId = ak.where( (h_signalId[:,1]>0) == (h_signalId[:,2]>0), h_signalId[:,1]>0, -1 )
+        y_signalId = ak.where( (h_signalId[:,1]>0) & (h_signalId[:,2]>0), 0, -1)
 
-    x_p4 = h_p4[:,0] + y_p4
-    # x_signalId = ak.where( (h_signalId[:,0]==0) == (y_signalId==1), h_signalId[:,0]>0, -1 )
-    x_signalId = ak.where(y_signalId == h_signalId[:,0], y_signalId, -1)
+        x_p4 = h_p4[:,0] + y_p4
+        # x_signalId = ak.where( (h_signalId[:,0]==0) == (y_signalId==1), h_signalId[:,0]>0, -1 )
+        x_signalId = ak.where(y_signalId == h_signalId[:,0], y_signalId, -1)
 
     if order == 'pt':
         h_order = ak_rank(h_p4.pt, axis=1)
@@ -30,8 +31,12 @@ def reconstruct(jet_p4, assignment, tag='', order='random'):
         h_order = ak.argsort(ak_rand_like(h_p4.pt), axis=1)
         j_order = ak.argsort(ak_rand_like(j_p4.pt), axis=1)
 
-    hy_h_order = h_order + np.array([[10,0,0]])
-    hy_h_j_order = j_order + 10*hy_h_order[:,[0,0,1,1,2,2]]
+    if not higgs_only:
+        hy_h_order = h_order + np.array([[10,0,0]])
+        hy_h_j_order = j_order + 10*hy_h_order[:,[0,0,1,1,2,2]]
+    else:
+        hy_h_order = h_order
+        hy_h_j_order = j_order + 10*hy_h_order[:,[0,0,1,1,2,2]]
 
     j_order = ak.argsort(hy_h_j_order, axis=1, ascending=False)
     h_order = ak.argsort(hy_h_order, axis=1, ascending=False)
@@ -41,16 +46,72 @@ def reconstruct(jet_p4, assignment, tag='', order='random'):
     h_signalId = h_signalId[h_order]
 
     p4vars = ['pt','eta','phi','m']
-    return dict(
-            **{f'{tag}x_{var}': getattr(x_p4, var) for var in p4vars},
-            **{f'{tag}x_signalId': x_signalId},
-            **{f'{tag}y_{var}': getattr(y_p4, var) for var in p4vars},
-            **{f'{tag}y_signalId': y_signalId},
-            **{f'{tag}h_{var}': getattr(h_p4, var) for var in p4vars},
-            **{f'{tag}h_signalId': h_signalId},
-            **{f'{tag}j_{var}': getattr(j_p4, var) for var in j_p4.fields},
+
+    if not higgs_only:
+        return dict(
+                **{f'{tag}x_{var}': getattr(x_p4, var) for var in p4vars},
+                **{f'{tag}x_signalId': x_signalId},
+                **{f'{tag}y_{var}': getattr(y_p4, var) for var in p4vars},
+                **{f'{tag}y_signalId': y_signalId},
+                **{f'{tag}h_{var}': getattr(h_p4, var) for var in p4vars},
+                **{f'{tag}h_signalId': h_signalId},
+                **{f'{tag}j_{var}': getattr(j_p4, var) for var in j_p4.fields},
+            )
+    else:
+        return dict(
+                **{f'{tag}h_{var}': getattr(h_p4, var) for var in p4vars},
+                **{f'{tag}h_signalId': h_signalId},
+                **{f'{tag}j_{var}': getattr(j_p4, var) for var in j_p4.fields},
+            )
+
+
+class f_load_x3h_feynnet(ParallelMethod):
+    def __init__(self, model_path, onnxdir='onnx', batch_size=5000, accelerator='cpu'):
+        super().__init__()
+
+        self.model_path = model_path
+        self.onnxdir = onnxdir
+        self.batch_size = batch_size
+        self.accelerator = accelerator
+
+    def start(self, tree):
+        jets = tree[[
+            'jet_pt',
+            'jet_ptRegressed',
+            'jet_eta',
+            'jet_phi',
+            'jet_m',
+            'jet_mRegressed',
+            'jet_btag',
+            'jet_signalId',
+        ]]
+        jets['jet_sinphi'] = np.sin(jets['jet_phi'])
+        jets['jet_cosphi'] = np.cos(jets['jet_phi'])
+
+        return dict(
+            jets=jets,
         )
 
+    def run(self, jets):
+        import utils.weaverUtils as weaver
+        import utils.sixbUtils as sixb
+
+        jets = jets[ ak.argsort(-jets.jet_btag, axis=1) ]
+        model = weaver.WeaverONNX(self.model_path, onnxdir=self.onnxdir, accelerator=self.accelerator)
+        results = model.predict(jets, batch_size=self.batch_size)
+        best_assignment = ak.from_regular(results['sorted_j_assignments'], axis=1)
+        best_assignment = ak.values_astype(best_assignment, np.int32)
+
+        rename = dict(jet_pt='jet_ptRegressed',jet_m='jet_mRegressed')
+        jets = ak.zip(
+            {
+                field[4:]: jets[ rename.get(field, field) ] for field in jets.fields if field.startswith('jet_')
+            }, with_name='Momentum4D'
+        )
+        return sixb.reconstruct(jets, best_assignment, higgs_only=True)
+
+    def end(self, tree, **results):
+        tree.extend(**results)
 
 class f_load_feynnet_assignment(ParallelMethod):
     def __init__(self, model, extra=[], reco_event=True, try_base=False, try_year=True, onnx=False, onnx_sample=False, tag='', order='random'):

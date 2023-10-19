@@ -29,6 +29,19 @@ class BDTReweighter:
 
     self.verbose = verbose
     self.reweighter = reweight.FoldingReweighter(reweighter_base, random_state=self.seed, n_folds=n_folds, verbose=False)
+    self.k_factor = None 
+
+  def __getstate__(self):
+    return dict(
+        seed = self.seed,
+        reweighter = self.reweighter,
+        k_factor = self.k_factor,
+    )
+
+  def __setstate__(self, state):
+    self.seed = state['seed']
+    self.reweighter = state['reweighter']
+    self.k_factor = state['k_factor']
 
   def train(self, targ_x, targ_w, estm_x, estm_w, reweight=True):
     if self.verbose:
@@ -51,19 +64,19 @@ class BDTReweighter:
   def save(self, fname='bdt_reweighter.pkl', path=f'{GIT_WD}/models'):
       if not fname.endswith('.pkl'): fname += '.pkl'
       fname = os.path.join(path, fname)
-      if os.path.exists(fname): return
+
+      dirname = os.path.dirname(fname)
+      if not os.path.exists(dirname): os.makedirs(dirname)
 
       print(f'... saving bdt to {fname}')
 
       with open(fname, 'wb') as f:
-          pickle.dump(self.reweighter, f)
+         pickle.dump(self, f)
 
-  def load(self, fname, path=f'{GIT_WD}/models'):
-      if not fname.endswith('.pkl'): fname += '.pkl'
-      fname = os.path.join(path, fname)
-
+  @staticmethod
+  def load(fname):
       with open(fname, 'rb') as f:
-          self.reweighter = pickle.load(f)
+          return pickle.load(f)
 
 class ABCD(BDTReweighter):
   def __init__(self, features: list = None, a: Callable = None, b: Callable = None, c: Callable = None, d: Callable = None, save=None, **kwargs):
@@ -76,11 +89,13 @@ class ABCD(BDTReweighter):
     self.er = lambda t : self.b(t) | self.d(t)
     self.mask = lambda t: self.sr(t) | self.cr(t)
 
-    if save and os.path.exists(f'{GIT_WD}/models/{save}'):
-      print(f' ... loading saved bdt at {GIT_WD}/models/{save}')
-      self.load(save)
-      self.hash = f"__abcd_reweight_{hash(self)}__{hash(self.reweighter)}__"
-      self._trained_ = True
+  def load(self, fname):
+    with open(fname, 'rb') as f:
+      self.__setstate__( pickle.load(f).__getstate__())
+    self.hash = f"__abcd_reweight_{hash(self)}__{hash(self.reweighter)}__"
+    self._trained_ = True
+
+    return self
 
   def yields(self, treeiter : ObjIter, lumi=None):
     if not isinstance(treeiter, ObjIter): treeiter = ObjIter([treeiter])
@@ -230,8 +245,6 @@ class ABCD(BDTReweighter):
 
     tree.extend(**{hash:reweight_error})
     return reweight_error
-     
-
 
   def scale_tree(self, tree: Tree):
     X, W = self.get_features(tree)
@@ -321,14 +334,14 @@ class BDTClassifier:
         if not fname.endswith('.pkl'): fname += '.pkl'
         fname = os.path.join(path, fname)
 
+        dirname = os.path.dirname(fname)
+        if not os.path.exists(dirname): os.makedirs(dirname)
+
         with open(fname, 'wb') as f:
             pickle.dump(self, f)
 
     @staticmethod
     def load(fname, path=f'{GIT_WD}/models'):
-        if not fname.endswith('.pkl'): fname += '.pkl'
-        fname = os.path.join(path, fname)
-
         with open(fname, 'rb') as f:
             return pickle.load(f)
 

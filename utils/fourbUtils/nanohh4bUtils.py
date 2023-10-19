@@ -196,6 +196,11 @@ class f_evaluate_feynnet(ParallelMethod):
             'predict':self.run_predict,
         }.get(onnxdir)
 
+        try:
+            self.metadata = weaver.WeaverONNX(self.model_path, onnxdir=self.onnxdir).metadata
+        except:
+            self.metadata = {'invalid':'invalid'}
+
     def start_onnx(self, tree):
         jets = get_ak4_jets(tree)
         jets['ak4_log_pt'] = np.log(jets['ak4_pt'])

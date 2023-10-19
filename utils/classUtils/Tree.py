@@ -149,7 +149,12 @@ class RootFile:
             dirname, basename = os.path.dirname(fname), os.path.basename(fname)
             output = os.path.join(dirname, altfile.format(base=basename))
 
-        tmp_output = '_'.join(output.split('/'))
+        if re.match(r'^root://(.*?)//(.*)$', output):
+            tmp_output = '_'.join(output.split('/'))
+            copy_to_remote = True
+        else:
+            tmp_output = output
+            copy_to_remote = False
 
         # character limit for filenames is 255 bytes
         # remove the start of the filename to make it fit
@@ -168,8 +173,8 @@ class RootFile:
                 break
             except ValueError:
                 ...
-
-        eos.move(tmp_output, output)
+        if copy_to_remote:
+            eos.move(tmp_output, output)
 
 def init_files(self, filelist, treename, normalization, altfile="{base}", report=True, xsec=None):
     if type(filelist) == str:
@@ -375,6 +380,7 @@ class Tree:
 
     def __init__(self, filelist, altfile="{base}", report=True, treename='sixBtree', weights=['genWeight'], normalization='h_cutflow', xsec=None, **kwargs):
         self._recursion_safe_guard_stack = []
+        self.varmap = dict()
 
         init_files(self, filelist, treename, normalization, altfile, report, xsec=xsec)
 
@@ -389,6 +395,7 @@ class Tree:
         self.reductions = dict()
         self.__dict__.update(**kwargs)
 
+
     def __str__(self):
         sample_string = [
             f"=== File Info ===",
@@ -397,9 +404,15 @@ class Tree:
             f"Raw Events:      {[fn.raw_events for fn in self.filelist]}",
         ]
         return "\n".join(sample_string)
-
+    
     def __getitem__(self, key): 
         if isinstance(key, list):
+            return self.ttree[key]
+        
+        if hasattr(self, 'varmap') and key in self.varmap and not key in self.fields:
+            self.ttree[key] = self.ttree[self.varmap[key]]
+
+        if key in self.ttree.fields:
             return self.ttree[key]
         return tree_expr(self.ttree, key)
 
@@ -558,7 +571,7 @@ class Tree:
 
             if any(option_fields):
                 option_fields = {
-                    field: ak.from_numpy(tree[field].to_numpy().data)
+                    field: ak.fill_none( ak.pad_none(tree[field], 1, axis=-1), -999)
                     for field in option_fields
                 }
                 tree = join_fields(tree, **option_fields)
@@ -579,8 +592,12 @@ class Tree:
             if ak.sum(file_mask) == 0: continue
 
             tree = unzip_records(full_tree[ file_mask ])
-            cutflow = (self.cutflow[i].histo, self.cutflow[i].bins)
-            file.write(altfile, retry=retry, tree=tree, types=types, h_cutflow=cutflow)
+            extra = dict()
+            try:
+                extra['h_cutflow'] = (self.cutflow[i].histo, self.cutflow[i].bins)
+            except Exception:
+                ...
+            file.write(altfile, retry=retry, tree=tree, types=types, **extra)
 
 class CopyTree(Tree):
     def __init__(self, tree):

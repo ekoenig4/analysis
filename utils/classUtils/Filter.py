@@ -74,6 +74,7 @@ def event_filter(self, tree, cutflow=True):
     for filter in self.filters:
         mask = mask & filter(tree)
 
+    mask = ak.to_numpy(mask)
     if self.verbose:
         scale = tree.scale if hasattr(tree, 'scale') else np.ones(len(tree))
         total = np.sum(scale)

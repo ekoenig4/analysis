@@ -1,8 +1,9 @@
 import numpy as np
 import jax
-import pyhf
+import pyhf, os
 from pyhf.exceptions import FailedMinimization
-pyhf.set_backend('jax')
+# pyhf.set_backend('jax')
+# os.environ["JAX_PLATFORM_NAME"] = 'cpu'
 
 from .histogram import Stack
 from ..classUtils import ObjIter, ParallelMethod
