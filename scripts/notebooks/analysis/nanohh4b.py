@@ -83,6 +83,7 @@ bdt_features = [
 
 varinfo.dHH_HH_mass = dict(bins=(200,1800,30))
 varinfo.dHH_HH_regmass = dict(bins=(200,1800,30))
+varinfo.bdt_score = dict(bins=np.concatenate([np.arange(0,0.9,0.02), np.array([0.9,1.0])]))
 
 def to_local(f):
     if f.startswith('/eos/user/e/ekoenig/'):
@@ -96,7 +97,9 @@ class Analysis(Notebook):
     def add_parser(parser):
         parser.add_argument('--dout', type=str, default='')
         parser.add_argument('--pairing', type=str, default='mindiag', )
-        parser.add_argument('--load-init', type=int, default=6)
+        parser.add_argument('--load-init', type=int, default=7)
+
+        parser.add_argument('--weights', nargs='+', default=[])
 
         parser.add_argument('--btagwp', type=str, default='medium')
         parser.add_argument('--leading-btag', action='store_true')
@@ -107,6 +110,11 @@ class Analysis(Notebook):
         parser.add_argument('--model', type=str, default=None)
 
         parser.add_argument('--bdisc-wp', type=float, default=None)
+
+        parser.add_argument('--load-reweighter', type=str, default=None)
+        parser.add_argument('--load-classifier', type=str, default=None)
+
+        parser.add_argument('--n-classifier-estimators', type=int, default=200)
 
     @required
     def init(self):
@@ -406,6 +414,96 @@ class Analysis(Notebook):
         else:
             self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
 
+    def _init_v7(self):
+
+        weights = self.weights or ['btagSF_central','trgSF_central']
+        weights.sort()
+        if any(self.weights):
+            self.dout = os.path.join(self.dout , '_'.join(weights))
+
+        if self.pairing == 'mindiag':
+            base = f'/eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/'
+        elif self.pairing == 'pn_mindiag':
+            base = f'/eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/PNet_woTrgMatching_17Oct2023_2018_0L/'
+
+        treekwargs = dict(
+            weights=['xsecWeight/1000','genWeight','puWeight',] + weights,
+            treename='Events',
+            normalization=None,
+        )
+
+
+        f_pattern = '{base}/mc/ggHH4b_tree.root'
+        f_sig = f_pattern.format(base=base)
+
+        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
+
+        # %%
+        f_pattern = '{base}/mc/qcd-mg_tree.root'
+        f_qcd = f_pattern.format(base=base)
+
+        f_pattern = '{base}/mc/ttbar-powheg_tree.root'
+        f_ttbar = f_pattern.format(base=base)
+        
+        if self.no_bkg:
+            self.bkg = ObjIter([])
+        else:
+            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
+
+        f_pattern = '{base}/data/jetht_tree.root'
+        f_data = f_pattern.format(base=base)
+
+        if self.no_data:
+            self.data = ObjIter([])
+        else:
+            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
+
+    def _init_v8(self):
+        self.dout = os.path.join(self.dout, 'daniel')
+        self.pairing = 'mindiag'
+
+        treekwargs = dict(
+            weights=['genWeight','PUWeight'],
+            treename='bbbbTree',
+            normalization='eff_histo',
+        )
+
+        base = f'root://cmseos.fnal.gov//store/user/mkolosov/MultiHiggs/DiHiggs/RunII/NTuples/NTuple_UL2018_05Oct2023_withSFs/'
+        
+        f_pattern = '{base}/GluGluToHHTo4B_cHHH1_TuneCP5_PSWeights_13TeV-powheg-pythia8/signal_merged_fnal_withSFs.root'
+        f_sig = f_pattern.format(base=base)
+
+        self.signal = ObjIter([Tree( f_sig, **treekwargs, sample='ggHH4b')])
+
+        # %%
+        f_pattern = '{base}/mc/qcd-mg_tree.root'
+        f_qcd = f_pattern.format(base=base)
+
+        f_pattern = '{base}/mc/ttbar-powheg_tree.root'
+        f_ttbar = f_pattern.format(base=base)
+        
+        self.no_bkg = True
+        if self.no_bkg:
+            self.bkg = ObjIter([])
+        else:
+            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
+
+        f_pattern = 'root://cmseos.fnal.gov//store/user/mkolosov/MultiHiggs/DiHiggs/RunII/NTuples/NTuple_UL2018_05Oct2023_v2/Data/ntuple.root'
+        f_data = f_pattern.format(base=base)
+
+        if self.no_data:
+            self.data = ObjIter([])
+        else:
+            self.data = ObjIter([Tree( f_data, **dict(treekwargs, weights=None, normalization=None, color='black', sample='jetht', xsec=1, is_data=True))])
+
+        from utils.fourbUtils.bbbbUtils import map_to_nano
+        (self.signal + self.data).apply(map_to_nano)
+
+        bbbb_lepton_veto = EventFilter('lepton_Veto', filter=lambda t : (t.IsolatedMuon_Multiplicity == 0) & (t.IsolatedElectron_Multiplicity == 0), verbose=True)
+        self.signal = self.signal.apply(bbbb_lepton_veto)
+        self.bkg = self.bkg.apply(bbbb_lepton_veto)
+        self.data = self.data.apply(bbbb_lepton_veto)
+
     @required
     def apply_trigger(self):
         if self.load_init >= 3:
@@ -467,6 +565,9 @@ class Analysis(Notebook):
             nprocs = min(rsc.ncpus, len(signal+bkg+data))
             with mp.Pool(nprocs) as pool:
                 (signal+bkg+data).parallel_apply(load_feynnet, pool=pool, report=True)
+
+        import json
+        study.save_file( json.dumps(load_feynnet.metadata, indent=2), saveas=f'{self.dout}/feynnet_metadata', fmt=['txt'])
 
     @required
     def load_spanet(self, signal, bkg, data):
@@ -531,6 +632,14 @@ class Analysis(Notebook):
 
         study.quick(
             signal,
+            varlist=['nfound_select', 'nfound_paired'],
+            legend=True,
+            efficiency=True,
+            saveas=f'{self.dout}/gen_match_eff',
+        )
+
+        study.quick(
+            signal,
             masks=lambda t : t.nfound_select==4,
             varlist=['nfound_select', 'nfound_paired'],
             h_label_stat=lambda h : f'{h.histo[-1]:0.2%}',
@@ -546,6 +655,23 @@ class Analysis(Notebook):
             legend=True,
             efficiency=True,
             saveas=f'{self.dout}/reco_eff_higgs_mass',
+        )
+
+        study.compare_masks(
+            signal,
+            masks=[None,'nfound_paired >= 1','nfound_paired == 2'],
+            varlist=['dHH_H1_regmass','dHH_H2_regmass'],
+            binlist=[(0,300,30)]*2,
+            legend=True,
+            saveas=f'{self.dout}/gen_matched_eff_stacked_higgs_mass',
+        )
+        study.compare_masks(
+            signal,
+            masks=['nfound_paired == 0','nfound_paired == 1','nfound_paired == 2'],
+            varlist=['dHH_H1_regmass','dHH_H2_regmass'],
+            binlist=[(0,300,30)]*2,
+            legend=True,
+            saveas=f'{self.dout}/gen_matched_eff_higgs_mass',
         )
 
     def plot_higgs(self, signal, bkg):
@@ -783,8 +909,22 @@ class Analysis(Notebook):
         )
 
     def train_bdt(self, data):
-        self.bdt.print_yields(data)
-        self.bdt.train(data)
+
+        import utils.config as cfg
+        default_file = os.path.join(cfg.GIT_WD, 'models', self.dout, 'bdt_reweighter.pkl')
+        if not self.load_reweighter:
+            if os.path.exists(default_file):
+                self.load_reweighter = default_file
+
+        if self.load_reweighter:
+            print('Loading reweighter from', self.load_reweighter)
+            self.bdt = self.bdt.load(self.load_reweighter)
+            self.bdt.print_yields(data)
+        else:
+            self.bdt.print_yields(data)
+            self.bdt.train(data)
+            self.bdt.save( os.path.join(self.dout, 'bdt_reweighter') )
+
         self.bdt.print_results(data)
 
     @dependency(train_bdt)
@@ -828,7 +968,7 @@ class Analysis(Notebook):
             limits=True,
             l_store=model,
             legend=True,
-            ylim=(0, 4000),
+            ylim=(0, 3000),
             saveas=f'{self.dout}/HH_mass_limits',
         )
 
@@ -847,102 +987,102 @@ class Analysis(Notebook):
             pickle.dump(info, f)
 
     @dependency(build_bkg_model)
-    def train_bdt_classifier(self, signal, bkg_model):
-        self.bdt_classifier = KFoldBDTClassifier(
-            features=bdt_features,
-            kfold=2
-        )
+    def write_features(self, signal, bkg_model):
+        signal.apply(lambda t : t.extend(label=np.ones(len(t))))
+        bkg_model.apply(lambda t : t.extend(label=np.zeros(len(t))))
 
-        self.bdt_classifier.train(bkg_model, signal, parallel=False)
+        signal.write('bdt_features_{base}', include=bdt_features+['scale','label'])
+        bkg_model.write('bdt_features_{base}', include=bdt_features+['scale','label'])
+
+    @dependency(build_bkg_model)
+    def train_bdt_classifier(self, signal, bkg_model):
+        import utils.config as cfg
+        default_file = os.path.join(cfg.GIT_WD, 'models', self.dout, 'bdt_classifier.pkl')
+        if not self.load_classifier:
+            if os.path.exists(default_file):
+                self.load_classifier = default_file
+
+        if self.load_classifier:
+            print('Loading classifier from', self.load_classifier)
+            self.bdt_classifier = KFoldBDTClassifier.load(self.load_classifier)
+        else:
+            self.bdt_classifier = KFoldBDTClassifier(
+                features=bdt_features,
+                kfold=3,
+                n_estimators=self.n_classifier_estimators,
+            )
+
+            self.bdt_classifier.train(bkg_model, signal)
+            self.bdt_classifier.save( os.path.join(self.dout, 'bdt_classifier') )
+
         self.bdt_classifier.print_results(bkg_model, signal)
         (signal + bkg_model).apply(lambda t : t.extend(bdt_score=self.bdt_classifier.predict_tree(t)))
 
     @dependency(train_bdt_classifier)
     def plot_bdt_classifier_validation(self, signal, bkg_model):
         sig_weights = signal.scale.cat * lumiMap[2018][0]
-        sig_index = signal.apply(lambda t : np.arange(len(t))).cat % 2
-        sig_bdt_0_score = signal.apply(self.bdt_classifier.bdts[0].predict_tree).cat
-        sig_bdt_1_score = signal.apply(self.bdt_classifier.bdts[1].predict_tree).cat
+        sig_index = signal.apply(lambda t : np.arange(len(t))).cat % self.bdt_classifier.kfold
+        sig_bdt_scores = [ signal.apply(bdt.predict_tree).cat for bdt in self.bdt_classifier.bdts ]
 
         bkg_weights = bkg_model.scale.cat
-        bkg_index = bkg_model.apply(lambda t : np.arange(len(t))).cat % 2
-        bkg_bdt_0_score = bkg_model.apply(self.bdt_classifier.bdts[0].predict_tree).cat
-        bkg_bdt_1_score = bkg_model.apply(self.bdt_classifier.bdts[1].predict_tree).cat
+        bkg_index = bkg_model.apply(lambda t : np.arange(len(t))).cat % self.bdt_classifier.kfold
+        bkg_bdt_scores = [ bkg_model.apply(bdt.predict_tree).cat for bdt in self.bdt_classifier.bdts ]
 
-        # trained discriminant C0 in train/test samples
-        fig, _, _ = hist_multi(
-            [sig_bdt_0_score[sig_index != 0], bkg_bdt_0_score[bkg_index != 0], sig_bdt_0_score[sig_index == 0], bkg_bdt_0_score[bkg_index == 0]],
-            weights = [sig_weights[sig_index != 0], bkg_weights[bkg_index != 0], sig_weights[sig_index == 0], bkg_weights[bkg_index == 0]],
-            bins=(0, 1, 21), stacked=False,
-            is_data = [False, False, True, True],
-            h_label=['S (Train)', 'B (Train)', 'S (Test)', 'B (Test)'],
-            h_color=['blue', 'red', 'blue', 'red'],
-            h_alpha=[0.5, 0.5, 1.0, 1.0],
-            h_histtype=['stepfilled', 'stepfilled', None, None],
-            efficiency=True, legend=True,
+        for i in range(self.bdt_classifier.kfold):
+        # trained discriminant in train/test samples
+            fig, _, _ = hist_multi(
+                [sig_bdt_scores[i][sig_index != i], bkg_bdt_scores[i][bkg_index != i], sig_bdt_scores[i][sig_index == i], bkg_bdt_scores[i][bkg_index == i]],
+                weights = [sig_weights[sig_index != i], bkg_weights[bkg_index != i], sig_weights[sig_index == i], bkg_weights[bkg_index == i]],
+                bins=(0, 1, 21), stacked=False,
+                title=f'BDT Classifier (Fold {i})',
+                is_data = [False, False, True, True],
+                h_label=['S (Train)', 'B (Train)', 'S (Test)', 'B (Test)'],
+                h_color=['blue', 'red', 'blue', 'red'],
+                h_alpha=[0.5, 0.5, 1.0, 1.0],
+                h_histtype=['stepfilled', 'stepfilled', None, None],
+                efficiency=True, legend=True,
 
-            ratio=True, r_group=((0, 2), (1, 3)), r_ylabel='Test/Train',
-            
-            empirical=True, e_show=False,
-            e_correlation=True, e_c_method='roc', e_c_group=[(2,3), (0,1)],
-            e_c_o_label=['Train','Test'],
-            e_c_o_linestyle=['-','--'],
-            e_c_o_color='black',
-            e_c_o_alpha=[0.8, 1.0],
-            e_c_label_stat='area',
-        )
-        study.save_fig(fig, f'{self.dout}/bdt_classifier_0_train_test')
-        
-        # trained discriminant C1 in train/test samples
-        fig, _, _ = hist_multi(
-            [sig_bdt_1_score[sig_index != 1], bkg_bdt_1_score[bkg_index != 1], sig_bdt_1_score[sig_index == 1], bkg_bdt_1_score[bkg_index == 1]],
-            weights = [sig_weights[sig_index != 1], bkg_weights[bkg_index != 1], sig_weights[sig_index == 1], bkg_weights[bkg_index == 1]],
-            bins=(0, 1, 21), stacked=False,
-            is_data = [False, False, True, True],
-            h_label=['S (Train)', 'B (Train)', 'S (Test)', 'B (Test)'],
-            h_color=['blue', 'red', 'blue', 'red'],
-            h_alpha=[0.5, 0.5, 1.0, 1.0],
-            h_histtype=['stepfilled', 'stepfilled', None, None],
-            efficiency=True, legend=True,
+                ratio=True, r_group=((0, 2), (1, 3)), r_ylabel='Test/Train',
+                
+                empirical=True, e_show=False,
+                e_correlation=True, e_c_method='roc', e_c_group=[(2,3), (0,1)],
+                e_c_o_label=['Train','Test'],
+                e_c_o_linestyle=['-','--'],
+                e_c_o_color='black',
+                e_c_o_alpha=[0.8, 1.0],
+                e_c_label_stat='area',
+            )
+            study.save_fig(fig, f'{self.dout}/bdt_classifier_{i}_train_test')
 
-            ratio=True, r_group=((0, 2), (1, 3)), r_ylabel='Test/Train',
-            
-            empirical=True, e_show=False,
-            e_correlation=True, e_c_method='roc', e_c_group=[(2,3), (0,1)],
-            e_c_o_label=['Train','Test'],
-            e_c_o_linestyle=['-','--'],
-            e_c_o_color='black',
-            e_c_o_alpha=[0.8, 1.0],
-            e_c_label_stat='area',
-        )
-        study.save_fig(fig, f'{self.dout}/bdt_classifier_1_train_test')
+            for j in range(i + 1, self.bdt_classifier.kfold):
+                fig, _, _ = hist_multi(
+                    [sig_bdt_scores[j][sig_index == j], bkg_bdt_scores[j][bkg_index == j], sig_bdt_scores[i][sig_index == i], bkg_bdt_scores[i][bkg_index == i]],
+                    weights = [sig_weights[sig_index == j], bkg_weights[bkg_index == j], sig_weights[sig_index == i], bkg_weights[bkg_index == i]],
+                    bins=(0, 1, 21), stacked=False,
+                    is_data = [False, False, True, True],
+                    title=f'BDT Classifier (Fold {i} vs {j})',
+                    h_label=[f'S (C{j})', f'B (C{j})', f'S (C{i})', f'B (C{i})'],
+                    h_color=['blue', 'red', 'blue', 'red'],
+                    h_alpha=[0.5, 0.5, 1.0, 1.0],
+                    h_histtype=['stepfilled', 'stepfilled', None, None],
+                    efficiency=True, legend=True,
 
-        fig, _, _ = hist_multi(
-            [sig_bdt_1_score[sig_index == 1], bkg_bdt_1_score[bkg_index == 1], sig_bdt_0_score[sig_index == 0], bkg_bdt_0_score[bkg_index == 0]],
-            weights = [sig_weights[sig_index == 1], bkg_weights[bkg_index == 1], sig_weights[sig_index == 0], bkg_weights[bkg_index == 0]],
-            bins=(0, 1, 21), stacked=False,
-            is_data = [False, False, True, True],
-            h_label=['S (C2)', 'B (C2)', 'S (C1)', 'B (C1)'],
-            h_color=['blue', 'red', 'blue', 'red'],
-            h_alpha=[0.5, 0.5, 1.0, 1.0],
-            h_histtype=['stepfilled', 'stepfilled', None, None],
-            efficiency=True, legend=True,
-
-            ratio=True, r_group=((0, 2), (1, 3)), r_ylabel='C2/C1',
-            
-            empirical=True, e_show=False,
-            e_correlation=True, e_c_method='roc', e_c_group=((0,1), (2, 3)),
-            e_c_o_label=['C2','C1'],
-            e_c_o_linestyle=['-','--'],
-            e_c_o_color='black',
-            e_c_o_alpha=[0.8, 1.0],
-            e_c_label_stat='area',
-        )
-        study.save_fig(fig, f'{self.dout}/bdt_classifier_0_vs_1')
+                    ratio=True, r_group=((0, 2), (1, 3)), r_ylabel=f'C{j}/C{i}',
+                    
+                    empirical=True, e_show=False,
+                    e_correlation=True, e_c_method='roc', e_c_group=((0,1), (2, 3)),
+                    e_c_o_label=['C2','C1'],
+                    e_c_o_linestyle=['-','--'],
+                    e_c_o_color='black',
+                    e_c_o_alpha=[0.8, 1.0],
+                    e_c_label_stat='area',
+                )
+                study.save_fig(fig, f'{self.dout}/bdt_classifier_{i}_vs_{j}')
 
     @dependency(train_bdt_classifier)
     def plot_bdt_classifier_limits(self, signal, bkg_model):
         model = []
+
         study.quick(
             signal+bkg_model,
             varlist=['bdt_score'],
@@ -951,8 +1091,28 @@ class Analysis(Notebook):
             limits=True,
             l_store=model,
             legend=True,
-            ylim=(0, 4000),
+            log=True, ylim=(0.5e-2, 2e6),
             saveas=f'{self.dout}/bdt_score_limits',
+        )
+        
+        # study.quick(
+        #     signal+bkg_model,
+        #     varlist=['bdt_score'],
+        #     plot_scale=[100]*len(signal),
+        #     binlist=[(0,1,30)],
+        #     limits=True,
+        #     legend=True,
+        #     ylim=(0, 750),
+        #     saveas=f'{self.dout}/bdt_score_limits_zoomed',
+        # )
+        
+        study.quick(
+            signal+bkg_model,
+            varlist=['bdt_score'],
+            limits=True,
+            legend=True,
+            log=True, ylim=(0.5e-2, 2e6),
+            saveas=f'{self.dout}/bdt_score_limits_run2',
         )
 
         model = model[0][0]
