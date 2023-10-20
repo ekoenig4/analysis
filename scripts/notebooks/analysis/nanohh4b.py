@@ -80,6 +80,8 @@ varinfo.bdt_score = dict(bins=np.concatenate([np.arange(0,0.9,0.02), np.array([0
 class Analysis(Notebook):
     @staticmethod
     def add_parser(parser):
+        parser.set_defaults(config='configs/nanohh4b.yaml')
+        
         parser.add_argument('--dout', type=str, default='')
         parser.add_argument('--pairing', type=str, default='mindiag', )
 
