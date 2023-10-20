@@ -97,6 +97,8 @@ class Notebook:
 
     @staticmethod
     def init_parser(parser):
+        parser.add_argument('--config', type=str, help='path to config yaml file', default=None)
+
         parser.add_argument('--ignore-error', action='store_true', help='ignore errors from cells')
         parser.add_argument('--dry-run', action='store_true', help='dry run the notebook without executing cells')
         parser.add_argument('--only', nargs='+', help='only run these cells', default=[])
@@ -120,6 +122,8 @@ class Notebook:
 
     @classmethod
     def from_parser(cls, parser=None, args=None, **kwargs):
+        import os 
+
         parser = parser or ArgumentParser()
 
         cls.init_parser(parser)
@@ -128,12 +132,20 @@ class Notebook:
         add_parser_from_inheritance(cls, parser)
 
         args = parser.parse_args(args=args)
-        kwargs = dict(vars(args), **kwargs)
+
+        if args.config:
+            import yaml
+            with open(args.config, 'r') as f:
+                kwargs = dict(dict(vars(args), **yaml.load(f, Loader=yaml.FullLoader)), **kwargs)
+        else:
+            kwargs = dict(vars(args), **kwargs)
+
         return cls(**kwargs)
     
     @classmethod
-    def load(cls, **kwargs):
-        return cls.from_parser(args='', **kwargs)
+    def load(cls, config=None, **kwargs):
+        args = ['--config', config] if config else ''
+        return cls.from_parser(args=args, **kwargs)
     
     @classmethod
     def cells(cls):
@@ -206,7 +218,9 @@ class Notebook:
             else:
                 cell.disable()
 
-    def run(self):
+    def run(self, runlist=None):
+        if runlist is not None: self.build_runlist(list(self._cells.keys()), only_list=runlist)
+
         stopwatch = Stopwatch()
         for key, cell in self._cells.items():
             ready = cell.ready()

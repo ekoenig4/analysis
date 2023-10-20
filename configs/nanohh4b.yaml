@@ -1,0 +1,35 @@
+weights : [ xsecWeight / 1000, genWeight, puWeight, btagSF_central, trgSF_central ]
+
+signal : 
+  - /eos/home-m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/ggHH4b_tree.root
+
+qcd : 
+  - /eos/home-m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/qcd-mg_tree.root
+
+ttbar : 
+  - /eos/home-m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/ttbar-powheg_tree.root
+
+data : 
+  - /eos/home-m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/data/jetht_tree.root
+  
+pairing: mindiag
+
+bdt_features: ['ak4_h1b1_regpt', 'ak4_h1b2_regpt', 'ak4_h2b1_regpt', 'ak4_h2b2_regpt',
+                'dHH_H1_regmass', 'dHH_H2_regmass', 'dHH_H1_pt', 'dHH_H2_pt', 
+                'dHH_HH_mass', 'dHH_HH_pt','dHH_SumRegPtb', 'dHH_SumRegResb',
+                'dHH_H1b1_H1b2_deltaR', 'dHH_H2b1_H2b2_deltaR', 'dHH_H1_H2_deltaEta','dHH_mindRbb', 
+                'dHH_maxdEtabb','dHH_absCosTheta_H1_inHHcm', 'dHH_absCosTheta_H1b1_inH1cm', 'dHH_NbtagT', ]
+
+bdt_reweighter: 
+  n_estimators: 70
+  max_depth: 4
+  learning_rate: 0.1
+  min_samples_leaf: 300
+  n_folds: 2
+  gb_args: 
+    subsample: 0.6
+
+bdt_classifier:
+  kfold: 3
+  n_estimators: 100
+

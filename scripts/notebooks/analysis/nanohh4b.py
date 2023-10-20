@@ -73,33 +73,15 @@ def h_dm(t):
 def vr_h_dm(t):
     return np.sqrt( (t.dHH_H1_regmass - 179)**2 + (t.dHH_H2_regmass - 172)**2 )
 
-bdt_features = [
-    'ak4_h1b1_regpt', 'ak4_h1b2_regpt', 'ak4_h2b1_regpt', 'ak4_h2b2_regpt',
-    'dHH_H1_regmass', 'dHH_H2_regmass', 'dHH_H1_pt', 'dHH_H2_pt', 
-    'dHH_HH_mass', 'dHH_HH_pt','dHH_SumRegPtb', 'dHH_SumRegResb',
-    'dHH_H1b1_H1b2_deltaR', 'dHH_H2b1_H2b2_deltaR', 'dHH_H1_H2_deltaEta','dHH_mindRbb', 
-    'dHH_maxdEtabb','dHH_absCosTheta_H1_inHHcm', 'dHH_absCosTheta_H1b1_inH1cm', 'dHH_NbtagT',
-]
-
 varinfo.dHH_HH_mass = dict(bins=(200,1800,30))
 varinfo.dHH_HH_regmass = dict(bins=(200,1800,30))
 varinfo.bdt_score = dict(bins=np.concatenate([np.arange(0,0.9,0.02), np.array([0.9,1.0])]))
-
-def to_local(f):
-    if f.startswith('/eos/user/e/ekoenig/'):
-        return f.replace('/eos/user/e/ekoenig/','/store/user/ekoenig/')
-    
-    if f.startswith('/eos/user/m/mkolosov/'):
-        return f.replace('/eos/user/m/mkolosov/','/store/user/ekoenig/')
 
 class Analysis(Notebook):
     @staticmethod
     def add_parser(parser):
         parser.add_argument('--dout', type=str, default='')
         parser.add_argument('--pairing', type=str, default='mindiag', )
-        parser.add_argument('--load-init', type=int, default=7)
-
-        parser.add_argument('--weights', nargs='+', default=[])
 
         parser.add_argument('--btagwp', type=str, default='medium')
         parser.add_argument('--leading-btag', action='store_true')
@@ -114,18 +96,32 @@ class Analysis(Notebook):
         parser.add_argument('--load-reweighter', type=str, default=None)
         parser.add_argument('--load-classifier', type=str, default=None)
 
-        parser.add_argument('--n-classifier-estimators', type=int, default=200)
-
     @required
     def init(self):
-        if self.load_init == 5: 
-            self.dout = os.path.join(self.dout,'central')
-        else:
-            self.dout = os.path.join(self.dout,'private')
+        import hashlib
+        field_cache = str(hashlib.md5(__file__.encode()).hexdigest())
+        load_fields = Tree.accessed_fields.load(field_cache, save_on_change=True)
 
-        init_version = f'_init_v{self.load_init}'
-        init = getattr(self, init_version)
-        init()
+        treekwargs = dict(
+            weights=self.weights,
+            treename='Events',
+            normalization=None,
+            fields=load_fields,
+        )
+
+        
+        self.signal = ObjIter([Tree( self.signal, **treekwargs, sample='ggHH4b')])
+
+        if self.no_bkg:
+            self.bkg = ObjIter([])
+        else:
+            self.bkg = ObjIter([Tree( self.qcd, **treekwargs), Tree( self.ttbar, **treekwargs)])
+
+        if self.no_data:
+            self.data = ObjIter([])
+        else:
+            self.data = ObjIter([Tree( self.data, **dict(treekwargs, weights=None, color='black'))])
+
 
         if self.model is not None:
             if not os.path.exists(self.model):
@@ -162,357 +158,32 @@ class Analysis(Notebook):
         self.dout = os.path.join(self.dout, btagwp)
 
 
-        hparams = dict(
-            n_estimators=70,
-            max_depth=4,
-            learning_rate=0.1,
-            min_samples_leaf=300,
-            gb_args=dict(subsample=0.6),
-            n_folds=2,
-        )
-        
         self.bdt = ABCD(
-            features=bdt_features,
+            features=self.bdt_features,
             a=lambda t : (h_dm(t) <  25) & (self.n_btag(t) == 4),
             b=lambda t : (h_dm(t) <  25) & (self.n_btag(t) == 3),
             c=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 4),
             d=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 3),
-            **hparams
+            **self.bdt_reweighter
         )
 
         self.vr_bdt = ABCD(
-            features=bdt_features,
+            features=self.bdt_features,
             a=lambda t : (vr_h_dm(t) <  25) & (self.n_btag(t) == 4),
             b=lambda t : (vr_h_dm(t) <  25) & (self.n_btag(t) == 3),
             c=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (self.n_btag(t) == 4),
             d=lambda t : (vr_h_dm(t) >= 25) & (vr_h_dm(t) < 50) & (self.n_btag(t) == 3),
-            **hparams
+            **self.bdt_reweighter
         )
 
         self.vr2_bdt = ABCD(
-            features=bdt_features,
+            features=self.bdt_features,
             a=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 4),
             b=lambda t : (h_dm(t) >= 25) & (h_dm(t) < 50) & (self.n_btag(t) == 3),
             c=lambda t : (h_dm(t) >= 50) & (h_dm(t) < 75) & (self.n_btag(t) == 4),
             d=lambda t : (h_dm(t) >= 50) & (h_dm(t) < 75) & (self.n_btag(t) == 3),
-            **hparams
+            **self.bdt_reweighter
         )
-
-    def _init_v0(self):
-        treekwargs = dict(  
-            weights=['xsecWeight/1000','genWeight','puWeight'],
-            treename='Events',
-            normalization='Runs:genEventCount',
-        )
-
-        f_pattern = '/eos/user/e/ekoenig/4BAnalysis/CMSSW_12_5_0/src/PhysicsTools/NanoHH4b/run/jobs_sig_{pairing}_2018_0L/mc/GluGluToHHTo4B_node_cHHH1_TuneCP5_13TeV-powheg-pythia8_1_tree.root'
-        f_sig = f_pattern.format(pairing=self.pairing)
-        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
-
-        # %%
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/bkg_{pairing}_2018_0L/mc/QCD*.root'
-        f_bkg = f_pattern.format(pairing=self.pairing)
-        self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_bkg), **treekwargs)])
-        # self.bkg = ObjIter([])
-
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/data_{pairing}_2018_0L/data/JetHT*.root'
-        f_data = f_pattern.format(pairing=self.pairing)
-        self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
-
-    def _init_v1(self):
-        treekwargs = dict(
-            weights=['xsecWeight/1000','genWeight','puWeight'],
-            treename='Events',
-            normalization=None,
-        )
-        
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/v1/{pairing}_sig_2018_0L/mc/ggHH4b_tree.root'
-        f_sig = f_pattern.format(pairing=self.pairing)
-
-        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
-
-        # %%
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/v1/{pairing}_bkg_2018_0L/mc/qcd-mg_tree.root'
-        f_bkg = f_pattern.format(pairing=self.pairing)
-        # self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_bkg), **treekwargs)])
-        self.bkg = ObjIter([])
-
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/v1/{pairing}_data_2018_0L/data/jetht_tree.root'
-        f_data = f_pattern.format(pairing=self.pairing)
-        self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
-
-
-    def _init_v2(self):
-        treekwargs = dict(
-            weights=['xsecWeight/1000','genWeight','puWeight'],
-            treename='Events',
-            normalization=None,
-        )
-        
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_sig_2018_0L/mc/ggHH4b_tree.root'
-        f_sig = f_pattern.format(pairing=self.pairing)
-
-        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
-
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_2018_0L/mc/qcd-mg_tree.root'
-        f_qcd = f_pattern.format(pairing=self.pairing)
-
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_2018_0L/mc/ttbar-powheg_tree.root'
-        f_ttbar = f_pattern.format(pairing=self.pairing)
-        
-        if self.no_bkg:
-            self.bkg = ObjIter([])
-        else:
-            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
-
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/{pairing}_2018_0L/data/jetht_tree.root'
-        f_data = f_pattern.format(pairing=self.pairing)
-        
-        if self.no_data:
-            self.data = ObjIter([])
-        else:
-            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
-
-    def _init_v3(self):
-        treekwargs = dict(
-            weights=['xsecWeight/1000','genWeight','puWeight'],
-            treename='Events',
-            normalization=None,
-        )
-        
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_sig_2018_0L/mc/ggHH4b_tree.root'
-        f_sig = f_pattern.format(pairing=self.pairing)
-
-        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
-
-        # %%
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_2018_0L/mc/qcd-mg_tree.root'
-        f_qcd = f_pattern.format(pairing=self.pairing)
-
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_2018_0L/mc/ttbar-powheg_tree.root'
-        f_ttbar = f_pattern.format(pairing=self.pairing)
-        
-        if self.no_bkg:
-            self.bkg = ObjIter([])
-        else:
-            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
-
-        f_pattern = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/{pairing}_2018_0L/data/jetht_tree.root'
-        f_data = f_pattern.format(pairing=self.pairing)
-
-        if self.no_data:
-            self.data = ObjIter([])
-        else:
-            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
-
-    def _init_v4(self):
-        treekwargs = dict(
-            weights=['xsecWeight/1000','genWeight','puWeight'],
-            treename='Events',
-            normalization=None,
-        )
-
-        base = '/eos/user/e/ekoenig/Ntuples/NanoHH4b/trg/btagfix/skim_20231001'
-        
-        f_pattern = '{base}/{pairing}_sig_2018_0L/mc/ggHH4b_tree.root'
-        f_sig = f_pattern.format(base=base, pairing=self.pairing)
-
-        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
-
-        # %%
-        f_pattern = '{base}/{pairing}_2018_0L/mc/qcd-mg_tree.root'
-        f_qcd = f_pattern.format(base=base, pairing=self.pairing)
-
-        f_pattern = '{base}/{pairing}_2018_0L/mc/ttbar-powheg_tree.root'
-        f_ttbar = f_pattern.format(base=base, pairing=self.pairing)
-        
-        if self.no_bkg:
-            self.bkg = ObjIter([])
-        else:
-            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
-
-        f_pattern = '{base}/{pairing}_2018_0L/data/jetht_tree.root'
-        f_data = f_pattern.format(base=base, pairing=self.pairing)
-
-        if self.no_data:
-            self.data = ObjIter([])
-        else:
-            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
-
-
-    def _init_v5(self):
-        """
-        DeepJet with MinDiag produced by Marina
-        """
-
-        treekwargs = dict(
-            weights=['xsecWeight/1000','genWeight','puWeight'],
-            treename='Events',
-            normalization=None,
-        )
-
-        self.pairing = 'mindiag'
-
-        base = '/eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/BugFix_UL2018_2018_0L'
-        
-        f_pattern = '{base}/mc/ggHH4b_tree.root'
-        f_sig = f_pattern.format(base=base)
-
-        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
-
-        # %%
-        f_pattern = '{base}/mc/qcd-mg_tree.root'
-        f_qcd = f_pattern.format(base=base)
-
-        f_pattern = '{base}/mc/ttbar-powheg_tree.root'
-        f_ttbar = f_pattern.format(base=base)
-        
-        if self.no_bkg:
-            self.bkg = ObjIter([])
-        else:
-            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
-
-        f_pattern = '{base}/data/jetht_tree.root'
-        f_data = f_pattern.format(base=base)
-
-        if self.no_data:
-            self.data = ObjIter([])
-        else:
-            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
-    
-    def _init_v6(self):
-        treekwargs = dict(
-            weights=['xsecWeight/1000','genWeight','puWeight'],
-            treename='Events',
-            normalization=None,
-        )
-
-        base = f'/eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/{self.pairing}_2018_0L'
-        
-        f_pattern = '{base}/mc/ggHH4b_tree.root'
-        f_sig = f_pattern.format(base=base)
-
-        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
-
-        # %%
-        f_pattern = '{base}/mc/qcd-mg_tree.root'
-        f_qcd = f_pattern.format(base=base)
-
-        f_pattern = '{base}/mc/ttbar-powheg_tree.root'
-        f_ttbar = f_pattern.format(base=base)
-        
-        if self.no_bkg:
-            self.bkg = ObjIter([])
-        else:
-            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
-
-        f_pattern = '{base}/data/jetht_tree.root'
-        f_data = f_pattern.format(base=base)
-
-        if self.no_data:
-            self.data = ObjIter([])
-        else:
-            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
-
-    def _init_v7(self):
-
-        weights = self.weights or ['btagSF_central','trgSF_central']
-        weights.sort()
-        if any(self.weights):
-            self.dout = os.path.join(self.dout , '_'.join(weights))
-
-        if self.pairing == 'mindiag':
-            base = f'/eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/'
-        elif self.pairing == 'pn_mindiag':
-            base = f'/eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/PNet_woTrgMatching_17Oct2023_2018_0L/'
-
-        treekwargs = dict(
-            weights=['xsecWeight/1000','genWeight','puWeight',] + weights,
-            treename='Events',
-            normalization=None,
-        )
-
-
-        f_pattern = '{base}/mc/ggHH4b_tree.root'
-        f_sig = f_pattern.format(base=base)
-
-        self.signal = ObjIter([Tree( fc.fs.cernbox.fullpath(f_sig), **treekwargs)])
-
-        # %%
-        f_pattern = '{base}/mc/qcd-mg_tree.root'
-        f_qcd = f_pattern.format(base=base)
-
-        f_pattern = '{base}/mc/ttbar-powheg_tree.root'
-        f_ttbar = f_pattern.format(base=base)
-        
-        if self.no_bkg:
-            self.bkg = ObjIter([])
-        else:
-            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
-
-        f_pattern = '{base}/data/jetht_tree.root'
-        f_data = f_pattern.format(base=base)
-
-        if self.no_data:
-            self.data = ObjIter([])
-        else:
-            self.data = ObjIter([Tree( fc.fs.cernbox.fullpath(f_data), **dict(treekwargs, weights=None, color='black'))])
-
-    def _init_v8(self):
-        self.dout = os.path.join(self.dout, 'daniel')
-        self.pairing = 'mindiag'
-
-        treekwargs = dict(
-            weights=['genWeight','PUWeight'],
-            treename='bbbbTree',
-            normalization='eff_histo',
-        )
-
-        base = f'root://cmseos.fnal.gov//store/user/mkolosov/MultiHiggs/DiHiggs/RunII/NTuples/NTuple_UL2018_05Oct2023_withSFs/'
-        
-        f_pattern = '{base}/GluGluToHHTo4B_cHHH1_TuneCP5_PSWeights_13TeV-powheg-pythia8/signal_merged_fnal_withSFs.root'
-        f_sig = f_pattern.format(base=base)
-
-        self.signal = ObjIter([Tree( f_sig, **treekwargs, sample='ggHH4b')])
-
-        # %%
-        f_pattern = '{base}/mc/qcd-mg_tree.root'
-        f_qcd = f_pattern.format(base=base)
-
-        f_pattern = '{base}/mc/ttbar-powheg_tree.root'
-        f_ttbar = f_pattern.format(base=base)
-        
-        self.no_bkg = True
-        if self.no_bkg:
-            self.bkg = ObjIter([])
-        else:
-            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
-
-        f_pattern = 'root://cmseos.fnal.gov//store/user/mkolosov/MultiHiggs/DiHiggs/RunII/NTuples/NTuple_UL2018_05Oct2023_v2/Data/ntuple.root'
-        f_data = f_pattern.format(base=base)
-
-        if self.no_data:
-            self.data = ObjIter([])
-        else:
-            self.data = ObjIter([Tree( f_data, **dict(treekwargs, weights=None, normalization=None, color='black', sample='jetht', xsec=1, is_data=True))])
-
-        from utils.fourbUtils.bbbbUtils import map_to_nano
-        (self.signal + self.data).apply(map_to_nano)
-
-        bbbb_lepton_veto = EventFilter('lepton_Veto', filter=lambda t : (t.IsolatedMuon_Multiplicity == 0) & (t.IsolatedElectron_Multiplicity == 0), verbose=True)
-        self.signal = self.signal.apply(bbbb_lepton_veto)
-        self.bkg = self.bkg.apply(bbbb_lepton_veto)
-        self.data = self.data.apply(bbbb_lepton_veto)
-
-    @required
-    def apply_trigger(self):
-        if self.load_init >= 3:
-            return
-
-        trigger = EventFilter('trigger', filter=lambda t : t.passTrig0L, verbose=True)
-        self.signal = self.signal.apply(trigger)
-        self.bkg = self.bkg.apply(trigger)
-        self.data = self.data.apply(trigger)
 
     ################################
     # B Discriminator Optimization #
@@ -536,52 +207,6 @@ class Analysis(Notebook):
         self.signal = signal.apply(event_filter)
         self.bkg = bkg.apply(event_filter)
         self.data = data.apply(event_filter)
-
-    @required
-    def load_feynnet(self, signal, bkg, data):
-        if self.model is None:
-            return
-
-        if 'feynnet' not in self.model:
-            return
-
-        if self.model.endswith('/'): self.model=self.model[:-1]
-
-        import utils.resources as rsc
-        accelerator = 'cpu' if rsc.ngpus == 0 else 'cuda'
-
-        if self.model.endswith('onnx') or self.model.endswith('onnx/'):
-            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet( os.path.dirname(self.model), 'onnx', accelerator=accelerator )
-        elif self.model.endswith('predict') or self.model.endswith('predict/'):
-            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet( os.path.dirname(self.model), 'predict', accelerator=accelerator )
-        else:
-            load_feynnet = fourb.nanohh4b.f_evaluate_feynnet(self.model, accelerator=accelerator)
-
-
-        import multiprocess as mp
-        if accelerator == 'cuda': 
-            (signal+bkg+data).apply(load_feynnet, report=True)
-        else:
-            nprocs = min(rsc.ncpus, len(signal+bkg+data))
-            with mp.Pool(nprocs) as pool:
-                (signal+bkg+data).parallel_apply(load_feynnet, pool=pool, report=True)
-
-        import json
-        study.save_file( json.dumps(load_feynnet.metadata, indent=2), saveas=f'{self.dout}/feynnet_metadata', fmt=['txt'])
-
-    @required
-    def load_spanet(self, signal, bkg, data):
-        if self.model is None:
-            return
-        
-        if 'spanet' not in self.model:
-            return
-
-        load_spanet = fourb.nanohh4b.f_evaluate_spanet(self.model)
-        import utils.resources as rsc
-        nprocs = min(rsc.ncpus, len(signal+bkg+data))
-        with mp.Pool(nprocs) as pool:
-            (signal+bkg+data).parallel_apply(load_spanet, pool=pool, report=True)
 
     @required
     def hh_mass_cut(self, signal, bkg, data):
@@ -986,13 +611,13 @@ class Analysis(Notebook):
         with open(f'{self.dout}/limit_values.pkl', 'wb') as f:
             pickle.dump(info, f)
 
-    @dependency(build_bkg_model)
-    def write_features(self, signal, bkg_model):
-        signal.apply(lambda t : t.extend(label=np.ones(len(t))))
-        bkg_model.apply(lambda t : t.extend(label=np.zeros(len(t))))
+    # @dependency(build_bkg_model)
+    # def write_features(self, signal, bkg_model):
+    #     signal.apply(lambda t : t.extend(label=np.ones(len(t))))
+    #     bkg_model.apply(lambda t : t.extend(label=np.zeros(len(t))))
 
-        signal.write('bdt_features_{base}', include=bdt_features+['scale','label'])
-        bkg_model.write('bdt_features_{base}', include=bdt_features+['scale','label'])
+    #     signal.write('bdt_features_{base}', include=bdt_features+['scale','label'])
+    #     bkg_model.write('bdt_features_{base}', include=bdt_features+['scale','label'])
 
     @dependency(build_bkg_model)
     def train_bdt_classifier(self, signal, bkg_model):
@@ -1007,9 +632,8 @@ class Analysis(Notebook):
             self.bdt_classifier = KFoldBDTClassifier.load(self.load_classifier)
         else:
             self.bdt_classifier = KFoldBDTClassifier(
-                features=bdt_features,
-                kfold=3,
-                n_estimators=self.n_classifier_estimators,
+                features=self.bdt_features,
+                **self.bdt_classifier
             )
 
             self.bdt_classifier.train(bkg_model, signal)
