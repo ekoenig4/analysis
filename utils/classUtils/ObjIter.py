@@ -3,7 +3,7 @@ import awkward as ak
 import multiprocessing as mp
 import threading as th
 from threading import Thread
-from multiprocess.pool import ThreadPool
+from multiprocessing.pool import ThreadPool
 from functools import partial
 import time
 

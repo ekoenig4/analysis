@@ -42,6 +42,9 @@ def copy_to_local(fname):
     remote_pattern = re.compile(r'^root://(.*?)//(.*)$')
     match = remote_pattern.match(fname)
     if not match: return fname
+
+    local_remote = remote_pattern.match(config.local_store)
+    if local_remote.group(1) == match.group(1): return fname
     
     local_path = os.path.join(config.local_store, 'root', match.group(1), match.group(2))
     print('Using local path:', local_path)

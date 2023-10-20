@@ -1,5 +1,5 @@
 # specify a path to store remote files locally
-local_store: /cmsuf/data/store/user/ekoenig/
+local_store: root://eosuser.cern.ch//eos/user/e/ekoenig/
 
 # specify a different path to store plots
-plot_store: root://eosuser.cern.ch//eos/user/e/ekoenig/studies/plots/
+plot_store: /eos/home-e/ekoenig/studies/plots/

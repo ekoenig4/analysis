@@ -5,7 +5,6 @@ from ..classUtils import ObjIter,AttrArray
 from . import function
 from .graph import Graph
 import numpy as np
-import numba
 import awkward as ak
 import re
 import copy
@@ -43,37 +42,6 @@ class Stats:
         
     def __str__(self):
         return '\n'.join([ f'{key}={float(value):0.3e}' for key,value in vars(self).items() ])
-
-
-@numba.jit(nopython=True, parallel=True, fastmath=True)
-def numba_weighted_histo(array : np.array, bins : np.array, weights : np.array) -> np.array:
-    counts = np.zeros( bins.shape[0]-1 )
-    for i,(lo, hi) in enumerate(zip(bins[:-1],bins[1:])):
-        mask = (array >= lo) & (array < hi)
-        counts[i] = np.sum(weights[mask])
-    errors = np.sqrt(counts)
-    return counts,errors
-
-@numba.jit(nopython=True, parallel=True, fastmath=True)
-def numba_weighted_histo_sumw2(array : np.array, bins : np.array, weights : np.array) -> np.array:
-    counts = np.zeros( bins.shape[0]-1 )
-    errors = np.zeros( bins.shape[0]-1 )
-    weights2 = weights**2
-    for i,(lo, hi) in enumerate(zip(bins[:-1],bins[1:])):
-        mask = (array >= lo) & (array < hi)
-        counts[i] = np.sum(weights[mask])
-        errors[i] = np.sum(weights2[mask])
-    errors = np.sqrt(errors)
-    return counts,errors
-
-@numba.jit(nopython=True, parallel=True, fastmath=True)
-def numba_unweighted_histo(array : np.array, bins : np.array) -> np.array:
-    counts = np.zeros( bins.shape[0]-1 )
-    for i,(lo, hi) in enumerate(zip(bins[:-1],bins[1:])):
-        mask = (array >= lo) & (array < hi)
-        counts[i] = np.sum(mask)
-    errors = np.sqrt(counts)
-    return counts,errors
 
 def np_unweighted_histo(array, bins):
     counts = np.histogram(array, bins)[0]

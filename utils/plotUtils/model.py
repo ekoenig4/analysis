@@ -1,9 +1,5 @@
 import numpy as np
-import jax
-import pyhf, os
-from pyhf.exceptions import FailedMinimization
-# pyhf.set_backend('jax')
-# os.environ["JAX_PLATFORM_NAME"] = 'cpu'
+import os
 
 from .histogram import Stack
 from ..classUtils import ObjIter, ParallelMethod
@@ -25,6 +21,8 @@ class f_pyhf_upperlimit(ParallelMethod):
         )
     
     def run(self, data, w, norm, poi, level):
+      import pyhf, os
+      from pyhf.exceptions import FailedMinimization
       try:
         obs_limit, exp_limit = pyhf.infer.intervals.upperlimit(
             data, w, poi, level=level,
@@ -112,6 +110,7 @@ class Model:
     # self.norm = 1
 
   def get_pyhf(self):
+    import pyhf, os
     w = pyhf.simplemodels.uncorrelated_background(
       signal=(self.norm*self.h_sig.histo).tolist(), bkg=self.h_bkg.histo.tolist(), bkg_uncertainty=self.h_bkg.error.tolist()
     )

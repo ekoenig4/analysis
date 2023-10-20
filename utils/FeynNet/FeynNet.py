@@ -1,4 +1,4 @@
-import torch
+import utils.compat.torch as torch
 from torch import nn
 from collections import defaultdict
 

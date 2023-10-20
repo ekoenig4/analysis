@@ -91,7 +91,7 @@ def save_fig_to_remote(fig, outfn, fmt=['jpg']):
 def _save_file_(obj, outfn, fmt):
     if 'txt' in fmt:
         with open(f'{outfn}.txt', 'w') as f:
-            f.write(obj)
+            f.write(str(obj))
     if 'json' in fmt:
         import json
         with open(f'{outfn}.json', 'w') as f:

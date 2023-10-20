@@ -7,7 +7,6 @@ from .graph import Graph
 from ..ak_tools import *
 from ..utils import is_iter
 import numpy as np
-import numba
 import awkward as ak
 import re
 import copy
@@ -31,42 +30,6 @@ class Stats:
         
     def __str__(self):
         return '\n'.join([ f'{key}={float(value):0.3e}' for key,value in vars(self).items() ])
-
-@numba.jit(nopython=True, parallel=True, fastmath=True)
-def numba_weighted_histo2d(x_array : np.array, y_array : np.array, x_bins : np.array, y_bins : np.array, weights : np.array) -> np.array:
-    counts = np.zeros( (x_bins.shape[0]-1, y_bins.shape[0]-1) )
-    for i,(x_lo, x_hi) in enumerate(zip(x_bins[:-1],x_bins[1:])):
-        x_mask = (x_array >= x_lo) & (x_array < x_hi)
-        for j,(y_lo, y_hi) in enumerate(zip(y_bins[:-1], y_bins[1:])):
-            y_mask = (y_array >= y_lo) & (y_array < y_hi)
-            counts[i,j] = np.sum(weights[x_mask & y_mask])
-    errors = np.sqrt(counts)
-    return counts.T, errors.T
-
-@numba.jit(nopython=True, parallel=True, fastmath=True)
-def numba_weighted_histo2d_sumw2(x_array : np.array, y_array : np.array, x_bins : np.array, y_bins : np.array, weights : np.array) -> np.array:
-    counts = np.zeros( (x_bins.shape[0]-1, y_bins.shape[0]-1) )
-    errors = np.zeros( (x_bins.shape[0]-1, y_bins.shape[0]-1) )
-    weights2 = weights**2
-    for i,(x_lo, x_hi) in enumerate(zip(x_bins[:-1],x_bins[1:])):
-        x_mask = (x_array >= x_lo) & (x_array < x_hi)
-        for j,(y_lo, y_hi) in enumerate(zip(y_bins[:-1], y_bins[1:])):
-            y_mask = (y_array >= y_lo) & (y_array < y_hi)
-            counts[i,j] = np.sum(weights[x_mask & y_mask])
-            errors[i,j] = np.sum(weights2[x_mask & y_mask])
-    errors = np.sqrt(errors)
-    return counts.T, errors.T
-
-@numba.jit(nopython=True, parallel=True, fastmath=True)
-def numba_unweighted_histo2d(x_array : np.array, y_array : np.array, x_bins : np.array, y_bins : np.array) -> np.array:
-    counts = np.zeros( (x_bins.shape[0]-1, y_bins.shape[0]-1) )
-    for i,(x_lo, x_hi) in enumerate(zip(x_bins[:-1],x_bins[1:])):
-        x_mask = (x_array >= x_lo) & (x_array < x_hi)
-        for j,(y_lo, y_hi) in enumerate(zip(y_bins[:-1], y_bins[1:])):
-            y_mask = (y_array >= y_lo) & (y_array < y_hi)
-            counts[i,j] = np.sum(x_mask & y_mask)
-    errors = np.sqrt(counts)
-    return counts.T, errors.T
 
 def np_unweighted_histo2d(x_array : np.array, y_array : np.array, x_bins : np.array, y_bins : np.array) -> np.array:
     counts = np.histogram2d(x_array, y_array, bins=(x_bins, y_bins))[0].T

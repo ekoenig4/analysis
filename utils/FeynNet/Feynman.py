@@ -3,7 +3,6 @@ import itertools as it
 from collections import defaultdict
 from functools import reduce 
 import numpy as np
-import numba
 from tqdm import tqdm
 from . import parallel_tools as parallel
 

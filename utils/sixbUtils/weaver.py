@@ -1,6 +1,5 @@
 from ..ak_tools import get_collection, build_p4
 from ..hepUtils import build_all_dijets, calc_dr_p4
-import awkward0 as ak0
 import numpy as np
 import awkward as ak
 import os, glob

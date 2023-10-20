@@ -3,7 +3,7 @@ import itertools
 import json, os
 import numpy as np
 import awkward as ak
-import multiprocess as mp
+import multiprocessing as mp
 
 variable_map = dict(
     jet_cosphi = lambda t : np.cos(t.jet_phi),

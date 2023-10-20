@@ -10,16 +10,16 @@ import numpy as np
 import math
 import vector
 import sympy as sp
-import tabulate
-
 
 import re
-from tqdm import tqdm
+from tqdm import tqdm 
 import timeit
 import re
 
 sys.path.append( git.Repo('.', search_parent_directories=True).working_tree_dir )
 from utils import *
+
+import utils.compat.tabulate as tabulate
 
 from utils.notebookUtils import Notebook, required, dependency
 
@@ -448,7 +448,10 @@ class Analysis(Notebook):
         if self.no_bkg:
             self.bkg = ObjIter([])
         else:
-            self.bkg = ObjIter([Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)])
+            self.bkg = ObjIter([
+                Tree( fc.fs.cernbox.fullpath(f_qcd), **treekwargs), 
+                # Tree( fc.fs.cernbox.fullpath(f_ttbar), **treekwargs)
+                ])
 
         f_pattern = '{base}/data/jetht_tree.root'
         f_data = f_pattern.format(base=base)
@@ -880,7 +883,7 @@ class Analysis(Notebook):
             ).get(region)
             print('Region:', name)
             print(table)
-            tables.append(f'Region: {name}\n' + table + '\n\n')
+            tables.append(f'Region: {name}\n' + str(table) + '\n\n')
         tables = '\n'.join(tables)
         study.save_file(tables, os.path.join( self.dout, 'abcd_yields'), fmt=['txt'])
 
