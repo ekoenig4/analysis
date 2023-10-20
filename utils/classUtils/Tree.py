@@ -54,25 +54,9 @@ def copy_to_local(fname):
 
     return local_path
 
-def tree_expr(tree, expr):
-    import ast
-    scope = dict(ak=ak, np=np, len=len)
-
-    # get fields referenced in expression
-    fields = set()
-    for node in ast.walk(ast.parse(expr)):
-        if isinstance(node, ast.Name):
-            fields.add(node.id)
-    fields = fields - set(scope.keys())
-
-    # get fields from tree
-    fields = { field: tree[field] for field in fields }
-
-    # evaluate expression
-    return eval(expr, scope, fields)
 
 class RootFile:
-    def __init__(self, fname, treename='sixBtree', sample=None, xsec=None, normalization=None):
+    def __init__(self, fname, treename='sixBtree', sample=None, xsec=None, normalization=None, fields=None):
         self.true_fname = fname
         self.fname = copy_to_local(fname)
 
@@ -82,16 +66,20 @@ class RootFile:
         
         self.treename = treename
 
-        tree = ut.lazy(f'{self.fname}:{self.treename}')
-        self.raw_events = len(tree)
-        self.total_events = self.raw_events
-        self.fields = tree.fields
+        with ut.open(f'{self.fname}:{self.treename}', timecut=500) as tree:
+            self.raw_events = tree.num_entries
+            self.total_events = self.raw_events
+            self.fields = [ str(branch) for branch in tree.keys() ]
+
+            if fields is not None:
+                fields = [ field for field in fields if field in self.fields ]
+                self.arrays = tree.arrays(fields, library='ak')
+            else:
+                self.arrays = None
 
         if normalization is not None:       
             self.set_normalization(normalization)   
             
-        del tree
-
         _sample, _xsec = next(((key, value) for key, value in xsecMap.items() if key in self.fname), ("unk", 1))
         self.sample = _sample if sample is None else sample
         self.xsec = _xsec if xsec is None else xsec
@@ -179,7 +167,7 @@ class RootFile:
         if copy_to_remote:
             eos.move(tmp_output, output)
 
-def init_files(self, filelist, treename, normalization, altfile="{base}", report=True, xsec=None):
+def init_files(self, filelist, treename, normalization, altfile="{base}", report=True, xsec=None, fields=None):
     if type(filelist) == str:
         if filelist.endswith('.txt'):
             with open(filelist, 'r') as f:
@@ -210,7 +198,7 @@ def init_files(self, filelist, treename, normalization, altfile="{base}", report
     xsec = AttrArray.init_attr(xsec, None, len(filelist))
     for i, fn in enumerate(it):
         try:
-            self.filelist.append( RootFile(fn, treename, normalization=normalization, xsec=xsec[i]) )
+            self.filelist.append( RootFile(fn, treename, normalization=normalization, xsec=xsec[i], fields=fields) )
         except Exception as err:
             traceback.print_exc()
             print(f'[WARNING] skipping {fn}, unable to open.')
@@ -301,16 +289,19 @@ def init_empty(self):
     self.cutflow = [Histo(counts=np.array([]), bins=np.array([]))]
     self.cutflow_labels = []
 
-def init_tree(self, weights=['genWeight'], cache=None, normalization=None):
+def init_tree(self, weights=['genWeight'], cache=None, normalization=None, fields=None):
     if weights is None: weights = []
     
     self.fields = sorted(list(set.intersection(*[ set(fn.fields) for fn in self.filelist])))
 
-    if self.lazy :
-        self.ttree = ut.lazy([ f'{fn.fname}:{fn.treename}' for fn in self.filelist ])
-    else:
-        self.ttree = ut.lazy([fn.tree for fn in self.filelist])
+    self.ttree = ut.lazy([ f'{fn.fname}:{fn.treename}' for fn in self.filelist ])
     self.ttree = self.ttree[self.fields]
+
+    if fields is not None:
+        fields = [ field for field in fields if field in self.fields ]
+        arrays = ak.concatenate([fn.arrays for fn in self.filelist])
+        for field in fields:
+            self.ttree[field] = arrays[field]
 
     weights = [ weight for weight in weights if any(field in weight for field in self.fields) ]
     scale = functools.reduce(lambda x, y : x * y, [self[weight] for weight in weights], 1)
@@ -370,7 +361,63 @@ def _regex_field(self, regex):
     )
     return item
 
+class AccessCache:
+
+    def __init__(self):
+        self.cache = set()
+        self.fname = None
+        self.save_on_change = False
+
+    def add(self, item : str):
+        if item.startswith('_'): return
+
+        if item not in self.cache:
+            self.cache.add(item)
+            if self.save_on_change and self.fname:
+                self.save()
+
+    def update(self, items):
+        items = [ item for item in items if not item.startswith('_') ]
+        newitems = set(items) - self.cache
+
+        if any(newitems):
+            self.cache.update(newitems)
+            if self.save_on_change and self.fname:
+                self.save()
+
+    def __contains__(self, item):
+        return item in self.cache
+    def __len__(self):
+        return len(self.cache)
+    
+    def clear(self):
+        self.cache.clear()
+
+    def save(self, base=f'{config.GIT_WD}/.cache/treefields/'):
+        if not os.path.exists(base): os.makedirs(base)
+        fname = os.path.basename(self.fname)
+        fname = os.path.join(base, fname)
+        with open(fname, 'w') as f:
+            f.write('\n'.join(self.cache))
+
+    def load(self, fname, base=f'{config.GIT_WD}/.cache/treefields/', **kwargs):
+        self.__dict__.update(kwargs)
+
+        fname = os.path.basename(fname)
+        self.fname = fname
+
+        fname = os.path.join(base, fname)
+        if not os.path.exists(fname): 
+            self.cache = set()
+            return None
+        
+        with open(fname, 'r') as f:
+            self.cache = set(f.read().splitlines())
+
+        return self.cache
+
 class Tree:
+    accessed_fields = AccessCache()
 
     @classmethod
     def from_ak(cls, ak_tree, **kwargs):
@@ -381,11 +428,11 @@ class Tree:
         return tree
 
 
-    def __init__(self, filelist, altfile="{base}", report=True, treename='sixBtree', weights=['genWeight'], normalization='h_cutflow', xsec=None, **kwargs):
+    def __init__(self, filelist, altfile="{base}", report=True, treename='sixBtree', weights=['genWeight'], normalization='h_cutflow', xsec=None, fields=None, **kwargs):
         self._recursion_safe_guard_stack = []
         self.varmap = dict()
 
-        init_files(self, filelist, treename, normalization, altfile, report, xsec=xsec)
+        init_files(self, filelist, treename, normalization, altfile, report, xsec=xsec, fields=fields)
 
         if not any(self.filelist):
             init_empty(self)
@@ -416,32 +463,28 @@ class Tree:
             self.ttree[key] = self.ttree[self.varmap[key]]
 
         if key in self.ttree.fields:
+            Tree.accessed_fields.add(key)
             return self.ttree[key]
-        return tree_expr(self.ttree, key)
+        return self.get_expr(key)
+    
+    def get_expr(self, expr):
+        import ast
+        scope = dict(ak=ak, np=np, len=len)
 
-        slice = None
-        if isinstance(key,str) and any(re.findall(r'\[.*\]', key)):
-            slice = re.findall(r'\[.*\]', key)[0]
-            key = key.replace(slice, "")
+        # get fields referenced in expression
+        fields = set()
+        for node in ast.walk(ast.parse(expr)):
+            if isinstance(node, ast.Name):
+                fields.add(node.id)
+        fields = fields - set(scope.keys())
 
-        if key not in self.ttree.fields:
-            partial = [ field for field in self.ttree.fields if field in key ]
-            if not any(partial):
-                raise KeyError(f"Key {key} not found in tree fields {self.ttree.fields}")
-            
-            # scope = dict(**{field:self.ttree[field] for field in partial}, **globals())
-            scope = {'ak':ak,'np':np}
-            scope.update(**{field:self.ttree[field] for field in partial})
-            result = eval(key, scope)
-            return result
+        # get fields from tree
+        fields = { field: self.ttree[field] for field in fields }
+        Tree.accessed_fields.update(fields.keys())
 
-
-
-
-        item = self.ttree[key]
-        if slice is not None:
-            item = eval(f'item{slice}', {'item': item})
-        return item
+        # evaluate expression
+        return eval(expr, scope, fields)
+        
     def __getattr__(self, key): 
         if len(self._recursion_safe_guard_stack) > 3:
             current_stack = self._recursion_safe_guard_stack
