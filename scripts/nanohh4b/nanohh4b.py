@@ -80,6 +80,7 @@ varinfo.bdt_score = dict(bins=np.concatenate([np.arange(0,0.9,0.02), np.array([0
 class Analysis(Notebook):
     @staticmethod
     def add_parser(parser):
+        parser.set_defaults(config='configs/nanohh4b/nanohh4b.yaml')
         parser.add_argument('--dout', type=str, default='')
         parser.add_argument('--pairing', type=str, default='mindiag', )
 
@@ -106,7 +107,7 @@ class Analysis(Notebook):
             weights=self.weights,
             treename='Events',
             normalization=None,
-            fields=load_fields,
+            # fields=load_fields,
         )
 
         

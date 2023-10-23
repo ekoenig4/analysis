@@ -1,14 +1,35 @@
-# analysis
-Framework for analysis of events with 8 bs in the final state.
+# Study framework for NanoHH4b
+This module is a framework for producing studies for the NanoHH4b analysis.
 
-## Prerquisites 
-This framework is built on an anaconda3 enviroment, and heavily leaverages UpRoot and Awkward Arrays to be able to perform many operations. 
+# Installing
+Before running, make sure to run the install script to install the necessary packages in the CMSSW environment:
+```
+cmsenv
+sh install.sh
+```
 
-## Input
-Input files are generated using the [sixB analyzer](https://github.com/ekoenig4/sixB/tree/master/analysis/sixBanalysis)
+## User Config
+There is a user config file `.config.yaml` that is used to set a global variables used by the framework.
 
-## Structure
-Jupyter notebook studies are saved in the jupyter directory, each with a similar init cell. The utils package has the ability to read TTrees from the sixB analyzer using the Tree class. The Selection class can be used to make more cuts and filters on the Tree class. A jupyter study consists of calls to the studyUtils package to plot certain variables. A handful of plots have been hardcoded for easy access, but the study.quick method can be used to plot any variable stored in the Tree class.
 
-## Plots
-Plots that are saved when using the saveas variable for the study methods are saved to a dated plots directory in the git base.
+## Main Analysis
+The main analysis is run with the script `scripts/nanohh4b/nanohh4b.py`, which is accompanied by a config script `configs/nanohh4b/nanohh4b.yaml`. The analysis script is a collection of methods that are run sequentially. To see all available methods, run:
+```
+python3 scripts/nanohh4b/nanohh4b.py --dry-run
+```
+
+A single method (or list of methods) can be select to run using the --only options:
+```
+python3 scripts/nanohh4b/nanohh4b.py --only <method1> <method2> ...
+```
+
+There is a dependency graph that is defined in the file that will activate all necessary methods to run the specified method. To run all methods, run:
+```
+python3 scripts/nanohh4b/nanohh4b.py
+```
+
+### Changing Configs
+By default the config file `configs/nanohh4b/nanohh4b.yaml` is used. To use a different config file, use the `--config` option:
+```
+python3 scripts/nanohh4b/nanohh4b.py --config <config_file>
+```
