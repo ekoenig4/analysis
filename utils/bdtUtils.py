@@ -308,7 +308,7 @@ class DataMC_BDT(BDTReweighter):
 
 
 class BDTClassifier:
-    def __init__(self, features, scaler='iron', loss='log', n_estimators=200, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, seed=None, **kwargs):
+    def __init__(self, features, scaler='iron', loss='log', n_estimators=200, learning_rate=0.1, max_depth=3, min_samples_leaf=1000, seed=None, verbose=True, **kwargs):
         self.feature_names = features
 
         scaler = dict(
@@ -329,6 +329,8 @@ class BDTClassifier:
                                                 random_state=seed,
                                                 ))
         ])
+
+        self.verbose = verbose
 
     def save(self, fname='bdt_classifier.pkl', path=f'{GIT_WD}/models'):
         if not fname.endswith('.pkl'): fname += '.pkl'
@@ -366,11 +368,13 @@ class BDTClassifier:
         
         X = ak.concatenate(features, axis=1)
         W = treeiter['scale'].cat
-        W = W/ak.mean(W)
+        W = W/ak.sum(W)
         
         return X.to_numpy(), W.to_numpy()
 
     def train(self, bkgiter : ObjIter, sigiter : ObjIter):
+        if self.verbose:
+            print('... fetching features')
         X_0, W_0 = self.get_features(bkgiter)
         X_1, W_1 = self.get_features(sigiter)
 
@@ -378,6 +382,8 @@ class BDTClassifier:
         W = np.concatenate([W_0, W_1])
         Y = np.concatenate([np.zeros_like(W_0), np.ones_like(W_1)])
 
+        if self.verbose:
+            print('... fitting classifier')
         self.classifier.fit(X, Y, bdt__sample_weight=W)
 
     def predict_tree(self, treeiter : ObjIter):
@@ -406,11 +412,17 @@ class BDTClassifier:
             f"AUROC = {results['auroc']:0.3f}"
         )
 
+
+def worker_train_classifier(classifier, X, Y, W):
+    classifier.fit(X, Y, bdt__sample_weight=W)
+    return classifier
+
 class KFoldBDTClassifier(BDTClassifier):
-    def __init__(self, features, kfold=2, seed=42069, **kwargs):
+    def __init__(self, features, kfold=2, seed=1234, verbose=True, **kwargs):
         self.feature_names = features
         self.kfold = kfold
         self.bdts = [BDTClassifier(features, seed=seed + i, **kwargs) for i in range(kfold)]
+        self.verbose = verbose
 
     def get_split(self, treeiter : ObjIter):
         if not isinstance(treeiter, ObjIter): treeiter = ObjIter([treeiter])
@@ -418,9 +430,13 @@ class KFoldBDTClassifier(BDTClassifier):
         return index % self.kfold
 
     def train(self, bkgiter : ObjIter, sigiter : ObjIter, parallel=False):
+        if self.verbose:
+            print('... fetching features')
         X_0, W_0 = self.get_features(bkgiter)
         X_1, W_1 = self.get_features(sigiter)
 
+        if self.verbose:
+            print('... splitting features')
         S_0 = self.get_split(bkgiter)
         S_1 = self.get_split(sigiter)
 
@@ -429,16 +445,13 @@ class KFoldBDTClassifier(BDTClassifier):
         Y = np.concatenate([np.zeros_like(W_0), np.ones_like(W_1)])
         S = np.concatenate([S_0, S_1])
 
+        if self.verbose:
+            print('... fitting classifier')
         if parallel:
            return self.train_parallel(X, Y, W, S, njobs=parallel)
 
         for i, bdt in enumerate(self.bdts):
             bdt.classifier.fit(X[S != i], Y[S != i], bdt__sample_weight=W[S != i])
-
-    @staticmethod
-    def _train_parallel_(classifier, X, Y, W):
-        classifier.fit(X, Y, bdt__sample_weight=W)
-        return classifier
     
     def train_parallel(self, X, Y, W, S, njobs=None):
         if njobs is None or isinstance(njobs, bool): njobs = self.kfold
@@ -450,8 +463,10 @@ class KFoldBDTClassifier(BDTClassifier):
         with mp.Pool(njobs) as pool:
             results = []
             for i, bdt in enumerate(self.bdts):
-                results.append(pool.apply_async(partial(self._train_parallel_, bdt.classifier, X[S != i], Y[S != i], W[S != i])))
-            self.bdts = [result.get() for result in tqdm(results)]
+                results.append(pool.apply_async(partial(worker_train_classifier, bdt.classifier, X[S != i], Y[S != i], W[S != i])))
+
+            for i, r in tqdm(enumerate(results), total=len(results)):
+               self.bdts[i].classifier = r.get()
 
     def predict_tree(self, treeiter : ObjIter):
         X, _ = self.get_features(treeiter)

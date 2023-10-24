@@ -659,7 +659,7 @@ class Analysis(Notebook):
                 **self.bdt_classifier
             )
 
-            self.bdt_classifier.train(bkg_model, signal)
+            self.bdt_classifier.train(bkg_model, signal, parallel=True)
             self.bdt_classifier.save( os.path.join(self.dout, 'bdt_classifier') )
 
         self.bdt_classifier.print_results(bkg_model, signal)
@@ -820,7 +820,7 @@ class Analysis(Notebook):
             data + vr_bkg_model,
             masks=[self.vr_bdt.a]*len(data)+[self.vr_bdt.b]*len(vr_bkg_model),
             scale=[None]*len(data)+[self.vr_bdt.reweight_tree]*len(vr_bkg_model),
-            varlist=bdt_features,
+            varlist=self.bdt_features,
             ratio=True, r_ylim=(0.7,1.3),
             legend=True,
             efficiency=True,
@@ -870,7 +870,7 @@ class Analysis(Notebook):
             data + vr2_bkg_model,
             masks=[self.vr2_bdt.a]*len(data)+[self.vr2_bdt.b]*len(vr2_bkg_model),
             scale=[None]*len(data)+[self.vr2_bdt.reweight_tree]*len(vr2_bkg_model),
-            varlist=bdt_features,
+            varlist=self.bdt_features,
             ratio=True, r_ylim=(0.7,1.3),
             legend=True,
             efficiency=True,
