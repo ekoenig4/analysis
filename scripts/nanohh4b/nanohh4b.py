@@ -80,7 +80,7 @@ varinfo.bdt_score = dict(bins=np.concatenate([np.arange(0,0.9,0.02), np.array([0
 class Analysis(Notebook):
     @staticmethod
     def add_parser(parser):
-        parser.set_defaults(config='configs/nanohh4b.yaml')
+        parser.set_defaults(config='configs/nanohh4b/nanohh4b.yaml')
         
         parser.add_argument('--dout', type=str, default='')
         parser.add_argument('--pairing', type=str, default='mindiag', )
@@ -98,6 +98,8 @@ class Analysis(Notebook):
         parser.add_argument('--load-reweighter', type=str, default=None)
         parser.add_argument('--load-classifier', type=str, default=None)
 
+        parser.add_argument('--ttbar-2-big', action='store_true')
+
     @required
     def init(self):
         import hashlib
@@ -108,7 +110,7 @@ class Analysis(Notebook):
             weights=self.weights,
             treename='Events',
             normalization=None,
-            fields=load_fields,
+            # fields=load_fields,
         )
 
         
@@ -144,7 +146,9 @@ class Analysis(Notebook):
             new_sumw = np.sum(tree.scale)
             tree.reweight(org_sumw / new_sumw)
             return tree
-        # self.bkg = self.bkg.apply(ttbar_subset)
+        
+        if self.ttbar_2_big:
+            self.bkg = self.bkg.apply(ttbar_subset)
 
         btagwp = f'n_{self.btagwp}_btag'
         if self.leading_btag:
@@ -235,6 +239,23 @@ class Analysis(Notebook):
         self.signal = signal.apply(hh_mass_cut)
         self.bkg = bkg.apply(hh_mass_cut)
         self.data = data.apply(hh_mass_cut)
+
+    @required
+    def load_feynnet(self, signal, bkg, data):
+        if self.model is None or 'feynnet' not in self.model:
+            return
+
+        import utils.resources as rcs
+        accelerator = 'cuda' if rcs.ngpus else 'cpu'
+
+        load_feynnet = fourb.nanohh4b.f_evaluate_feynnet(self.model, accelerator=accelerator)
+
+        if accelerator == 'cpu':
+            import multiprocessing as mp
+            with mp.Pool(len(signal+bkg+data)) as pool:
+                (signal+bkg+data).parallel_apply(load_feynnet, pool=pool, report=True)
+        else:
+            (signal+bkg+data).apply(load_feynnet, report=True)
 
     def plot_jet_multiplicity(self, signal, bkg, data):
         study.quick(

@@ -1,16 +1,16 @@
 weights : [ xsecWeight / 1000, genWeight, puWeight, btagSF_central, trgSF_central ]
 
 signal : 
-  - /eos/home-m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/ggHH4b_tree.root
+  - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/ggHH4b_tree.root
 
 qcd : 
-  - /eos/home-m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/qcd-mg_tree.root
+  - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/qcd-mg_tree.root
 
 ttbar : 
-  - /eos/home-m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/ttbar-powheg_tree.root
+  - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/ttbar-powheg_tree.root
 
 data : 
-  - /eos/home-m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/data/jetht_tree.root
+  - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/data/jetht_tree.root
   
 pairing: mindiag
 

@@ -289,10 +289,8 @@ def init_empty(self):
 def init_tree(self, weights=['genWeight'], cache=None, normalization=None, fields=None):
     if weights is None: weights = []
     
-    self.fields = sorted(list(set.intersection(*[ set(fn.fields) for fn in self.filelist])))
-
     self.ttree = ut.lazy([ f'{fn.fname}:{fn.treename}' for fn in self.filelist ])
-    self.ttree = self.ttree[self.fields]
+    self.fields = self.ttree.fields
 
     if fields is not None:
         fields = [ field for field in fields if field in self.fields ]
