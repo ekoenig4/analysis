@@ -4,43 +4,45 @@ class tabulate:
         self.table = table
         self.headers = headers
 
+    def format_value(self, value):
+        if isinstance(value, float) and hasattr(self, 'floatfmt'):
+            return f'{value:{self.floatfmt}}'
+        return value
+
     def __str__(self):
         spaces  = [
-            max( len(str(value)) for value in column )
+            max( len(str( self.format_value(value) )) for value in column )
             for column in zip(self.headers, *self.table)
         ]
 
-        string = ' | '
+        string = ' '
         for header, space in zip(self.headers, spaces):
-            string += header.center(space) + ' | '
+            string += header.center(space) + ' '
         string += '\n'
 
-        string += ' | '
+        string += ' '
         for space in spaces:
-            string += '-' * space + ' | '
+            string += '-' * space + ' '
         string += '\n'
 
         for row in self.table:
-            string += ' | '
+            string += ' '
             for value, space in zip(row, spaces):
-                if isinstance(value, float) and hasattr(self, 'floatfmt'):
-                    value = f'{value:{self.floatfmt}}'
-                
                 if isinstance(value, (int, float)) and hasattr(self, 'numalign'):
                     if self.numalign == 'decimal':
-                        value = f'{value:>{space}}'
+                        value = f'{self.format_value(value):>{space}}'
                     elif self.numalign == 'center':
-                        value = f'{value:^{space}}'
+                        value = f'{self.format_value(value):^{space}}'
                     elif self.numalign == 'left':
-                        value = f'{value:<{space}}'
+                        value = f'{self.format_value(value):<{space}}'
                     elif self.numalign == 'right':
-                        value = f'{value:>{space}}'
+                        value = f'{self.format_value(value):>{space}}'
                     else:
                         raise ValueError('invalid alignment')
                 else:
                     value = f'{value:<{space}}'
 
-                string += value + ' | '
+                string += value + ' '
             string += '\n'
         return string
             
