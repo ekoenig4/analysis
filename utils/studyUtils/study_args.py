@@ -88,11 +88,13 @@ class _study_args:
 
 
         self.attrs = dict(
+            dict(
             is_data=[tree.is_data for tree in treelist],
             is_signal=[(tree.mass if tree.nmssm_signal else tree.is_signal) for tree in treelist],
             is_model=[tree.is_model for tree in treelist],
             stacked=stacked,
             lumi=lumi,
+            ),
             **kwargs
         )
 

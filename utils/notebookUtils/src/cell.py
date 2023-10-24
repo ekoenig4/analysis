@@ -37,6 +37,10 @@ class Status:
     def done(cls):
         return cls('done', 'green')
     
+    @property
+    def is_done(self):
+        return self.status == 'done'
+    
     @classmethod
     @property
     def failed(cls):
@@ -65,8 +69,10 @@ class Cell:
         self._build_args()
 
     def enable(self): 
+        if self.status.is_done: return
         self.status = Status.pending
     def disable(self): 
+        if self.status.is_done: return
         self.status = Status.disabled
     def ready(self): 
         _ready = self.status.is_pending

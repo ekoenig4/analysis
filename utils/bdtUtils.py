@@ -53,7 +53,8 @@ class BDTReweighter:
       self.reweighter.fit(estm_x, targ_x, self.k_factor*estm_w, targ_w)
 
   def reweight(self, x, w):
-    return self.reweighter.predict_weights(x, self.k_factor*w,lambda x: np.mean(x, axis=0))/w
+    s = self.reweighter.predict_weights(x)
+    return self.k_factor  * s * np.sum(w) / np.sum(s * w)
   
   def reweight_error(self, x, w):
     return self.reweighter.predict_weights(x, self.k_factor*w,lambda x: np.std(x, axis=0))/w
