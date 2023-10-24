@@ -54,13 +54,13 @@ class BDTReweighter:
 
   def reweight(self, x, w):
     s = self.reweighter.predict_weights(x)
-    return self.k_factor  * s * np.sum(w) / np.sum(s * w)
+    return self.k_factor  * s
   
   def reweight_error(self, x, w):
-    return self.reweighter.predict_weights(x, self.k_factor*w,lambda x: np.std(x, axis=0))/w
+    raise NotImplementedError
   
   def scale(self, x, w):
-    return self.k_factor*w/w
+    return self.k_factor*ak.ones_like(w)
 
   def save(self, fname='bdt_reweighter.pkl', path=f'{GIT_WD}/models'):
       if not fname.endswith('.pkl'): fname += '.pkl'
@@ -231,9 +231,8 @@ class ABCD(BDTReweighter):
 
     X, W = self.get_features(tree)
     reweight = self.reweight(X, W)
-    reweight_error = self.reweight_error(X, W)
 
-    tree.extend(**{self.hash:reweight, f'{self.hash}_error':reweight_error})
+    tree.extend(**{self.hash:reweight})
     return reweight
   
   def reweight_error_tree(self, tree: Tree):

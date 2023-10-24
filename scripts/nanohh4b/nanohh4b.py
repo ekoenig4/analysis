@@ -97,8 +97,26 @@ class Analysis(Notebook):
         parser.add_argument('--load-reweighter', type=str, default=None)
         parser.add_argument('--load-classifier', type=str, default=None)
 
+        parser.add_argument('--ttbar-2-big', action='store_true')
+
     @required
     def init(self):
+        import hashlib
+        field_cache = str(hashlib.md5(__file__.encode()).hexdigest())
+        load_fields = Tree.accessed_fields.load(field_cache, save_on_change=True)
+
+        treekwargs = dict(
+            weights=self.weights,
+            treename='Events',
+            normalization=None,
+            # fields=load_fields,
+        )
+
+        
+        self.signal = ObjIter([Tree( self.signal, **treekwargs, sample='ggHH4b')])
+
+        if self.no_bkg:
+            self.bkg = ObjIter([])
         import hashlib
         field_cache = str(hashlib.md5(__file__.encode()).hexdigest())
         load_fields = Tree.accessed_fields.load(field_cache, save_on_change=True)
@@ -143,7 +161,9 @@ class Analysis(Notebook):
             new_sumw = np.sum(tree.scale)
             tree.reweight(org_sumw / new_sumw)
             return tree
-        # self.bkg = self.bkg.apply(ttbar_subset)
+        
+        if self.ttbar_2_big:
+            self.bkg = self.bkg.apply(ttbar_subset)
 
         btagwp = f'n_{self.btagwp}_btag'
         if self.leading_btag:
@@ -234,6 +254,23 @@ class Analysis(Notebook):
         self.signal = signal.apply(hh_mass_cut)
         self.bkg = bkg.apply(hh_mass_cut)
         self.data = data.apply(hh_mass_cut)
+
+    @required
+    def load_feynnet(self, signal, bkg, data):
+        if self.model is None or 'feynnet' not in self.model:
+            return
+
+        import utils.resources as rcs
+        accelerator = 'cuda' if rcs.ngpus else 'cpu'
+
+        load_feynnet = fourb.nanohh4b.f_evaluate_feynnet(self.model, accelerator=accelerator)
+
+        if accelerator == 'cpu':
+            import multiprocessing as mp
+            with mp.Pool(len(signal+bkg+data)) as pool:
+                (signal+bkg+data).parallel_apply(load_feynnet, pool=pool, report=True)
+        else:
+            (signal+bkg+data).apply(load_feynnet, report=True)
 
     def plot_jet_multiplicity(self, signal, bkg, data):
         study.quick(
@@ -616,7 +653,13 @@ class Analysis(Notebook):
     # def write_features(self, signal, bkg_model):
     #     signal.apply(lambda t : t.extend(label=np.ones(len(t))))
     #     bkg_model.apply(lambda t : t.extend(label=np.zeros(len(t))))
+    # @dependency(build_bkg_model)
+    # def write_features(self, signal, bkg_model):
+    #     signal.apply(lambda t : t.extend(label=np.ones(len(t))))
+    #     bkg_model.apply(lambda t : t.extend(label=np.zeros(len(t))))
 
+    #     signal.write('bdt_features_{base}', include=bdt_features+['scale','label'])
+    #     bkg_model.write('bdt_features_{base}', include=bdt_features+['scale','label'])
     #     signal.write('bdt_features_{base}', include=bdt_features+['scale','label'])
     #     bkg_model.write('bdt_features_{base}', include=bdt_features+['scale','label'])
 
@@ -633,6 +676,8 @@ class Analysis(Notebook):
             self.bdt_classifier = KFoldBDTClassifier.load(self.load_classifier)
         else:
             self.bdt_classifier = KFoldBDTClassifier(
+                features=self.bdt_features,
+                **self.bdt_classifier
                 features=self.bdt_features,
                 **self.bdt_classifier
             )
