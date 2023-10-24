@@ -586,6 +586,14 @@ class Analysis(Notebook):
         self.bkg_model.apply(lambda t : t.reweight(self.bdt.reweight_tree))
 
     @dependency(build_bkg_model)
+    def write_asr_4b(self, signal, bkg, bkg_model):
+        fields = self.bdt_features + ['scale']
+
+        signal.write(os.path.join(self.dout, 'asr_4b', 'ggHH4b.root'), include=fields)
+        bkg.apply(lambda t : t.write(os.path.join(self.dout, 'asr_4b', f'{t.sample}.root'), include=fields) )
+        bkg_model.write(os.path.join(self.dout, 'asr_4b', 'bkg_model.root'), include=fields)
+
+    @dependency(build_bkg_model)
     def print_sr_yields(self, signal, bkg_model):
 
         def get_yields(t, f_mask=None):

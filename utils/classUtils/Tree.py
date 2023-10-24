@@ -583,8 +583,42 @@ class Tree:
         tree.sample = name
         tree.color = color
         return tree
+
+    def write(self, fname, include=[], exclude=[], treename='Events'):
+        if callable(fname): fname = fname(self)
+        if not fname.endswith('.root'): fname += '.root'
+        
+        if re.match(r'^root://(.*?)//(.*)$', fname):
+            import hashlib 
+            tmp_fname = f'{hashlib.md5(fname.encode()).hexdigest()}.root'
+            copy_to_remote = True
+        else:
+            os.makedirs(os.path.dirname(fname), exist_ok=True)
+            tmp_fname = fname
+            copy_to_remote = False
+        
+        exclude += ['_.*', 'sample_id']
+
+        fields = []
+        for field in self.fields:
+            if any( re.match(f'^{pattern}$', field) for pattern in exclude ): continue
+            if any( re.match(f'^{pattern}$', field) for pattern in include ) or not any(include):
+                fields.append(field)
+
+        if not any(fields):
+            print('[WARNING] no fields to write')
+            return
+
+        arrays = { field : self.ttree[field] for field in fields }
+
+        print(f'Writing {self.sample} to {fname}')
+        with ut.recreate(tmp_fname) as f:
+            f[treename] = arrays
+
+        if copy_to_remote:
+            fs.xrd.move(tmp_fname, fname)
     
-    def write(self, altfile='new_{base}', retry=2, include=[], exclude=[]):
+    def write_by_sample(self, altfile='new_{base}', retry=2, include=[], exclude=[]):
 
         if not callable(altfile):
             if '{base}' not in altfile: altfile += '_{base}'
