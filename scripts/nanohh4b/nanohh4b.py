@@ -11,8 +11,9 @@ import math
 import vector
 import sympy as sp
 
+
 import re
-from tqdm import tqdm 
+from tqdm import tqdm
 import timeit
 import re
 
@@ -20,7 +21,6 @@ sys.path.append( git.Repo('.', search_parent_directories=True).working_tree_dir 
 from utils import *
 
 import utils.compat.tabulate as tabulate
-
 from utils.notebookUtils import Notebook, required, dependency
 
 def main():
@@ -81,6 +81,7 @@ class Analysis(Notebook):
     @staticmethod
     def add_parser(parser):
         parser.set_defaults(config='configs/nanohh4b/nanohh4b.yaml')
+        
         parser.add_argument('--dout', type=str, default='')
         parser.add_argument('--pairing', type=str, default='mindiag', )
 
@@ -101,22 +102,6 @@ class Analysis(Notebook):
 
     @required
     def init(self):
-        import hashlib
-        field_cache = str(hashlib.md5(__file__.encode()).hexdigest())
-        load_fields = Tree.accessed_fields.load(field_cache, save_on_change=True)
-
-        treekwargs = dict(
-            weights=self.weights,
-            treename='Events',
-            normalization=None,
-            # fields=load_fields,
-        )
-
-        
-        self.signal = ObjIter([Tree( self.signal, **treekwargs, sample='ggHH4b')])
-
-        if self.no_bkg:
-            self.bkg = ObjIter([])
         import hashlib
         field_cache = str(hashlib.md5(__file__.encode()).hexdigest())
         load_fields = Tree.accessed_fields.load(field_cache, save_on_change=True)
@@ -653,13 +638,7 @@ class Analysis(Notebook):
     # def write_features(self, signal, bkg_model):
     #     signal.apply(lambda t : t.extend(label=np.ones(len(t))))
     #     bkg_model.apply(lambda t : t.extend(label=np.zeros(len(t))))
-    # @dependency(build_bkg_model)
-    # def write_features(self, signal, bkg_model):
-    #     signal.apply(lambda t : t.extend(label=np.ones(len(t))))
-    #     bkg_model.apply(lambda t : t.extend(label=np.zeros(len(t))))
 
-    #     signal.write('bdt_features_{base}', include=bdt_features+['scale','label'])
-    #     bkg_model.write('bdt_features_{base}', include=bdt_features+['scale','label'])
     #     signal.write('bdt_features_{base}', include=bdt_features+['scale','label'])
     #     bkg_model.write('bdt_features_{base}', include=bdt_features+['scale','label'])
 
@@ -676,8 +655,6 @@ class Analysis(Notebook):
             self.bdt_classifier = KFoldBDTClassifier.load(self.load_classifier)
         else:
             self.bdt_classifier = KFoldBDTClassifier(
-                features=self.bdt_features,
-                **self.bdt_classifier
                 features=self.bdt_features,
                 **self.bdt_classifier
             )

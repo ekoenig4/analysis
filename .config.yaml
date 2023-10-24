@@ -2,4 +2,4 @@
 local_store: root://eosuser.cern.ch//eos/user/e/ekoenig/
 
 # specify a different path to store plots
-plot_store: /eos/home-e/ekoenig/studies/plots/
+plot_store: /eos/home-e/ekoenig/studies/lxplus/plots/
