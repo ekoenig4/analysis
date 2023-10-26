@@ -1,4 +1,3 @@
-import pandas as pd
 import os
 from ..config import GIT_WD
 from ..classUtils import ObjIter
@@ -25,6 +24,8 @@ auroc_args = dict(
 
 class VariableTable:
     def __init__(self, fname=None, base='logs/'):
+        import pandas as pd
+
         if csv: fname = csv
 
         assert fname is not None, "Please specify a filename for the variable table"
@@ -43,6 +44,8 @@ class VariableTable:
         self.header = []
         
     def add(self, variable, define=None, comments=None, figax=None, **kwargs):
+        import pandas as pd
+
         fig, ax = figax
 
         from .studyUtils import save_fig

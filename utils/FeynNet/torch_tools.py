@@ -1,4 +1,4 @@
-import torch 
+import utils.compat.torch as torch 
 
 def group_products(product_assignment : dict, **features):
     assert isinstance(product_assignment, dict), 'unrecognized product assignment'

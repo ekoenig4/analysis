@@ -1,4 +1,5 @@
-import os, torch
+import os
+import utils.compat.torch as torch
 
 environ = os.environ
 slurm_environ = {k: v for k, v in environ.items() if k.startswith('SLURM')}

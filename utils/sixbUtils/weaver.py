@@ -1,11 +1,12 @@
 from ..ak_tools import get_collection, build_p4
 from ..hepUtils import build_all_dijets, calc_dr_p4
-import awkward0 as ak0
 import numpy as np
 import awkward as ak
 import os, glob
 
 def load_sixb_weaver(tree, model, fields=['scores']):
+    import awkward0 as ak0
+
     rgxs = [ os.path.basename(os.path.dirname(fn.fname))+".root.awkd" for fn in tree.filelist ]
 
     toload = [ fn for rgx in rgxs for fn in glob.glob( os.path.join(model,"predict_output",rgx) ) ]

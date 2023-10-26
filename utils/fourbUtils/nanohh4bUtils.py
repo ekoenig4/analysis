@@ -95,15 +95,16 @@ def get_ak4_jets(tree):
 
     jet = tree[ak4_fields]
 
-    regp4 = jet.ak4_bRegCorr * ak.zip(dict(
-        pt=jet.ak4_pt,
-        eta=jet.ak4_eta,
-        phi=jet.ak4_phi,
-        mass=jet.ak4_mass,
-    ), with_name='Momentum4D')
+    if not 'ak4_regpt' in jet.fields:
+        regp4 = jet.ak4_bRegCorr * ak.zip(dict(
+            pt=jet.ak4_pt,
+            eta=jet.ak4_eta,
+            phi=jet.ak4_phi,
+            mass=jet.ak4_mass,
+        ), with_name='Momentum4D')
 
-    jet['ak4_regpt'] = regp4.pt
-    jet['ak4_regmass'] = regp4.mass
+        jet['ak4_regpt'] = regp4.pt
+        jet['ak4_regmass'] = regp4.mass
 
     return jet
 

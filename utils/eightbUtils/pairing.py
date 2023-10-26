@@ -1,5 +1,4 @@
 import vector
-import awkward0 as ak0
 import awkward as ak
 import glob, os
 

@@ -3,7 +3,7 @@ from typing import Callable
 
 import awkward as ak
 import numpy as np
-import torch
+import utils.compat.torch as torch
 import vector
 from tqdm import tqdm
 

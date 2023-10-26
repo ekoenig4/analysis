@@ -266,9 +266,11 @@ def interp_graph2d(graph2d, figax=None, kind='linear', **kwargs):
     return container
 
 
-def scatter_graph2d(graph2d, figax=None, alpha=0.25, size=5, discrete=False, discrete_offset=None, discrete_scale=0.5, **kwargs):
+def scatter_graph2d(graph2d, figax=None, alpha=1.0, size=5, discrete=False, discrete_offset=None, discrete_scale=0.5, **kwargs):
     fig, ax = get_figax(figax=figax)
-    cmap = graph2d.kwargs.get('cmap', 'jet')
+
+    graph_kwargs = dict(graph2d.kwargs)
+    cmap = graph_kwargs.pop('cmap', 'jet')
     
     x, y, z = graph2d.x_array, graph2d.y_array, graph2d.z_array
 
@@ -287,10 +289,10 @@ def scatter_graph2d(graph2d, figax=None, alpha=0.25, size=5, discrete=False, dis
 
 
     cmap_kwargs = get_cmap_kwargs(cmap=cmap, **kwargs)
-    container = ax.scatter(x, y, s=size, c=z, **cmap_kwargs)
+    container = ax.scatter(x, y, s=size, c=z, alpha=alpha, **cmap_kwargs, **graph_kwargs)
     return container
 
-def plot_graph2d(graph2d, figax=None, alpha=0.25, size=5, log=False, zlim=None, contour=False, interp=False, exe=None, legend=False, colorbar=False, **kwargs):
+def plot_graph2d(graph2d, figax=None, alpha=1.0, size=5, log=False, zlim=None, contour=False, interp=False, exe=None, legend=False, colorbar=False, **kwargs):
     """Plot 2D graph
 
     Args:
