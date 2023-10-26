@@ -93,6 +93,7 @@ class Analysis(Notebook):
         parser.add_argument('--no-data', action='store_true')
         parser.add_argument('--model', type=str, default=None)
 
+        parser.add_argument('--pt-wp', type=float, default=None)
         parser.add_argument('--bdisc-wp', type=float, default=None)
 
         parser.add_argument('--load-reweighter', type=str, default=None)
@@ -150,6 +151,10 @@ class Analysis(Notebook):
         if self.ttbar_2_big:
             self.bkg = self.bkg.apply(ttbar_subset)
 
+        if self.pt_wp is not None:
+            ptwp = str(self.pt_wp).replace('.','p')
+            self.dout = os.path.join(self.dout, f'pt{ptwp}')
+
         btagwp = f'n_{self.btagwp}_btag'
         if self.leading_btag:
             btagwp = f'n_{self.btagwp}_leading_btag'
@@ -191,6 +196,23 @@ class Analysis(Notebook):
             **self.bdt_reweighter
         )
 
+    @required
+    def set_pt_threshold(self, signal, bkg, data):
+        if self.pt_wp is None:
+            return 
+        
+        def new_threshold(tree):
+            ak4 = fourb.nanohh4b.get_ak4_jets(tree)
+            ak4 = ak4[ak4.pt > float(self.pt_wp)]
+            tree.extend(ak4)
+
+        (signal+bkg+data).apply(new_threshold)
+
+        event_filter = EventFilter(f'pt_gt_{self.pt_wp}', filter=lambda t : ak.num(t.ak4_pt) >=4 , verbose=True)
+        self.signal = signal.apply(event_filter)
+        self.bkg = bkg.apply(event_filter)
+        self.data = data.apply(event_filter)
+
     ################################
     # B Discriminator Optimization #
     ################################
@@ -213,6 +235,7 @@ class Analysis(Notebook):
         self.signal = signal.apply(event_filter)
         self.bkg = bkg.apply(event_filter)
         self.data = data.apply(event_filter)
+
 
     @required
     def hh_mass_cut(self, signal, bkg, data):
