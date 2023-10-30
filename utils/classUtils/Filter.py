@@ -63,7 +63,7 @@ def build_event_filter(key, value, functions=functions, methods=methods):
     return operation
 
 
-def event_filter(self, tree, cutflow=True):
+def event_filter(self, tree, cutflow=False):
     tree = tree.copy()
 
     if self.mask is not None:

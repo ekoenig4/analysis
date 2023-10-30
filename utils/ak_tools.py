@@ -3,7 +3,6 @@ from typing import Callable
 
 import awkward as ak
 import numpy as np
-import utils.compat.torch as torch
 import vector
 from tqdm import tqdm
 
@@ -109,9 +108,15 @@ def _flatten(array):
         array = ak.flatten(array, axis=None)
         array = ak.fill_none(array, np.nan)
         return ak.to_numpy(array)
+    
+    if check_instance(array, np.ndarray):
+        return array.reshape(-1)
+
+    import utils.compat.torch as torch
     if check_instance(array, torch.Tensor):
         array = torch.flatten(array)
         return array.detach().cpu().numpy()
+    
     return np.array(array).reshape(-1)
 
 
@@ -123,6 +128,8 @@ def flatten(array, clean=True):
 
 
 def cast_array(array):
+    import utils.compat.torch as torch
+
     if check_instance(array, torch.Tensor):
         return array.cpu().numpy()
     return array

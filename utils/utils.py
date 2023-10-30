@@ -1,6 +1,5 @@
 import awkward as ak
 from matplotlib.pyplot import isinteractive
-import utils.compat.torch as torch
 import numpy as np
 import itertools
 

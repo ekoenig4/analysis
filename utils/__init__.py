@@ -15,3 +15,5 @@ from .variableUtils import *
 from . import eightbUtils as eightb
 from . import fourbUtils as fourb
 from . import sixbUtils as sixb
+
+from .resources import resources

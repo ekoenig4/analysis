@@ -1,4 +1,3 @@
-import utils.compat.torch as torch
 import numpy as np
 import yaml
 
@@ -25,6 +24,8 @@ class Equation:
         Returns:
             the interpolated values, same size as `x`.
         """
+        import utils.compat.torch as torch
+
         xp = xp.to(x.device)
         fp = fp.to(x.device)
 
@@ -42,18 +43,34 @@ class Equation:
     
     @staticmethod
     def torch_init(x):
+        import utils.compat.torch as torch
         return torch.full_like(x, torch.nan, device=x.device)
 
     @staticmethod
     def set_backend(backend):
         assert backend in ['numpy', 'torch'], f'backend must be numpy or torch, not {backend}'
 
-        Equation.backend = backend
-        Equation.where = np.where if backend == 'numpy' else torch.where
-        Equation.interp = Equation.numpy_interp if backend == 'numpy' else Equation.torch_interp
-        Equation.nan = np.nan if backend == 'numpy' else torch.nan
-        Equation.array = np.array if backend == 'numpy' else torch.tensor
-        Equation.init = Equation.numpy_init if backend == 'numpy' else Equation.torch_init
+        def torch_backend():
+            import utils.compat.torch as torch
+            Equation.backend = 'torch'
+            Equation.where = torch.where
+            Equation.interp = Equation.torch_interp
+            Equation.nan = torch.nan
+            Equation.array = torch.tensor
+            Equation.init = Equation.torch_init
+
+        def numpy_backend():
+            Equation.backend = 'numpy'
+            Equation.where = np.where
+            Equation.interp = Equation.numpy_interp
+            Equation.nan = np.nan
+            Equation.array = np.array
+            Equation.init = Equation.numpy_init
+
+        if backend == 'numpy':
+            numpy_backend()
+        elif backend == 'torch':
+            torch_backend()
 
     def __init__(self, bounds, eq):
 
