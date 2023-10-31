@@ -216,9 +216,23 @@ class f_evaluate_feynnet(ParallelMethod):
         jets = jets[ ak.argsort(-jets.ak4_bdisc, axis=1) ]
         model = weaver.WeaverONNX(self.model_path, onnxdir=self.onnxdir, accelerator=self.accelerator)
         results = model.predict(jets, batch_size=self.batch_size)
+
+
+
         best_assignment = ak.from_regular(results['sorted_j_assignments'], axis=1)
         best_assignment = ak.values_astype(best_assignment, np.int32)
-        return reconstruct(jets, best_assignment)
+        variables = reconstruct(jets, best_assignment)
+
+        if 'particle_probs' in results:
+            particle_probs = results['particle_probs']
+            h_probs = ak.from_regular(particle_probs[:,[0,1]])
+            h_probs = h_probs[variables['_higgs_order_']]
+            x_prob = ak.from_regular(particle_probs[:,2])
+            variables['dHH_H1_feynprob'] = h_probs[:,0]
+            variables['dHH_H2_feynprob'] = h_probs[:,1]
+            variables['dHH_HH_feynprob'] = x_prob
+
+        return variables
 
     def start_predict(self, tree):
         jets = get_ak4_jets(tree)

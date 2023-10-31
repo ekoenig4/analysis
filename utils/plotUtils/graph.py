@@ -134,6 +134,9 @@ class Graph:
     def evaluate(self, x):
         return np.interp(x, self.x_array, self.y_array)
     
+    def inv_evaluate(self, y):
+        return np.interp(y, self.y_array, self.x_array)
+    
     def set_label(self, label_stat='area'):
         if label_stat is None: pass
         elif callable(label_stat):

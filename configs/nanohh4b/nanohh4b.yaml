@@ -1,23 +1,34 @@
+# dout: btagwpsf
+dout: btagshapesf
+
 weights : [ xsecWeight / 1000, genWeight, puWeight, btagSF_central, trgSF_central ]
 
 signal : 
   # - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/ggHH4b_tree.root
-  - root://eosuser.cern.ch//eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/skim_20231025/feynnet-6J-v2_2018_0L/mc/ggHH4b_tree.root
+  # - root://eosuser.cern.ch//eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/skim_20231025/feynnet-6J-v2_2018_0L/mc/ggHH4b_tree.root
+  # - root://eosuser.cern.ch//eos/user/e/ekoenig/Ntuples/NanoHH4b/dev/feynnet_with_btagwpsf_2018_0L/mc/ggHH4b_tree.root
+  - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/PNet_ShapeBTagSF_wTrgMatchFourLdgBJets_29Oct2023_2018_0L/mc/ggHH4b_tree.root
 qcd : 
   # - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/qcd-mg_tree.root
-  - root://eosuser.cern.ch//eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/skim_20231025/feynnet-6J-v2_2018_0L/mc/qcd-mg_tree.root
+  # - root://eosuser.cern.ch//eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/skim_20231025/feynnet-6J-v2_2018_0L/mc/qcd-mg_tree.root
+  - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/PNet_ShapeBTagSF_wTrgMatchFourLdgBJets_29Oct2023_2018_0L/mc/qcd-mg_tree.root
 ttbar : 
   # - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/ttbar-powheg_tree.root
-  - root://eosuser.cern.ch//eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/skim_20231025/feynnet-6J-v2_2018_0L/mc/ttbar-powheg_tree.root
+  # - root://eosuser.cern.ch//eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/skim_20231025/feynnet-6J-v2_2018_0L/mc/ttbar-powheg_tree.root
+  - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/PNet_ShapeBTagSF_wTrgMatchFourLdgBJets_29Oct2023_2018_0L/mc/ttbar-powheg_tree.root
 data : 
   # - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/data/jetht_tree.root
-  - root://eosuser.cern.ch//eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/skim_20231025/feynnet-6J-v2_2018_0L/data/jetht_tree.root
+  # - root://eosuser.cern.ch//eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/skim_20231025/feynnet-6J-v2_2018_0L/data/jetht_tree.root
+  - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/PNet_ShapeBTagSF_wTrgMatchFourLdgBJets_29Oct2023_2018_0L/data/jetht_tree.root
 # pairing: mindiag
-pairing: feynnet
+pairing: pn_mindiag
+
+trigger: True
 
 bdt_features: ['ak4_h1b1_regpt', 'ak4_h1b2_regpt', 'ak4_h2b1_regpt', 'ak4_h2b2_regpt',
                 'dHH_H1_regmass', 'dHH_H2_regmass', 'dHH_H1_pt', 'dHH_H2_pt', 
-                'dHH_HH_mass', 'dHH_HH_pt','dHH_SumRegPtb', 'dHH_SumRegResb',
+                'dHH_HH_mass', 'dHH_HH_pt','dHH_SumRegPtb', 
+                # 'dHH_SumRegResb',
                 'dHH_H1b1_H1b2_deltaR', 'dHH_H2b1_H2b2_deltaR', 'dHH_H1_H2_deltaEta','dHH_mindRbb', 
                 'dHH_maxdEtabb','dHH_absCosTheta_H1_inHHcm', 'dHH_absCosTheta_H1b1_inH1cm', 'dHH_NbtagT', ]
 
@@ -31,6 +42,6 @@ bdt_reweighter:
     subsample: 0.6
 
 bdt_classifier:
-  kfold: 3
+  kfold: 2
   n_estimators: 100
 

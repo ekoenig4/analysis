@@ -208,8 +208,11 @@ def init_files(self, filelist, treename, normalization, altfile="{base}", report
     histograms = defaultdict(list)
     for f in self.filelist:
         f.total_events = samples[f.sample]
-        f.scale = f.xsec / \
-            f.total_events if type(f.xsec) == float else 1
+        if normalization:
+            f.scale = f.xsec / \
+                f.total_events if type(f.xsec) == float else 1
+        else:
+            f.scale = 1
         
         for key, histogram in f.histograms.items():
             from ..plotUtils import Histo

@@ -77,6 +77,12 @@ varinfo.dHH_HH_mass = dict(bins=(200,1800,30))
 varinfo.dHH_HH_regmass = dict(bins=(200,1800,30))
 varinfo.bdt_score = dict(bins=np.concatenate([np.arange(0,0.9,0.02), np.array([0.9,1.0])]))
 
+def debug(tree, weights):
+    print(tree.sample)
+    for branch in weights:
+        print(branch, repr(tree[branch]), ak.sum(tree[branch]))
+
+
 class Analysis(Notebook):
     @staticmethod
     def add_parser(parser):
@@ -109,23 +115,26 @@ class Analysis(Notebook):
 
         treekwargs = dict(
             weights=self.weights,
-            treename='Events',
-            normalization=None,
+            treename=self.treename or 'Events',
+            normalization=self.normalization,
             # fields=load_fields,
         )
 
-        
-        self.signal = ObjIter([Tree( self.signal, **treekwargs, sample='ggHH4b')])
+        self.signal = ObjIter([Tree( self.signal, **treekwargs, sample='ggHH4b', is_signal=True, xsec=1.0)])
 
         if self.no_bkg:
             self.bkg = ObjIter([])
         else:
-            self.bkg = ObjIter([Tree( self.qcd, **treekwargs), Tree( self.ttbar, **treekwargs)])
+            self.bkg = ObjIter([Tree( self.qcd, **treekwargs, xsec=1.0), Tree( self.ttbar, **treekwargs, xsec=1.0)])
 
         if self.no_data:
             self.data = ObjIter([])
         else:
-            self.data = ObjIter([Tree( self.data, **dict(treekwargs, weights=None, color='black'))])
+            self.data = ObjIter([Tree( self.data, **dict(treekwargs, normalization=None, weights=None, color='black'), xsec=1, is_data=True, sample='jetht')])
+
+        if self.legacy:
+            import utils.fourbUtils.bbbbUtils as legacy
+            (self.signal + self.bkg + self.data).apply(legacy.map_to_nano)
 
 
         if self.model is not None:
@@ -135,7 +144,10 @@ class Analysis(Notebook):
                 self.pairing = 'feynnet'
             elif 'spanet' in self.model:
                 self.pairing = 'spanet'
-        self.dout = os.path.join("nanoHH4b",self.dout,self.pairing)
+
+        self.year = self.year or 2018
+        run = 'run2' if self.year in (2016,2017,2018) else 'run3'
+        self.dout = os.path.join("nanoHH4b", f'{run}-{self.year}', self.dout, self.pairing)
 
 
         def ttbar_subset(tree : Tree):
@@ -195,6 +207,33 @@ class Analysis(Notebook):
             d=lambda t : (h_dm(t) >= 50) & (h_dm(t) < 75) & (self.n_btag(t) == 3),
             **self.bdt_reweighter
         )
+
+    @required
+    def legacy_cut(self, signal, bkg, data):
+        if self.legacy is None: return
+
+        lepton_veto = EventFilter('lepton_veto', filter=lambda t : (t.IsolatedMuon_Multiplicity == 0) & (t.IsolatedElectron_Multiplicity == 0), verbose=True)
+
+        self.signal = signal.apply(lepton_veto)
+        self.bkg = bkg.apply(lepton_veto)
+        self.data = data.apply(lepton_veto)
+        
+    @required
+    def apply_trigger(self, signal, bkg, data):
+        if not self.trigger: return
+
+        if self.legacy:
+            trigger_matching = EventFilter('trigger_matching', filter=lambda t : t.HLT_PFHT330PT30_QuadPFJet_75_60_45_40_TriplePFBTagDeepCSV_4p5_ObjectMatched == 1, verbose=True)
+            
+            self.signal = signal.apply(trigger_matching)
+            self.bkg = bkg.apply(trigger_matching)
+            self.data = data.apply(trigger_matching)
+
+        else:
+            trigger = EventFilter("trigger", filter=lambda t : t.passTrig0L_TrgObjMatching == 1, verbose=True)
+            self.signal = signal.apply(trigger)
+            self.bkg = bkg.apply(trigger)
+            self.data = data.apply(trigger)
 
     @required
     def set_pt_threshold(self, signal, bkg, data):
@@ -263,13 +302,26 @@ class Analysis(Notebook):
         self.bkg = bkg.apply(hh_mass_cut)
         self.data = data.apply(hh_mass_cut)
 
+    def print_raw_counts(self, signal, bkg, data):
+        def get_yield(tree):
+            label = tree.sample
+            events = len(tree)
+            return (label, events)
+
+        table = (signal+bkg+data).apply(get_yield).list
+        table = tabulate.tabulate(table, headers=['sample','counts'], tablefmt='simple', numalign='right', floatfmt='.2f')
+        print(table)
+        # study.save_file(table, os.path.join(self.dout, 'raw_counts'), fmt=['txt'])
+
     @required
     def load_feynnet(self, signal, bkg, data):
         if self.model is None or 'feynnet' not in self.model:
             return
 
         import utils.resources as rcs
-        accelerator = 'cuda' if rcs.ngpus else 'cpu'
+        # accelerator = 'cuda' if rcs.ngpus else 'cpu'
+        accelerator = 'cuda'
+        print('Accelerator:', accelerator)
 
         load_feynnet = fourb.nanohh4b.f_evaluate_feynnet(self.model, accelerator=accelerator)
 
@@ -283,6 +335,7 @@ class Analysis(Notebook):
     def plot_jet_multiplicity(self, signal, bkg, data):
         study.quick(
             signal + bkg + data, legend=True,
+            lumi=self.year,
             varlist=['ak.num(ak4_pt, axis=1)'],
             xlabels=['Jet Multiplicity'],
             log=True, ylim=(5e-1, 5e9),
@@ -291,6 +344,7 @@ class Analysis(Notebook):
         ) 
         study.quick(
             signal + bkg + data, legend=True,
+            lumi=self.year,
             efficiency=True,
             varlist=['ak.num(ak4_pt, axis=1)'],
             xlabels=['Jet Multiplicity'],
@@ -303,6 +357,7 @@ class Analysis(Notebook):
 
         study.quick(
             signal,
+            lumi=self.year,
             varlist=['nfound_select', 'nfound_paired'],
             legend=True,
             efficiency=True,
@@ -311,6 +366,7 @@ class Analysis(Notebook):
 
         study.quick(
             signal,
+            lumi=self.year,
             masks=lambda t : t.nfound_select==4,
             varlist=['nfound_select', 'nfound_paired'],
             h_label_stat=lambda h : f'{h.histo[-1]:0.2%}',
@@ -321,6 +377,7 @@ class Analysis(Notebook):
 
         study.quick(
             signal,
+            lumi=self.year,
             masks=lambda t : t.nfound_select==4,
             varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             legend=True,
@@ -330,6 +387,7 @@ class Analysis(Notebook):
 
         study.compare_masks(
             signal,
+            lumi=self.year,
             masks=[None,'nfound_paired >= 1','nfound_paired == 2'],
             varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             binlist=[(0,300,30)]*2,
@@ -338,6 +396,7 @@ class Analysis(Notebook):
         )
         study.compare_masks(
             signal,
+            lumi=self.year,
             masks=['nfound_paired == 0','nfound_paired == 1','nfound_paired == 2'],
             varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             binlist=[(0,300,30)]*2,
@@ -345,9 +404,40 @@ class Analysis(Notebook):
             saveas=f'{self.dout}/gen_matched_eff_higgs_mass',
         )
 
+    def plot_feynnet(self, signal, bkg):
+        fields = signal[0].fields
+
+        if 'dHH_H1_feynprob' not in fields:
+            return
+
+        probvars = ['dHH_H1_feynprob', 'dHH_H2_feynprob', 'dHH_HH_feynprob']
+        study.quick(
+            signal+bkg,
+            lumi=self.year,
+            varlist=probvars,
+            binlist=[(0,1,30)]*3,
+            efficiency=True,
+            legend=True,
+            saveas=f'{self.dout}/feynnet_probs',
+        )
+
+        for i, var1 in enumerate(probvars):
+            for var2 in probvars[i+1:]:
+                study.quick2d(
+                    signal+bkg,
+                    lumi=self.year,
+                    varlist=[var1, var2],
+                    binlist=[(0,1,3)]*2,
+                    legend=True, efficiency=True, show_counts=True,
+                    saveas=f'{self.dout}/feynnet_probs2d_{var1}_{var2}',
+                )
+
+
+
     def plot_higgs(self, signal, bkg):
         study.quick(
             signal+bkg,
+            lumi=self.year,
             varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             binlist=[(0,300,30)]*2,
             efficiency=True,
@@ -357,6 +447,7 @@ class Analysis(Notebook):
 
         study.quick2d(
             signal+bkg,
+            lumi=self.year,
             varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             binlist=[(0,300,30)]*2,
             legend=True,
@@ -366,6 +457,7 @@ class Analysis(Notebook):
     def plot_region_vars(self, signal, bkg):
         study.quick(
             signal+bkg,
+            lumi=self.year,
             varlist=[n_loose_btag, n_medium_btag, n_tight_btag],
             efficiency=True,
             legend=True,
@@ -374,6 +466,7 @@ class Analysis(Notebook):
 
         study.quick(
             signal+bkg,
+            lumi=self.year,
             masks=self.bdt.mask,
             varlist=[h_dm, n_medium_btag],
             efficiency=True,
@@ -383,6 +476,7 @@ class Analysis(Notebook):
 
         study.quick2d(
             signal+bkg,
+            lumi=self.year,
             varlist=[n_medium_btag, h_dm],
             binlist=[np.array((3,4,5)),None],
             efficiency=True,
@@ -410,7 +504,7 @@ class Analysis(Notebook):
             scale = tree.scale[mask]
 
             if not tree.is_data:
-                lumi = lumiMap[2018][0]
+                lumi = lumiMap[self.year][0]
                 scale = lumi * scale
 
             if tree.is_signal:
@@ -431,6 +525,7 @@ class Analysis(Notebook):
         bins = np.concatenate([np.arange(0, 600, 25), np.arange(600, 850, 50)])
         study.quick(
             signal + bkg + data, legend=True,
+            lumi=self.year,
             suptitle='4 b-tag Control Plots',
             masks=lambda t : self.n_btag(t) == 4,
             varlist=['dHH_H1_regpt','dHH_H2_regpt','dHH_H1_pt','dHH_H2_pt'],
@@ -456,7 +551,7 @@ class Analysis(Notebook):
             scale = tree.scale[mask]
 
             if not tree.is_data:
-                lumi = lumiMap[2018][0]
+                lumi = lumiMap[self.year][0]
                 scale = lumi * scale
 
             if tree.is_signal:
@@ -476,6 +571,7 @@ class Analysis(Notebook):
         bins = np.concatenate([np.arange(0, 600, 25), np.arange(600, 850, 50)])
         study.quick(
             signal + bkg + data, legend=True,
+            lumi=self.year,
             suptitle='3 b-tag Control Plots',
             masks=lambda t : self.n_btag(t) == 3,
             varlist=['dHH_H1_regpt','dHH_H2_regpt','dHH_H1_pt','dHH_H2_pt'],
@@ -527,7 +623,7 @@ class Analysis(Notebook):
             scale = tree.scale[mask]
 
             if not tree.is_data:
-                lumi = lumiMap[2018][0]
+                lumi = lumiMap[self.year][0]
                 scale = lumi * scale
 
             if tree.is_signal:
@@ -558,6 +654,7 @@ class Analysis(Notebook):
     def plot_3btag_datamc(self, data, bkg):
         study.quick(
             data+bkg,
+            lumi=self.year,
             masks=lambda t : self.n_btag(t) == 3,
             varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             binlist=[(0,300,30)]*2,
@@ -571,6 +668,7 @@ class Analysis(Notebook):
 
         study.quick2d(
             data+bkg,
+            lumi=self.year,
             masks=lambda t : self.n_btag(t) == 3,
             varlist=['dHH_H1_regmass','dHH_H2_regmass'],
             binlist=[(0,300,30)]*2,
@@ -597,6 +695,38 @@ class Analysis(Notebook):
             self.bdt.save( os.path.join(self.dout, 'bdt_reweighter') )
 
         self.bdt.print_results(data)
+
+    @dependency(train_bdt)
+    def plot_ar_bdt_closure(self, data):
+        a_cr_4b = EventFilter('A_CR(4b)', filter=self.bdt.c)
+        a_cr_3b = EventFilter('A_CR(3b)', filter=self.bdt.d)
+
+        data_acr_4b = data.apply(a_cr_4b)
+        data_acr_3b = data.apply(a_cr_3b).asmodel('ACR bkg model', color='red')
+
+        study.quick(
+            data_acr_4b + data_acr_3b,
+            lumi=self.year,
+            varlist=self.bdt_features,
+            ratio=True, r_ylim=(0.7,1.3),
+            legend=True,
+            efficiency=True,
+            **study.kstest,
+            saveas=f'{self.dout}/acr_norm_model',
+        )
+
+        study.quick(
+            data_acr_4b + data_acr_3b,
+            lumi=self.year,
+            varlist=self.bdt_features,
+            scale=[None]*len(data_acr_4b)+[self.bdt.reweight_tree]*len(data_acr_3b),
+            ratio=True, r_ylim=(0.7,1.3),
+            legend=True,
+            efficiency=True,
+            **study.kstest,
+            saveas=f'{self.dout}/acr_bdt_model',
+        )
+
 
     @dependency(train_bdt)
     def build_bkg_model(self, signal, bkg, data):
@@ -626,7 +756,7 @@ class Analysis(Notebook):
                 weights = weights[f_mask(t)]
 
             if not t.is_data:
-                lumi = lumiMap[2018][0]
+                lumi = lumiMap[self.year][0]
                 weights = lumi * weights
 
             sumw = np.sum(weights)
@@ -642,6 +772,7 @@ class Analysis(Notebook):
         model = []
         study.quick(
             signal+bkg_model,
+            lumi=self.year,
             varlist=['dHH_HH_regmass'],
             plot_scale=[100]*len(signal),
             limits=True,
@@ -763,6 +894,7 @@ class Analysis(Notebook):
 
         study.quick(
             signal+bkg_model,
+            lumi=self.year,
             varlist=['bdt_score'],
             plot_scale=[100]*len(signal),
             binlist=[(0,1,30)],
@@ -786,6 +918,7 @@ class Analysis(Notebook):
         
         study.quick(
             signal+bkg_model,
+            lumi=self.year,
             varlist=['bdt_score'],
             limits=True,
             legend=True,
@@ -823,6 +956,7 @@ class Analysis(Notebook):
     def plot_vr_model(self, data, vr_bkg_model):
         study.quick(
             data+vr_bkg_model,
+            lumi=self.year,
             masks=[self.vr_bdt.a]*len(data)+[self.vr_bdt.b]*len(vr_bkg_model),
             varlist=['dHH_HH_mass','dHH_HH_pt','ak4_h1b1_regpt'],
             binlist=[(200,1800,30),(0,400,30),(0,350,30)],
@@ -835,6 +969,7 @@ class Analysis(Notebook):
 
         study.quick(
             data+vr_bkg_model,
+            lumi=self.year,
             masks=[self.vr_bdt.a]*len(data)+[self.vr_bdt.b]*len(vr_bkg_model),
             scale=[None]*len(data)+[self.vr_bdt.reweight_tree]*len(vr_bkg_model),
             varlist=['dHH_HH_mass','dHH_HH_pt','ak4_h1b1_regpt'],
@@ -849,6 +984,7 @@ class Analysis(Notebook):
 
         study.quick(
             data + vr_bkg_model,
+            lumi=self.year,
             masks=[self.vr_bdt.a]*len(data)+[self.vr_bdt.b]*len(vr_bkg_model),
             scale=[None]*len(data)+[self.vr_bdt.reweight_tree]*len(vr_bkg_model),
             varlist=self.bdt_features,
@@ -873,6 +1009,7 @@ class Analysis(Notebook):
     def plot_vr2_model(self, data, vr2_bkg_model):
         study.quick(
             data+vr2_bkg_model,
+            lumi=self.year,
             masks=[self.vr_bdt.a]*len(data)+[self.vr2_bdt.b]*len(vr2_bkg_model),
             varlist=['dHH_HH_mass','dHH_HH_pt','ak4_h1b1_regpt'],
             binlist=[(200,1800,30),(0,400,30),(0,350,30)],
@@ -885,6 +1022,7 @@ class Analysis(Notebook):
 
         study.quick(
             data+vr2_bkg_model,
+            lumi=self.year,
             masks=[self.vr2_bdt.a]*len(data)+[self.vr2_bdt.b]*len(vr2_bkg_model),
             scale=[None]*len(data)+[self.vr2_bdt.reweight_tree]*len(vr2_bkg_model),
             varlist=['dHH_HH_mass','dHH_HH_pt','ak4_h1b1_regpt'],
@@ -899,6 +1037,7 @@ class Analysis(Notebook):
 
         study.quick(
             data + vr2_bkg_model,
+            lumi=self.year,
             masks=[self.vr2_bdt.a]*len(data)+[self.vr2_bdt.b]*len(vr2_bkg_model),
             scale=[None]*len(data)+[self.vr2_bdt.reweight_tree]*len(vr2_bkg_model),
             varlist=self.bdt_features,

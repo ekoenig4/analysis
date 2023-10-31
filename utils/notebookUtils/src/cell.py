@@ -68,6 +68,8 @@ class Cell:
 
         self._build_args()
 
+    def pending(self):
+        self.status = Status.pending
     def enable(self): 
         if self.status.is_done: return
         self.status = Status.pending

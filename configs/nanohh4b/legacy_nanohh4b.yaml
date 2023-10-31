@@ -1,0 +1,48 @@
+# dout: btagwpsf
+dout: legacy/nominal
+
+treename: bbbbTree
+# weights : [ genWeight, XS, PUWeight, triggerScaleFactor, bTagScaleFactor_central ]
+# weights : [ genWeight, XS, PUWeight ]
+weights : [genWeight, XS]
+normalization: eff_histo
+
+legacy: True
+pairing: mindiag
+no_bkg: True
+# trigger: True
+
+signal : 
+  - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/Legacy2018/NTuple_Legacy_bbbb_ntuples_ntuplesPA_2018/SKIM_GluGluToHHTo4B_node_cHHH1_TuneCP5_PSWeights_13TeV-powheg-pythia8/GluGluToHHTo4B_node_cHHH1_TuneCP5_PSWeights_13TeV-powheg-pythia8.root
+qcd : 
+  []
+  # - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/qcd-mg_tree.root
+  # - root://eosuser.cern.ch//eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/skim_20231025/feynnet-6J-v2_2018_0L/mc/qcd-mg_tree.root
+ttbar : 
+  []
+  # - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/mc/ttbar-powheg_tree.root
+  # - root://eosuser.cern.ch//eos/user/e/ekoenig/Ntuples/NanoHH4b/run2/skim_20231025/feynnet-6J-v2_2018_0L/mc/ttbar-powheg_tree.root
+data : 
+  # - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/UL2018/DeepJet_woTrgMatching_17Oct2023_2018_0L/data/jetht_tree.root
+  - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/Legacy2018/NTuple_Legacy_bbbb_ntuples_ntuplesPA_2018/SKIM_Data/data.root
+
+
+bdt_features: ['ak4_h1b1_regpt', 'ak4_h1b2_regpt', 'ak4_h2b1_regpt', 'ak4_h2b2_regpt',
+                'dHH_H1_regmass', 'dHH_H2_regmass', 'dHH_H1_pt', 'dHH_H2_pt', 
+                'dHH_HH_mass', 'dHH_HH_pt','dHH_SumRegPtb', 'dHH_SumRegResb',
+                'dHH_H1b1_H1b2_deltaR', 'dHH_H2b1_H2b2_deltaR', 'dHH_H1_H2_deltaEta','dHH_mindRbb', 
+                'dHH_maxdEtabb','dHH_absCosTheta_H1_inHHcm', 'dHH_absCosTheta_H1b1_inH1cm', 'dHH_NbtagT', ]
+
+bdt_reweighter: 
+  n_estimators: 70
+  max_depth: 4
+  learning_rate: 0.1
+  min_samples_leaf: 300
+  n_folds: 2
+  gb_args: 
+    subsample: 0.6
+
+bdt_classifier:
+  kfold: 2
+  n_estimators: 100
+

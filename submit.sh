@@ -3,10 +3,9 @@
 #SBATCH --job-name=studies
 #SBATCH --qos=avery
 #SBATCH --account=avery
-#SBATCH --time=2:00:00
-#SBATCH --partition=gpu
-#SBATCH --cpus-per-gpu=4
-#SBATCH --gres=gpu:a100:1
+#SBATCH --time=4:00:00
+#SBATCH --partition=hpg-dev
+#SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 
 
