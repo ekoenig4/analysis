@@ -2,15 +2,15 @@
 dout: legacy/nominal
 
 treename: bbbbTree
-# weights : [ genWeight, XS, PUWeight, triggerScaleFactor, bTagScaleFactor_central ]
+weights : [ genWeight, XS, PUWeight, triggerScaleFactor, bTagScaleFactor_central ]
 # weights : [ genWeight, XS, PUWeight ]
-weights : [genWeight, XS]
+# weights : [genWeight, XS]
 normalization: eff_histo
 
 legacy: True
 pairing: mindiag
 no_bkg: True
-# trigger: True
+trigger: True
 
 signal : 
   - root://eosuser.cern.ch//eos/user/m/mkolosov/Run2_HHTo4B_NTuples/Legacy2018/NTuple_Legacy_bbbb_ntuples_ntuplesPA_2018/SKIM_GluGluToHHTo4B_node_cHHH1_TuneCP5_PSWeights_13TeV-powheg-pythia8/GluGluToHHTo4B_node_cHHH1_TuneCP5_PSWeights_13TeV-powheg-pythia8.root

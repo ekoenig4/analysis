@@ -235,6 +235,8 @@ class Analysis(Notebook):
             self.bkg = bkg.apply(trigger)
             self.data = data.apply(trigger)
 
+        print(repr(h_dm(self.signal[0])))
+
     @required
     def set_pt_threshold(self, signal, bkg, data):
         if self.pt_wp is None:
@@ -488,6 +490,7 @@ class Analysis(Notebook):
         )
 
     def print_4btag_yields(self, signal, bkg, data):
+        print(repr( n_medium_btag(self.data[0]) ))
         # NOTE: yields from AN2019_250_v6:Table 16
         an_yields = {
             'ggHH4b' : 1338.9 + 527.1,
